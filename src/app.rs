@@ -79,6 +79,7 @@ impl App {
     pub fn handle_server_message(&mut self, msg: ServerMessage) {
         match msg {
             ServerMessage::AuthSuccess(user) => {
+                self.notification = Some("AuthSuccess received!".to_string());
                 self.current_user = Some(user);
                 self.mode = AppMode::MainMenu;
                 self.input_mode = None;

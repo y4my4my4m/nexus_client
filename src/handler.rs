@@ -13,7 +13,11 @@ pub fn handle_key_event(key: KeyEvent, app: &mut App) {
     }
     
     if app.notification.is_some() {
-        app.notification = None; return;
+        match key.code {
+            KeyCode::Esc | KeyCode::Enter => app.notification = None,
+            _ => {}
+        }
+        return;
     }
 
     match app.mode {
@@ -116,20 +120,38 @@ fn handle_input_mode(key: KeyEvent, app: &mut App) {
             if let Some(im) = app.input_mode.take() {
                 match im {
                     InputMode::NewThreadTitle => {
+                        if input.trim().is_empty() {
+                            app.notification = Some("Thread title cannot be empty.".into());
+                            app.input_mode = Some(InputMode::NewThreadTitle);
+                            return;
+                        }
                         app.enter_input_mode(InputMode::NewThreadContent);
                         app.password_input = input;
                     },
                     InputMode::NewThreadContent => {
                         let title = prev_input;
                         let content = input;
+                        if title.trim().is_empty() || content.trim().is_empty() {
+                            app.notification = Some("Thread title and content cannot be empty.".into());
+                            app.input_mode = Some(InputMode::NewThreadContent);
+                            app.password_input = title;
+                            return;
+                        }
                         if let Some(forum_id) = app.current_forum_id {
-                            app.send_to_server(ClientMessage::CreateThread{ forum_id, title, content });
+                            app.send_to_server(ClientMessage::CreateThread{ forum_id, title: title.clone(), content: content.clone() });
+                            app.notification = Some("Thread submitted!".into());
                         }
                         app.mode = AppMode::ForumList;
                     },
                     InputMode::NewPostContent => {
+                        if input.trim().is_empty() {
+                            app.notification = Some("Post content cannot be empty.".into());
+                            app.input_mode = Some(InputMode::NewPostContent);
+                            return;
+                        }
                         if let Some(thread_id) = app.current_thread_id {
-                            app.send_to_server(ClientMessage::CreatePost { thread_id, content: input });
+                            app.send_to_server(ClientMessage::CreatePost { thread_id, content: input.clone() });
+                            app.notification = Some("Reply submitted!".into());
                         }
                         app.mode = AppMode::PostView;
                     }
