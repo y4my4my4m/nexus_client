@@ -1,10 +1,9 @@
-use crate::app::{App, AppMode};
-use rand::prelude::*;
+use crate::app::{App, AppMode, InputMode};
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, BorderType, Borders, List, ListItem, Paragraph, Wrap},
+    text::{Line, Span, Text},
+    widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Wrap},
     Frame,
 };
 
@@ -16,255 +15,283 @@ const BANNER: &str = r"
 ██║        ██║   ██║  ██║███████╗██║  ██║╚██████╔╝██║  ██║███████║
 ╚═╝        ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝
 ";
-const MOTD: &str =
-    "Welcome to the Nexus Point BBS. Stay low, stay fast. The corps are watching. Post wisely.";
-const HELP_TEXT: &str = "| [Q]uit | [↑↓] Navigate | [Enter] Select | [Esc] Back |";
 
 pub fn ui(f: &mut Frame, app: &mut App) {
+    let size = f.size();
+
     let chunks = Layout::default()
-        .constraints(
-            [
-                Constraint::Percentage(25),
-                Constraint::Percentage(70),
-                Constraint::Min(3),
-            ]
-            .as_ref(),
-        )
-        .split(f.size());
+        .constraints([
+            Constraint::Length(8), Constraint::Min(0), Constraint::Length(3)
+        ]).split(size);
 
-    // Glitchy Banner
-    let banner_text = glitch_text(BANNER, app.tick_count);
-    let banner = Paragraph::new(banner_text)
-        .style(Style::default().fg(Color::Magenta))
-        .block(
-            Block::default()
-                .borders(Borders::BOTTOM)
-                .border_type(BorderType::Double),
-        );
-    f.render_widget(banner, chunks[0]);
+    f.render_widget(
+        Paragraph::new(Text::styled(BANNER, Style::default().fg(Color::Magenta)))
+            .block(Block::default().borders(Borders::BOTTOM)),
+        chunks[0],
+    );
+    
+    let help_text = match app.mode {
+        AppMode::Login | AppMode::Register => "| [Tab]/[Shift+Tab] Change Focus | [Enter] Select/Submit | [Esc] QUIT |",
+        _ => "| [Q]uit | [↑↓] Navigate | [Enter] Select | [Esc] Back |"
+    };
+    let status_text = if let Some(user) = &app.current_user {
+        format!("Logged in as: {} ({:?})", user.username, user.role)
+    } else { "Not Logged In".to_string() };
+    f.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::raw(help_text), Span::raw(" | "),
+            Span::styled(status_text, Style::default().fg(Color::Yellow)),
+        ])).block(Block::default().borders(Borders::TOP)),
+        chunks[2],
+    );
 
-    // Main content based on mode
+    let main_area = chunks[1];
     match app.mode {
-        AppMode::MainMenu => draw_main_menu(f, app, chunks[1]),
-        AppMode::ForumList => draw_forum_list(f, app, chunks[1]),
-        AppMode::ThreadList => draw_thread_list(f, app, chunks[1]),
-        AppMode::PostView => draw_post_view(f, app, chunks[1]),
-        AppMode::Chat => draw_chat(f, app, chunks[1]),
+        AppMode::Login => draw_login(f, app, main_area),
+        AppMode::Register => draw_register(f, app, main_area),
+        AppMode::MainMenu => draw_main_menu(f, app, main_area),
+        AppMode::Settings => draw_settings(f, app, main_area),
+        AppMode::ForumList => draw_forum_list(f, app, main_area),
+        AppMode::ThreadList => draw_thread_list(f, app, main_area),
+        AppMode::PostView => draw_post_view(f, app, main_area),
+        AppMode::Chat => draw_chat(f, app, main_area),
+        AppMode::Input => {
+            let underlying_mode = match app.input_mode {
+                Some(InputMode::NewThreadTitle) | Some(InputMode::NewThreadContent) => Some(AppMode::ForumList),
+                Some(InputMode::NewPostContent) => Some(AppMode::PostView),
+                Some(InputMode::UpdatePassword) => Some(AppMode::Settings),
+                _ => None,
+            };
+            if let Some(mode) = underlying_mode {
+                match mode {
+                    AppMode::ForumList => draw_forum_list(f, app, main_area),
+                    AppMode::PostView => draw_post_view(f, app, main_area),
+                    AppMode::Settings => draw_settings(f, app, main_area),
+                    _ => {}
+                }
+            }
+            draw_input_popup(f, app);
+        }
     }
 
-    // Footer
-    let footer_block = Block::default()
-        .borders(Borders::TOP)
-        .border_type(BorderType::Double)
-        .title(" Status ");
-    let footer = Paragraph::new(HELP_TEXT)
-        .block(footer_block)
-        .style(Style::default().fg(Color::Yellow));
-    f.render_widget(footer, chunks[2]);
+    if let Some(notification) = &app.notification {
+        draw_notification_popup(f, notification.clone());
+    }
 }
 
+fn draw_centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
+    let popup_layout = Layout::default().direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2), Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ]).split(r);
+    Layout::default().direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2), Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ]).split(popup_layout[1])[1]
+}
+
+fn draw_login(f: &mut Frame, app: &mut App, area: Rect) {
+    let outer_block = Block::default().title("Login").borders(Borders::ALL);
+    f.render_widget(outer_block, area);
+    let chunks = Layout::default().margin(2).constraints([
+        Constraint::Length(3), Constraint::Length(3), Constraint::Min(1)
+    ]).split(area);
+
+    let username_style = if matches!(app.input_mode, Some(InputMode::LoginUsername)) {
+        Style::default().fg(Color::Yellow)
+    } else { Style::default() };
+    f.render_widget(
+        Paragraph::new(app.current_input.as_str())
+            .block(Block::default().borders(Borders::ALL).title("Username")).style(username_style),
+        chunks[0],
+    );
+    let password_style = if matches!(app.input_mode, Some(InputMode::LoginPassword)) {
+        Style::default().fg(Color::Yellow)
+    } else { Style::default() };
+    f.render_widget(
+        Paragraph::new("*".repeat(app.password_input.len()))
+            .block(Block::default().borders(Borders::ALL).title("Password")).style(password_style),
+        chunks[1],
+    );
+    
+    let button_area = Layout::default().margin(1).constraints([Constraint::Length(3)]).split(chunks[2])[0];
+    let button_chunks = Layout::default().direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)]).split(button_area);
+
+    let submit_style = if matches!(app.input_mode, Some(InputMode::AuthSubmit)) {
+        Style::default().bg(Color::Cyan).fg(Color::Black)
+    } else { Style::default() };
+    f.render_widget(Paragraph::new(Span::styled("[ SUBMIT ]", submit_style)).alignment(Alignment::Center), button_chunks[0]);
+    
+    let switch_style = if matches!(app.input_mode, Some(InputMode::AuthSwitch)) {
+        Style::default().bg(Color::Magenta).fg(Color::Black)
+    } else { Style::default() };
+    f.render_widget(Paragraph::new(Span::styled("[ To Register ]", switch_style)).alignment(Alignment::Center), button_chunks[1]);
+
+    if let Some(InputMode::LoginUsername) = &app.input_mode {
+        f.set_cursor(chunks[0].x + app.current_input.len() as u16 + 1, chunks[0].y + 1);
+    } else if let Some(InputMode::LoginPassword) = &app.input_mode {
+        f.set_cursor(chunks[1].x + app.password_input.len() as u16 + 1, chunks[1].y + 1);
+    }
+}
+
+fn draw_register(f: &mut Frame, app: &mut App, area: Rect) {
+    let outer_block = Block::default().title("Register").borders(Borders::ALL);
+    f.render_widget(outer_block, area); 
+    let chunks = Layout::default().margin(2).constraints([
+        Constraint::Length(3), Constraint::Length(3), Constraint::Min(1)
+    ]).split(area);
+    let username_style = if matches!(app.input_mode, Some(InputMode::RegisterUsername)) {
+        Style::default().fg(Color::Yellow)
+    } else { Style::default() };
+    f.render_widget(
+        Paragraph::new(app.current_input.as_str())
+            .block(Block::default().borders(Borders::ALL).title("Choose Username")).style(username_style),
+        chunks[0],
+    );
+    let password_style = if matches!(app.input_mode, Some(InputMode::RegisterPassword)) {
+        Style::default().fg(Color::Yellow)
+    } else { Style::default() };
+    f.render_widget(
+        Paragraph::new("*".repeat(app.password_input.len()))
+            .block(Block::default().borders(Borders::ALL).title("Choose Password")).style(password_style),
+        chunks[1],
+    );
+    
+    let button_area = Layout::default().margin(1).constraints([Constraint::Length(3)]).split(chunks[2])[0];
+    let button_chunks = Layout::default().direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)]).split(button_area);
+
+    let submit_style = if matches!(app.input_mode, Some(InputMode::AuthSubmit)) {
+        Style::default().bg(Color::Cyan).fg(Color::Black)
+    } else { Style::default() };
+    f.render_widget(Paragraph::new(Span::styled("[ SUBMIT ]", submit_style)).alignment(Alignment::Center), button_chunks[0]);
+    
+    let switch_style = if matches!(app.input_mode, Some(InputMode::AuthSwitch)) {
+        Style::default().bg(Color::Magenta).fg(Color::Black)
+    } else { Style::default() };
+    f.render_widget(Paragraph::new(Span::styled("[ To Login ]", switch_style)).alignment(Alignment::Center), button_chunks[1]);
+    
+    if let Some(InputMode::RegisterUsername) = &app.input_mode {
+        f.set_cursor(chunks[0].x + app.current_input.len() as u16 + 1, chunks[0].y + 1);
+    } else if let Some(InputMode::RegisterPassword) = &app.input_mode {
+        f.set_cursor(chunks[1].x + app.password_input.len() as u16 + 1, chunks[1].y + 1);
+    }
+}
 fn draw_main_menu(f: &mut Frame, app: &mut App, area: Rect) {
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-        .split(area);
-
-    let menu_items = vec![
-        ListItem::new(Line::from(Span::styled(
-            ">> Forums",
-            Style::default().fg(Color::Cyan),
-        ))),
-        ListItem::new(Line::from(Span::styled(
-            ">> Chat",
-            Style::default().fg(Color::Cyan),
-        ))),
-        ListItem::new(Line::from(Span::styled(
-            ">> Log Off",
-            Style::default().fg(Color::Red),
-        ))),
+    let items = vec![
+        ListItem::new("Forums"), ListItem::new("Chat"), ListItem::new("Settings"),
+        ListItem::new(Line::styled("Logout", Style::default().fg(Color::Red))),
     ];
-
-    let menu_list = List::new(menu_items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Main Menu")
-                .border_type(BorderType::Double),
-        )
-        .highlight_style(
-            Style::default()
-                .bg(Color::Cyan)
-                .fg(Color::Black)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol(" > ");
-
-    f.render_stateful_widget(menu_list, chunks[0], &mut app.main_menu_state);
-
-    let motd_block = Block::default()
-        .borders(Borders::ALL)
-        .title("Message of the Day")
-        .border_type(BorderType::Double);
-    let motd_paragraph = Paragraph::new(MOTD)
-        .wrap(Wrap { trim: true })
-        .block(motd_block)
-        .style(Style::default().fg(Color::Green));
-    f.render_widget(motd_paragraph, chunks[1]);
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title("Main Menu"))
+        .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black)).highlight_symbol(">> ");
+    f.render_stateful_widget(list, area, &mut app.main_menu_state);
 }
 
 fn draw_forum_list(f: &mut Frame, app: &mut App, area: Rect) {
-    let items: Vec<ListItem> = app
-        .forums
-        .iter()
-        .map(|forum| {
-            ListItem::new(Line::from(vec![
-                Span::styled(format!("{:<25}", forum.name), Style::default().fg(Color::Cyan)),
-                Span::raw(forum.description.clone()),
-            ]))
-        })
-        .collect();
-
+    let items: Vec<ListItem> = app.forums.iter().map(|forum| {
+        ListItem::new(Line::from(vec![
+            Span::styled(format!("{:<30}", forum.name), Style::default().fg(Color::Cyan)),
+            Span::raw(forum.description.clone())
+        ]))
+    }).collect();
     let list = List::new(items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Forums")
-                .border_type(BorderType::Double),
-        )
-        .highlight_style(
-            Style::default()
-                .bg(Color::Cyan)
-                .fg(Color::Black)
-                .add_modifier(Modifier::BOLD),
-        )
+        .block(Block::default().borders(Borders::ALL).title("Forums | [N]ew Thread"))
+        .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD))
         .highlight_symbol(">> ");
-
     f.render_stateful_widget(list, area, &mut app.forum_list_state);
 }
 
 fn draw_thread_list(f: &mut Frame, app: &mut App, area: Rect) {
-    let forum = app.forums.get(app.current_forum_index.unwrap()).unwrap();
-    let items: Vec<ListItem> = forum
-        .threads
-        .iter()
-        .map(|thread| {
-            ListItem::new(Line::from(vec![
-                Span::styled(
-                    format!("{:<40}", thread.title),
-                    Style::default().fg(Color::Cyan),
-                ),
-                Span::raw(format!("by {}", thread.author)),
-            ]))
-        })
-        .collect();
-
+    let forum = match app.current_forum_id.and_then(|id| app.forums.iter().find(|f| f.id == id)) {
+        Some(f) => f,
+        None => { f.render_widget(Paragraph::new("Forum not found..."), area); return; }
+    };
+    let items: Vec<ListItem> = forum.threads.iter().map(|thread| {
+        ListItem::new(Line::from(vec![
+            Span::styled(format!("{:<40}", thread.title), Style::default().fg(Color::Cyan)),
+            Span::raw("by "),
+            Span::styled(format!("{}", thread.author.username), Style::default().fg(thread.author.color)),
+        ]))
+    }).collect();
     let list = List::new(items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(format!("Threads in '{}'", forum.name))
-                .border_type(BorderType::Double),
-        )
-        .highlight_style(
-            Style::default()
-                .bg(Color::Cyan)
-                .fg(Color::Black)
-                .add_modifier(Modifier::BOLD),
-        )
+        .block(Block::default().borders(Borders::ALL).title(format!("Threads in '{}'", forum.name)))
+        .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD))
         .highlight_symbol(">> ");
-
     f.render_stateful_widget(list, area, &mut app.thread_list_state);
 }
 
 fn draw_post_view(f: &mut Frame, app: &mut App, area: Rect) {
-    let forum = app.forums.get(app.current_forum_index.unwrap()).unwrap();
-    let thread = forum.threads.get(app.current_thread_index.unwrap()).unwrap();
-
-    let mut text: Vec<Line> = Vec::new();
-    for post in &thread.posts {
-        text.push(Line::from(vec![Span::styled(
-            format!("From: {} ", post.author),
-            Style::default().fg(Color::Yellow),
-        )]));
-        text.push(Line::from(Span::raw("---------------------------------")));
-        text.push(Line::from(Span::raw(&post.content)));
-        text.push(Line::from(Span::raw(""))); // Spacer
+    let thread = match (app.current_forum_id, app.current_thread_id) {
+        (Some(fid), Some(tid)) => app.forums.iter().find(|f| f.id == fid)
+            .and_then(|f| f.threads.iter().find(|t| t.id == tid)),
+        _ => None,
+    };
+    if let Some(thread) = thread {
+        let title = format!("Reading: {} | [R]eply", thread.title);
+        let mut text: Vec<Line> = Vec::new();
+        for post in &thread.posts {
+            text.push(Line::from(vec![Span::styled(format!("From: {} ", post.author.username), Style::default().fg(post.author.color).add_modifier(Modifier::BOLD))]));
+            text.push(Line::from(Span::raw("---------------------------------")));
+            text.push(Line::from(Span::raw(&post.content)));
+            text.push(Line::from(Span::raw("")));
+        }
+        let paragraph = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title)).wrap(Wrap { trim: true });
+        f.render_widget(paragraph, area);
+    } else {
+        f.render_widget(Paragraph::new("Thread not found..."), area);
     }
+}
 
-    let paragraph = Paragraph::new(text)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(format!("Reading: {}", thread.title))
-                .border_type(BorderType::Double),
-        )
-        .wrap(Wrap { trim: true });
-
-    f.render_widget(paragraph, area);
+fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
+    let items = vec![ListItem::new("Change Password"), ListItem::new("Change User Color (Cycle)")];
+    let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Settings"))
+        .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black)).highlight_symbol(">> ");
+    f.render_stateful_widget(list, area, &mut app.settings_list_state);
 }
 
 fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
-    let chunks = Layout::default()
-        .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
-        .split(area);
-
-    let messages: Vec<ListItem> = app
-        .chat_messages
-        .iter()
-        .rev()
-        .take(chunks[0].height as usize) // Take only as many messages as can fit
-        .rev() // reverse it back to show oldest at the top
-        .map(|msg| {
-            let content = Line::from(vec![
-                Span::styled(
-                    format!("<{}>: ", msg.author),
-                    Style::default().fg(msg.color).add_modifier(Modifier::BOLD),
-                ),
-                Span::raw(msg.content.clone()),
-            ]);
-            ListItem::new(content)
-        })
-        .collect();
-
-    let messages_list = List::new(messages).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title("Live Chat // #general")
-            .border_type(BorderType::Double),
-    );
-
+    let chunks = Layout::default().constraints([Constraint::Min(0), Constraint::Length(3)]).split(area);
+    let messages: Vec<ListItem> = app.chat_messages.iter().rev().take(chunks[0].height as usize).rev().map(|msg| {
+        ListItem::new(Line::from(vec![
+            Span::styled(format!("<{}>: ", msg.author), Style::default().fg(msg.color).add_modifier(Modifier::BOLD)),
+            Span::raw(msg.content.clone()),
+        ]))
+    }).collect();
+    let messages_list = List::new(messages).block(Block::default().borders(Borders::ALL).title("Live Chat // #general"));
     f.render_widget(messages_list, chunks[0]);
-
-    let input = Paragraph::new(app.chat_input.as_str())
-        .style(Style::default().fg(Color::Cyan))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Input")
-                .border_type(BorderType::Double),
-        );
-
+    let input = Paragraph::new(app.current_input.as_str()).style(Style::default().fg(Color::Cyan))
+        .block(Block::default().borders(Borders::ALL).title("Input"));
     f.render_widget(input, chunks[1]);
-    f.set_cursor(
-        chunks[1].x + app.chat_input.len() as u16 + 1,
-        chunks[1].y + 1,
-    );
+    f.set_cursor(chunks[1].x + app.current_input.len() as u16 + 1, chunks[1].y + 1);
 }
 
-fn glitch_text(text: &str, tick_count: u64) -> String {
-    let mut rng = rand::thread_rng();
-    text.chars()
-        .map(|c| {
-            if c.is_whitespace() || c == '╗' || c == '╔' || c == '╝' || c == '╚' || c == '═' || c == '║' {
-                c
-            } else if rng.gen_bool(0.01 + (tick_count as f64 * 0.001).sin().powi(2) * 0.05) {
-                ['█', '▓', '▒', '░', '>', '!', '?', '#', '$']
-                    .choose(&mut rng)
-                    .unwrap_or(&c)
-                    .clone()
-            } else {
-                c
-            }
-        })
-        .collect()
+fn draw_input_popup(f: &mut Frame, app: &mut App) {
+    let title = match app.input_mode {
+        Some(InputMode::NewThreadTitle) => "New Thread Title",
+        Some(InputMode::NewThreadContent) => "New Thread Content",
+        Some(InputMode::NewPostContent) => "Reply Content",
+        Some(InputMode::UpdatePassword) => "New Password",
+        _ => "Input"
+    };
+    let area = draw_centered_rect(f.size(), 60, 25);
+    let block = Block::default().title(title).borders(Borders::ALL).border_type(BorderType::Double);
+    let text_to_render = if matches!(app.input_mode, Some(InputMode::UpdatePassword)) {
+        "*".repeat(app.current_input.len())
+    } else { app.current_input.clone() };
+    let input_field = Paragraph::new(text_to_render).wrap(Wrap { trim: true }).block(block);
+    f.render_widget(Clear, area);
+    f.render_widget(input_field, area);
+    f.set_cursor(area.x + app.current_input.len() as u16 + 1, area.y + 1);
+}
+
+fn draw_notification_popup(f: &mut Frame, text: String) {
+    let area = draw_centered_rect(f.size(), 50, 20);
+    let block = Block::default().title("Notification").borders(Borders::ALL).border_type(BorderType::Double);
+    let p = Paragraph::new(text).wrap(Wrap { trim: true }).block(block).alignment(Alignment::Center);
+    f.render_widget(Clear, area);
+    f.render_widget(p, area);
 }
