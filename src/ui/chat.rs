@@ -73,7 +73,6 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
                 // Parse content for @mentions
                 let mut spans = Vec::new();
                 let mut last = 0;
-                let content_chars: Vec<_> = content.chars().collect();
                 let content_str = &content;
                 let mention_re = regex::Regex::new(r"@([a-zA-Z0-9_]+)").unwrap();
                 for m in mention_re.find_iter(content_str) {

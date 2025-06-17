@@ -416,8 +416,6 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                                 if let Some(suggestion) = app.mention_suggestions.get(app.mention_selected) {
                                     // Replace the last @mention prefix in input
                                     if let Some(idx) = app.current_input.rfind(&format!("@{}", prefix)) {
-                                        &app.current_input[(idx + 1 + prefix.len())..];
-                                        // Insert mention and a space after
                                         app.current_input.replace_range(idx..(idx + 1 + prefix.len()), &format!("@{} ", suggestion));
                                         app.mention_suggestions.clear();
                                         app.mention_prefix = None;
