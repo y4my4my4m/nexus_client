@@ -28,6 +28,14 @@ pub enum InputMode {
     UpdatePassword,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChatFocus {
+    Messages,
+    Users,
+    Actions, // For future: action menu
+    DMInput, // For DM input popup
+}
+
 pub struct App<'a> {
     pub mode: AppMode,
     pub input_mode: Option<InputMode>,
@@ -50,6 +58,10 @@ pub struct App<'a> {
     // --- User list toggle and data ---
     pub show_user_list: bool,
     pub connected_users: Vec<User>,
+    pub chat_focus: ChatFocus,
+    pub dm_input: String,
+    pub dm_target: Option<uuid::Uuid>,
+    pub show_user_actions: bool,
 }
 
 impl<'a> App<'a> {
@@ -73,8 +85,12 @@ impl<'a> App<'a> {
             should_quit: false,
             to_server,
             sound_manager,
-            show_user_list: false,
+            show_user_list: true,
             connected_users: vec![],
+            chat_focus: ChatFocus::Messages,
+            dm_input: String::new(),
+            dm_target: None,
+            show_user_actions: false,
         }
     }
 
@@ -122,15 +138,29 @@ impl<'a> App<'a> {
             }
             ServerMessage::UserList(users) => {
                 self.connected_users = users;
-            },
+            }
             ServerMessage::UserJoined(user) => {
                 if !self.connected_users.iter().any(|u| u.id == user.id) {
                     self.connected_users.push(user);
                 }
-            },
+            }
             ServerMessage::UserLeft(user_id) => {
                 self.connected_users.retain(|u| u.id != user_id);
-            },
+            }
+            ServerMessage::DirectMessage { from, content } => {
+                self.set_notification(
+                    format!("DM from {}: {}", from.username, content),
+                    Some(4000),
+                    true,
+                );
+            }
+            ServerMessage::MentionNotification { from, content } => {
+                self.set_notification(
+                    format!("Mentioned by {}: {}", from.username, content),
+                    Some(4000),
+                    true,
+                );
+            }
         }
     }
 

@@ -239,22 +239,83 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
             KeyCode::Esc => app.mode = AppMode::MainMenu,
             _ => {}
         },
-        AppMode::Chat => match key.code {
-            KeyCode::Char('u') | KeyCode::Char('U') => {
-                app.show_user_list = !app.show_user_list;
-                if app.show_user_list {
-                    app.send_to_server(ClientMessage::GetUserList);
-                }
+        AppMode::Chat => match app.chat_focus {
+            crate::app::ChatFocus::Messages => match key.code {
+                KeyCode::Tab => { app.chat_focus = crate::app::ChatFocus::Users; },
+                KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
+                    app.show_user_list = !app.show_user_list;
+                    app.chat_focus = if app.show_user_list {
+                        crate::app::ChatFocus::Users
+                    } else {
+                        crate::app::ChatFocus::Messages
+                    };
+                },
+                KeyCode::Char(c) => app.current_input.push(c),
+                KeyCode::Backspace => { app.current_input.pop(); },
+                KeyCode::Enter => {
+                    if !app.current_input.is_empty() {
+                        let message_content = app.current_input.drain(..).collect();
+                        app.send_to_server(ClientMessage::SendChatMessage(message_content));
+                    }
+                },
+                KeyCode::Esc => app.mode = AppMode::MainMenu,
+                _ => {}
             },
-            KeyCode::Char(c) => app.current_input.push(c),
-            KeyCode::Backspace => { app.current_input.pop(); },
-            KeyCode::Enter => {
-                if !app.current_input.is_empty() {
-                    let message_content = app.current_input.drain(..).collect();
-                    app.send_to_server(ClientMessage::SendChatMessage(message_content));
-                }
+            crate::app::ChatFocus::Users => match key.code {
+                KeyCode::Tab => { app.chat_focus = crate::app::ChatFocus::Messages; },
+                KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
+                    app.show_user_list = !app.show_user_list;
+                    app.chat_focus = if app.show_user_list {
+                        crate::app::ChatFocus::Users
+                    } else {
+                        crate::app::ChatFocus::Messages
+                    };
+                },
+                KeyCode::Down => {
+                    let len = app.connected_users.len();
+                    if len > 0 {
+                        let sel = app.forum_list_state.selected().unwrap_or(0);
+                        app.forum_list_state.select(Some((sel + 1) % len));
+                    }
+                },
+                KeyCode::Up => {
+                    let len = app.connected_users.len();
+                    if len > 0 {
+                        let sel = app.forum_list_state.selected().unwrap_or(0);
+                        app.forum_list_state.select(Some((sel + len - 1) % len));
+                    }
+                },
+                KeyCode::Enter => {
+                    if let Some(idx) = app.forum_list_state.selected() {
+                        if let Some(user) = app.connected_users.get(idx) {
+                            app.dm_target = Some(user.id);
+                            app.dm_input.clear();
+                            app.chat_focus = crate::app::ChatFocus::DMInput;
+                        }
+                    }
+                },
+                KeyCode::Esc => app.mode = AppMode::MainMenu,
+                _ => {}
             },
-            KeyCode::Esc => app.mode = AppMode::MainMenu,
+            crate::app::ChatFocus::DMInput => match key.code {
+                KeyCode::Enter => {
+                    if let Some(target) = app.dm_target {
+                        let msg = app.dm_input.clone();
+                        if !msg.trim().is_empty() {
+                            app.send_to_server(ClientMessage::SendDirectMessage { to: target, content: msg });
+                        }
+                    }
+                    app.dm_input.clear();
+                    app.chat_focus = crate::app::ChatFocus::Users;
+                },
+                KeyCode::Char(c) => app.dm_input.push(c),
+                KeyCode::Backspace => { app.dm_input.pop(); },
+                KeyCode::Esc => {
+                    app.dm_input.clear();
+                    app.chat_focus = crate::app::ChatFocus::Users;
+                },
+                _ => {}
+            },
             _ => {}
         },
         _ => {}

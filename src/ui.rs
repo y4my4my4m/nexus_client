@@ -252,19 +252,29 @@ fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
-    if app.show_user_list {
+    let show_users = app.show_user_list;
+    let focus = app.chat_focus;
+    if show_users {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(area);
-        draw_chat_main(f, app, chunks[0]);
-        draw_user_list(f, app, chunks[1]);
+        draw_chat_main(f, app, chunks[0], focus == crate::app::ChatFocus::Messages);
+        draw_user_list(f, app, chunks[1], focus == crate::app::ChatFocus::Users);
     } else {
-        draw_chat_main(f, app, area);
+        draw_chat_main(f, app, area, true);
+    }
+    if app.chat_focus == crate::app::ChatFocus::DMInput {
+        draw_dm_input_popup(f, app);
     }
 }
 
-fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect) {
+fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
+    let border_style = if focused {
+        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
     let chunks = Layout::default().constraints([Constraint::Min(0), Constraint::Length(3)]).split(area);
     let messages: Vec<ListItem> = app.chat_messages.iter().rev().take(chunks[0].height as usize).rev().map(|msg| {
         ListItem::new(Line::from(vec![
@@ -272,7 +282,7 @@ fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect) {
             Span::raw(msg.content.clone()),
         ]))
     }).collect();
-    let messages_list = List::new(messages).block(Block::default().borders(Borders::ALL).title("Live Chat // #general"));
+    let messages_list = List::new(messages).block(Block::default().borders(Borders::ALL).title("Live Chat // #general").border_style(border_style));
     f.render_widget(messages_list, chunks[0]);
     let input = Paragraph::new(app.current_input.as_str()).style(Style::default().fg(Color::Cyan))
         .block(Block::default().borders(Borders::ALL).title("Input"));
@@ -280,7 +290,12 @@ fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect) {
     f.set_cursor(chunks[1].x + app.current_input.len() as u16 + 1, chunks[1].y + 1);
 }
 
-fn draw_user_list(f: &mut Frame, app: &App, area: Rect) {
+fn draw_user_list(f: &mut Frame, app: &App, area: Rect, focused: bool) {
+    let border_style = if focused {
+        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
     let items: Vec<ListItem> = app.connected_users.iter().map(|user| {
         ListItem::new(Line::from(vec![
             Span::styled(&user.username, Style::default().fg(user.color)),
@@ -288,9 +303,18 @@ fn draw_user_list(f: &mut Frame, app: &App, area: Rect) {
         ]))
     }).collect();
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Users [U]"))
+        .block(Block::default().borders(Borders::ALL).title("Users [U]").border_style(border_style))
         .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black));
     f.render_widget(list, area);
+}
+
+fn draw_dm_input_popup(f: &mut Frame, app: &App) {
+    let area = draw_centered_rect(f.size(), 50, 20);
+    let block = Block::default().title("Send Direct Message").borders(Borders::ALL).border_type(BorderType::Double);
+    let input_field = Paragraph::new(app.dm_input.as_str()).wrap(Wrap { trim: true }).block(block);
+    f.render_widget(Clear, area);
+    f.render_widget(input_field, area);
+    f.set_cursor(area.x + app.dm_input.len() as u16 + 1, area.y + 1);
 }
 
 fn draw_input_popup(f: &mut Frame, app: &mut App) {
