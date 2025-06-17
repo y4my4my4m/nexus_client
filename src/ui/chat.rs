@@ -1,26 +1,88 @@
 //! Chat and user list UI screens.
 
-use ratatui::{Frame, layout::{Rect, Layout, Constraint, Direction}, style::{Style, Color, Modifier}, widgets::{Block, Paragraph, Borders, Wrap}, text::{Line, Span}};
-use crate::app::{App};
+use ratatui::{Frame, layout::{Rect, Layout, Constraint, Direction}, style::{Style, Color, Modifier}, widgets::{Block, Paragraph, Borders, List, ListItem, Wrap}, text::{Line, Span}};
+use crate::app::{App, ChatFocus};
 use crate::ui::avatar::get_avatar_protocol;
 use ratatui_image::StatefulImage;
+use ratatui::widgets::ListState;
 
 pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
+    // Sidebar: servers/channels | Main: chat | Optional: user list
+    let sidebar_width = 28;
     let show_users = app.show_user_list;
     let focus = app.chat_focus;
-    if show_users {
-        let chunks = Layout::default()
+    let chunks = if show_users {
+        Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
-            .split(area);
-        draw_chat_main(f, app, chunks[0], focus == crate::app::ChatFocus::Messages);
-        draw_user_list(f, app, chunks[1], focus == crate::app::ChatFocus::Users);
+            .constraints([
+                Constraint::Length(sidebar_width),
+                Constraint::Percentage(55),
+                Constraint::Percentage(25),
+            ])
+            .split(area)
     } else {
-        draw_chat_main(f, app, area, true);
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(sidebar_width),
+                Constraint::Min(0),
+            ])
+            .split(area)
+    };
+    draw_sidebar(f, app, chunks[0], focus == ChatFocus::Sidebar);
+    draw_chat_main(f, app, chunks[1], focus == ChatFocus::Messages);
+    if show_users && chunks.len() > 2 {
+        draw_user_list(f, app, chunks[2], focus == ChatFocus::Users);
     }
-    if app.chat_focus == crate::app::ChatFocus::DMInput {
+    if app.chat_focus == ChatFocus::DMInput {
         crate::ui::popups::draw_dm_input_popup(f, app);
     }
+}
+
+pub fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
+    let border_style = if focused {
+        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+    let block = Block::default().borders(Borders::ALL).title("Servers").border_style(border_style);
+    f.render_widget(block.clone(), area);
+    let inner = block.inner(area);
+    if inner.width == 0 || inner.height == 0 { return; }
+    // List servers and channels
+    let mut items = Vec::new();
+    for (si, server) in app.servers.iter().enumerate() {
+        let selected_server = app.selected_server == Some(si);
+        let server_style = if selected_server {
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+        } else { Style::default().fg(Color::Gray) };
+        items.push(ListItem::new(Line::from(vec![Span::styled(format!("● {}", server.name), server_style)])));
+        if selected_server {
+            for (ci, channel) in server.channels.iter().enumerate() {
+                let selected_channel = app.selected_channel == Some(ci);
+                let channel_style = if selected_channel {
+                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                } else { Style::default() };
+                items.push(ListItem::new(Line::from(vec![Span::styled(format!("  # {}", channel.name), channel_style)])));
+            }
+        }
+    }
+    let mut list_state = ListState::default();
+    // Highlight selected server/channel
+    let mut idx = 0;
+    for (si, server) in app.servers.iter().enumerate() {
+        if app.selected_server == Some(si) {
+            idx += 1 + app.selected_channel.unwrap_or(0);
+            break;
+        }
+        idx += 1;
+    }
+    list_state.select(Some(idx));
+    let list = List::new(items)
+        .block(Block::default())
+        .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD))
+        .highlight_symbol(">> ");
+    f.render_stateful_widget(list, inner, &mut list_state);
 }
 
 pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
@@ -33,9 +95,12 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     let messages_area = chunks[0];
     let input_area = chunks[1];
 
+    let channel_name = if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
+        app.servers.get(s).and_then(|srv| srv.channels.get(c)).map(|ch| ch.name.clone()).unwrap_or_else(|| "?".to_string())
+    } else { "?".to_string() };
     let messages_block = Block::default()
         .borders(Borders::ALL)
-        .title("Live Chat // #general")
+        .title(format!("Chat // #{}", channel_name))
         .border_style(border_style);
     f.render_widget(messages_block.clone(), messages_area);
 

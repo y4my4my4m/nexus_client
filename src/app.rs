@@ -37,6 +37,7 @@ pub enum ChatFocus {
     Messages,
     Users,
     DMInput,
+    Sidebar,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,6 +112,13 @@ pub struct App<'a> {
 
     // --- Color picker fields ---
     pub color_picker_selected: usize, // index in color palette
+
+    // --- Server list fields ---
+    pub servers: Vec<common::Server>,
+
+    // --- Channel selection fields ---
+    pub selected_server: Option<usize>,
+    pub selected_channel: Option<usize>,
 }
 
 impl<'a> App<'a> {
@@ -173,6 +181,9 @@ impl<'a> App<'a> {
             show_quit_confirm: false,
             quit_confirm_selected: 0,
             color_picker_selected: 0,
+            servers: vec![],
+            selected_server: None,
+            selected_channel: None,
         }
     }
 
@@ -257,6 +268,7 @@ impl<'a> App<'a> {
                 self.main_menu_state.select(Some(0));
                 self.sound_manager.play(SoundType::LoginSuccess);
                 self.send_to_server(ClientMessage::GetUserList);
+                self.send_to_server(ClientMessage::GetServers); // Ensure servers are requested after login
             }
             ServerMessage::AuthFailure(reason) => {
                 self.set_notification(format!("Error: {}", reason), None, false);
@@ -264,8 +276,27 @@ impl<'a> App<'a> {
             }
             ServerMessage::Forums(forums) => self.forums = forums,
             ServerMessage::NewChatMessage(msg) => {
-                if self.chat_messages.len() > 200 { self.chat_messages.remove(0); }
-                self.chat_messages.push(msg)
+                // Insert the message into the correct channel's message list
+                if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {
+                    if let Some(server) = self.servers.get_mut(s) {
+                        if let Some(channel) = server.channels.get_mut(c) {
+                            // For now, treat all NewChatMessage as for the selected channel
+                            channel.messages.push(common::ChannelMessage {
+                                id: uuid::Uuid::new_v4(),
+                                channel_id: channel.id,
+                                sent_by: self.current_user.as_ref().map(|u| u.id).unwrap_or_default(),
+                                timestamp: chrono::Utc::now().timestamp(),
+                                content: msg.content.clone(),
+                            });
+                            // If this is the currently viewed channel, update chat_messages
+                            self.chat_messages = channel.messages.iter().map(|m| common::ChatMessage {
+                                author: msg.author.clone(),
+                                content: m.content.clone(),
+                                color: msg.color,
+                            }).collect();
+                        }
+                    }
+                }
             },
             ServerMessage::Notification(text, is_error) => {
                 let prefix = if is_error { "Error: " } else { "Info: " };
@@ -332,6 +363,25 @@ impl<'a> App<'a> {
                 }
                 // Invalidate avatar cache for this user (all sizes)
                 self.avatar_protocol_cache.retain(|(uid, _), _| *uid != user.id);
+            }
+            ServerMessage::Servers(servers) => {
+                self.servers = servers;
+                // Default selection: first server and first channel
+                if self.selected_server.is_none() && !self.servers.is_empty() {
+                    self.selected_server = Some(0);
+                    if !self.servers[0].channels.is_empty() {
+                        self.selected_channel = Some(0);
+                        self.chat_messages = self.servers[0].channels[0]
+                            .messages
+                            .iter()
+                            .map(|m| common::ChatMessage {
+                                author: m.sent_by.to_string(), // TODO: resolve username
+                                content: m.content.clone(),
+                                color: ratatui::style::Color::White,
+                            })
+                            .collect();
+                    }
+                }
             }
         }
     }

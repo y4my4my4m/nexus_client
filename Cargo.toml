@@ -20,3 +20,4 @@ base64 = "0.22.1"
 ratatui-image = "8.0.1"
 image = { version = "0.25.6", features = ["png", "jpeg", "gif"] }
 regex = "1.11.1"
+chrono = "0.4.41"
