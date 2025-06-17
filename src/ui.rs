@@ -1,35 +1,29 @@
 use crate::app::{App, AppMode, InputMode};
+use crate::banner::get_styled_banner_lines;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::{Line, Span, Text},
+    text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Wrap},
     Frame,
 };
-
-const BANNER: &str = r"
-██████╗ ██╗   ██╗██████╗ ███████╗██████╗  ██████╗ ██████╗ ███████╗
-██╔══██╗╚██╗ ██╔╝██╔══██╗██╔════╝██╔══██╗██╔═══██╗██╔══██╗██╔════╝
-██████╔╝ ╚████╔╝ ██████╔╝█████╗  ██████╔╝██║   ██║██████╔╝███████╗
-██╔═══╝   ╚██╔╝  ██╔══██╗██╔══╝  ██╔══██╗██║   ██║██╔══██╗╚════██║
-██║        ██║   ██║  ██║███████╗██║  ██║╚██████╔╝██║  ██║███████║
-╚═╝        ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝
-";
 
 pub fn ui(f: &mut Frame, app: &mut App) {
     let size = f.size();
 
     let chunks = Layout::default()
         .constraints([
-            Constraint::Length(8), Constraint::Min(0), Constraint::Length(3)
-        ]).split(size);
+            Constraint::Length(8), // Banner height
+            Constraint::Min(0),    // Main Content
+            Constraint::Length(3), // Footer
+        ])
+        .split(size);
 
-    f.render_widget(
-        Paragraph::new(Text::styled(BANNER, Style::default().fg(Color::Magenta)))
-            .block(Block::default().borders(Borders::BOTTOM)),
-        chunks[0],
-    );
-    
+    let banner_lines = get_styled_banner_lines(size.width, app.tick_count);
+    let banner = Paragraph::new(banner_lines)
+        .block(Block::default().borders(Borders::BOTTOM));
+    f.render_widget(banner, chunks[0]);
+
     let help_text = match app.mode {
         AppMode::Login | AppMode::Register => "| [Tab]/[Shift+Tab] Change Focus | [Enter] Select/Submit | [Esc] QUIT |",
         _ => "| [Q]uit | [↑↓] Navigate | [Enter] Select | [Esc] Back |"
