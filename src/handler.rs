@@ -240,6 +240,12 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
             _ => {}
         },
         AppMode::Chat => match key.code {
+            KeyCode::Char('u') | KeyCode::Char('U') => {
+                app.show_user_list = !app.show_user_list;
+                if app.show_user_list {
+                    app.send_to_server(ClientMessage::GetUserList);
+                }
+            },
             KeyCode::Char(c) => app.current_input.push(c),
             KeyCode::Backspace => { app.current_input.pop(); },
             KeyCode::Enter => {

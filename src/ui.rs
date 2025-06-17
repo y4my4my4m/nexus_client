@@ -248,6 +248,19 @@ fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
+    if app.show_user_list {
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+            .split(area);
+        draw_chat_main(f, app, chunks[0]);
+        draw_user_list(f, app, chunks[1]);
+    } else {
+        draw_chat_main(f, app, area);
+    }
+}
+
+fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default().constraints([Constraint::Min(0), Constraint::Length(3)]).split(area);
     let messages: Vec<ListItem> = app.chat_messages.iter().rev().take(chunks[0].height as usize).rev().map(|msg| {
         ListItem::new(Line::from(vec![
@@ -261,6 +274,19 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
         .block(Block::default().borders(Borders::ALL).title("Input"));
     f.render_widget(input, chunks[1]);
     f.set_cursor(chunks[1].x + app.current_input.len() as u16 + 1, chunks[1].y + 1);
+}
+
+fn draw_user_list(f: &mut Frame, app: &App, area: Rect) {
+    let items: Vec<ListItem> = app.connected_users.iter().map(|user| {
+        ListItem::new(Line::from(vec![
+            Span::styled(&user.username, Style::default().fg(user.color)),
+            Span::raw(format!(" ({:?})", user.role)),
+        ]))
+    }).collect();
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title("Users [U]"))
+        .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black));
+    f.render_widget(list, area);
 }
 
 fn draw_input_popup(f: &mut Frame, app: &mut App) {

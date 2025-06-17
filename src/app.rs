@@ -47,6 +47,9 @@ pub struct App<'a> {
     pub should_quit: bool,
     pub to_server: mpsc::UnboundedSender<ClientMessage>,
     pub sound_manager: &'a SoundManager,
+    // --- User list toggle and data ---
+    pub show_user_list: bool,
+    pub connected_users: Vec<User>,
 }
 
 impl<'a> App<'a> {
@@ -70,6 +73,8 @@ impl<'a> App<'a> {
             should_quit: false,
             to_server,
             sound_manager,
+            show_user_list: false,
+            connected_users: vec![],
         }
     }
 
@@ -115,6 +120,17 @@ impl<'a> App<'a> {
                 let prefix = if is_error { "Error: " } else { "Info: " };
                 self.set_notification(format!("{}{}", prefix, text), Some(2000));
             }
+            ServerMessage::UserList(users) => {
+                self.connected_users = users;
+            },
+            ServerMessage::UserJoined(user) => {
+                if !self.connected_users.iter().any(|u| u.id == user.id) {
+                    self.connected_users.push(user);
+                }
+            },
+            ServerMessage::UserLeft(user_id) => {
+                self.connected_users.retain(|u| u.id != user_id);
+            },
         }
     }
 
