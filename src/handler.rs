@@ -364,8 +364,8 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                 match app.profile_edit_focus {
                     Save => {
                         // On save, process profile_pic and cover_banner
-                        let profile_pic = App::file_or_url_to_base64(&app.edit_profile_pic);
-                        let cover_banner = App::file_or_url_to_base64(&app.edit_cover_banner);
+                        let profile_pic = Some(App::file_or_url_to_base64(&app.edit_profile_pic).unwrap_or_default());
+                        let cover_banner = Some(App::file_or_url_to_base64(&app.edit_cover_banner).unwrap_or_default());
                         app.send_to_server(ClientMessage::UpdateProfile {
                             bio: Some(app.edit_bio.clone()),
                             url1: Some(app.edit_url1.clone()),
@@ -385,9 +385,11 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     }
                     ProfilePicDelete => {
                         app.edit_profile_pic = String::new();
+                        app.profile_edit_focus = ProfilePic;
                     }
                     CoverBannerDelete => {
                         app.edit_cover_banner = String::new();
+                        app.profile_edit_focus = CoverBanner;
                     }
                     _ => {}
                 }
