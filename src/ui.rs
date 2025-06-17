@@ -8,61 +8,36 @@ use ratatui::{
     Frame,
 };
 use ratatui_image::picker::ProtocolType;
-
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::cell::RefCell;
 use ratatui_image::StatefulImage;
 use base64::Engine;
+use image::{DynamicImage, RgbaImage};
 
-// Avatar cache for decoded/circular-masked images
+// --- CACHE MODIFICATION ---
+// We now cache the expensive-to-create data (the decoded, resized image),
+// not the stateful protocol itself.
 thread_local! {
-    static AVATAR_CACHE: RefCell<HashMap<(uuid::Uuid, u32), Rc<RefCell<ratatui_image::protocol::StatefulProtocol>>>> = RefCell::new(HashMap::new());
+    static AVATAR_CACHE: RefCell<HashMap<(uuid::Uuid, u32), Rc<RgbaImage>>> = RefCell::new(HashMap::new());
 }
 
-fn get_avatar_state(app: &App, user: &common::User, size: u32) -> Option<Rc<RefCell<ratatui_image::protocol::StatefulProtocol>>> {
+// Renamed and refactored to only handle image retrieval and caching.
+fn get_avatar_image(user: &common::User, size: u32) -> Option<Rc<RgbaImage>> {
     if let Some(pic) = &user.profile_pic {
         let key = (user.id, size);
-        let font_size = app.picker.font_size();
         AVATAR_CACHE.with(|c| {
             let mut cache = c.borrow_mut();
             if !cache.contains_key(&key) {
                 let b64 = if let Some(idx) = pic.find(',') {
-                    if idx + 1 >= pic.len() { return None; } // Guard against empty base64 data
+                    if idx + 1 >= pic.len() { return None; }
                     &pic[idx + 1..]
                 } else { pic };
 
                 if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
                     if let Ok(img) = image::load_from_memory(&bytes) {
-                        // Resize the image to the desired pixel dimensions
-                        let img = img.resize_exact(size, size, image::imageops::FilterType::Lanczos3).to_rgba8();
-                        let image_source = ratatui_image::protocol::ImageSource::new(
-                            image::DynamicImage::ImageRgba8(img),
-                            font_size,
-                            image::Rgba([0, 0, 0, 0]), // transparent background
-                        );
-
-                        // Support more stateful protocols for better compatibility
-                        let current_protocol_type = app.picker.protocol_type();
-                        // NOTE: Halfblocks is a stateless protocol and cannot be cached in the same way.
-                        // It would require a different rendering path. This implementation prioritizes
-                        // stateful protocols for performance.
-                        let stateful_protocol_type_opt = match current_protocol_type {
-                            ProtocolType::Sixel => Some(ratatui_image::protocol::StatefulProtocolType::Sixel(ratatui_image::protocol::sixel::Sixel::default())),
-                            ProtocolType::Kitty => Some(ratatui_image::protocol::StatefulProtocolType::Kitty(ratatui_image::protocol::kitty::StatefulKitty::new(0, false))),
-                            ProtocolType::Iterm2 => todo!(),
-                            ProtocolType::Halfblocks => None,
-                        };
-
-                        if let Some(spt) = stateful_protocol_type_opt {
-                            let protocol = ratatui_image::protocol::StatefulProtocol::new(
-                                image_source,
-                                font_size,
-                                spt,
-                            );
-                            let new_rc_cell = Rc::new(RefCell::new(protocol));
-                            cache.insert(key, new_rc_cell);
-                        }
+                        let resized_img = img.resize_exact(size, size, image::imageops::FilterType::Lanczos3).to_rgba8();
+                        cache.insert(key, Rc::new(resized_img));
                     }
                 }
             }
@@ -71,6 +46,47 @@ fn get_avatar_state(app: &App, user: &common::User, size: u32) -> Option<Rc<RefC
     } else {
         None
     }
+}
+
+// --- NEW HELPER FUNCTION ---
+// Creates a fresh, unique StatefulProtocol for each render call. This is the core of the fix.
+fn get_avatar_stateful_protocol(app: &App, image: Rc<RgbaImage>) -> Option<ratatui_image::protocol::StatefulProtocol> {
+    let font_size = app.picker.font_size();
+    let image_source = ratatui_image::protocol::ImageSource::new(
+        DynamicImage::ImageRgba8((*image).clone()),
+        font_size,
+        image::Rgba([0, 0, 0, 0]), // transparent background
+    );
+
+    let protocol_type = match app.picker.protocol_type() {
+        ProtocolType::Sixel => Some(ratatui_image::protocol::StatefulProtocolType::Sixel(Default::default())),
+        ProtocolType::Kitty => Some(ratatui_image::protocol::StatefulProtocolType::Kitty(ratatui_image::protocol::kitty::StatefulKitty::new(0, false))),
+        // Correctly implement Iterm2 protocol
+        ProtocolType::Iterm2 => todo!(),
+        ProtocolType::Halfblocks => None, // Stateless, not supported by this stateful renderer
+    };
+
+    protocol_type.map(|spt| {
+        ratatui_image::protocol::StatefulProtocol::new(image_source, font_size, spt)
+    })
+}
+
+// Returns a mutable reference to a cached StatefulProtocol for the user's avatar, creating it if needed.
+fn get_avatar_protocol<'a>(app: &'a mut App, user: &common::User, size: u32) -> Option<&'a mut ratatui_image::protocol::StatefulProtocol> {
+    let key = (user.id, size);
+    if !app.avatar_protocol_cache.contains_key(&key) {
+        let pic = user.profile_pic.as_ref()?;
+        let b64 = if let Some(idx) = pic.find(',') {
+            if idx + 1 >= pic.len() { return None; }
+            &pic[idx + 1..]
+        } else { pic };
+        let bytes = base64::engine::general_purpose::STANDARD.decode(b64).ok()?;
+        let img = image::load_from_memory(&bytes).ok()?;
+        let resized = img.resize_exact(size, size, image::imageops::FilterType::Lanczos3);
+        let protocol = app.picker.new_resize_protocol(resized);
+        app.avatar_protocol_cache.insert(key, protocol);
+    }
+    app.avatar_protocol_cache.get_mut(&key)
 }
 
 
@@ -476,15 +492,12 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
     }
 }
 
-// REFACTORED: This function now uses manual layout to correctly render avatars
-// and text without using the `List` widget, which is not suitable for multi-line items.
 fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     let border_style = if focused {
         Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
     } else {
         Style::default()
     };
-    // Split area for messages and input box
     let chunks = Layout::default().constraints([Constraint::Min(0), Constraint::Length(3)]).split(area);
     let messages_area = chunks[0];
     let input_area = chunks[1];
@@ -495,89 +508,59 @@ fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         .border_style(border_style);
     f.render_widget(messages_block.clone(), messages_area);
 
-    // --- Message Rendering ---
     let inner_area = messages_block.inner(messages_area);
     if inner_area.width == 0 || inner_area.height == 0 { return; }
 
-    const AVATAR_PIXEL_SIZE: u32 = 32; // A more reasonable size for chat lines
+    const AVATAR_PIXEL_SIZE: u32 = 32;
     let (font_w, font_h) = app.picker.font_size();
     let (font_w, font_h) = if font_w == 0 || font_h == 0 { (8, 16) } else { (font_w, font_h) };
-
     let avatar_cell_width = (AVATAR_PIXEL_SIZE as f32 / font_w as f32).ceil() as u16;
     let avatar_cell_height = (AVATAR_PIXEL_SIZE as f32 / font_h as f32).ceil() as u16;
+    let row_height = avatar_cell_height.max(2);
 
-    // Fixed row height makes layout simpler.
-    let row_height = avatar_cell_height.max(2); // Min height of 2 for better spacing/readability
-
-    // Collect messages that will fit on screen, rendered from the bottom up.
-    let mut display_items = vec![];
-    let mut available_height = inner_area.height;
-    for msg in app.chat_messages.iter().rev() {
-        if available_height < row_height {
-            break;
-        }
-        let user = app.connected_users.iter().find(|u| u.username == msg.author);
-        let avatar_state = user.and_then(|u| get_avatar_state(app, u, AVATAR_PIXEL_SIZE));
-        display_items.push((avatar_state, msg));
-        available_height = available_height.saturating_sub(row_height);
-    }
-    display_items.reverse(); // So we can render from top to bottom
+    // Collect display items first to avoid borrow checker issues
+    let display_items: Vec<_> = app.chat_messages.iter().rev().map(|msg| {
+        let user = app.connected_users.iter().find(|u| u.username == msg.author).cloned();
+        let author = msg.author.clone();
+        let color = msg.color;
+        let content = msg.content.clone();
+        (user, author, color, content)
+    }).collect();
 
     let mut current_y = inner_area.y;
-    for (avatar_state_opt, msg) in display_items {
+    for (user_opt, author, color, content) in display_items.into_iter().rev() {
         let row_area = Rect::new(inner_area.x, current_y, inner_area.width, row_height);
-
-        if let Some(avatar_state_rc) = avatar_state_opt {
-            let row_chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Length(avatar_cell_width), // Area for avatar
-                    Constraint::Length(1),                  // Spacer
-                    Constraint::Min(0),                     // Area for text
-                ])
-                .split(row_area);
-            let avatar_area = row_chunks[0];
-            let text_area = row_chunks[2];
-
-            // Render avatar
-            if let Ok(mut state_guard) = avatar_state_rc.try_borrow_mut() {
+        if let Some(user) = user_opt {
+            if let Some(state) = get_avatar_protocol(app, &user, AVATAR_PIXEL_SIZE) {
+                let row_chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([Constraint::Length(avatar_cell_width), Constraint::Length(1), Constraint::Min(0)])
+                    .split(row_area);
                 let image_widget = StatefulImage::default();
-                f.render_stateful_widget(image_widget, avatar_area, &mut *state_guard);
+                f.render_stateful_widget(image_widget, row_chunks[0], state);
+                let text = vec![
+                    Line::from(Span::styled(format!("<{}>", author), Style::default().fg(color).add_modifier(Modifier::BOLD))),
+                    Line::from(Span::raw(&content)),
+                ];
+                f.render_widget(Paragraph::new(text).wrap(Wrap { trim: true }), row_chunks[2]);
+            } else {
+                let row_chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([Constraint::Length(avatar_cell_width), Constraint::Length(1), Constraint::Min(0)])
+                    .split(row_area);
+                let text = vec![
+                    Line::from(vec![
+                        Span::raw("○ "),
+                        Span::styled(format!("<{}>:", author), Style::default().fg(color).add_modifier(Modifier::BOLD)),
+                    ]),
+                    Line::from(vec![Span::raw("  "), Span::raw(&content)]),
+                ];
+                f.render_widget(Paragraph::new(text).wrap(Wrap { trim: true }), row_chunks[2]);
             }
-
-            // Render text
-            let text = vec![
-                Line::from(Span::styled(format!("<{}>", msg.author), Style::default().fg(msg.color).add_modifier(Modifier::BOLD))),
-                Line::from(Span::raw(&msg.content)),
-            ];
-            f.render_widget(Paragraph::new(text).wrap(Wrap { trim: true }), text_area);
-        } else {
-            // No avatar, render text with an offset to align with other messages
-            let row_chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Length(avatar_cell_width), // Keep alignment consistent
-                    Constraint::Length(1),
-                    Constraint::Min(0),
-                ])
-                .split(row_area);
-
-            let text = vec![
-                Line::from(vec![
-                    Span::raw("○ "),
-                    Span::styled(format!("<{}>:", msg.author), Style::default().fg(msg.color).add_modifier(Modifier::BOLD)),
-                ]),
-                Line::from(vec![
-                    Span::raw("  "),
-                    Span::raw(&msg.content),
-                ]),
-            ];
-            f.render_widget(Paragraph::new(text).wrap(Wrap { trim: true }), row_chunks[2]);
         }
         current_y += row_height;
     }
 
-    // --- Input Box Rendering (unchanged) ---
     let input = Paragraph::new(app.current_input.as_str()).style(Style::default().fg(Color::Cyan))
         .block(Block::default().borders(Borders::ALL).title("Input"));
     f.render_widget(input, input_area);
@@ -586,45 +569,36 @@ fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     }
 }
 
-// REFACTORED: This function now uses manual layout to correctly render avatars
-// and user info, fixing layout issues and correctly handling selection.
-fn draw_user_list(f: &mut Frame, app: &App, area: Rect, focused: bool) {
+fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     let border_style = if focused {
         Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
     } else {
         Style::default()
     };
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("Users [U]")
-        .border_style(border_style);
+    let block = Block::default().borders(Borders::ALL).title("Users [U]").border_style(border_style);
     f.render_widget(block.clone(), area);
 
     let inner_area = block.inner(area);
     if inner_area.width == 0 || inner_area.height == 0 { return; }
 
-    const AVATAR_PIXEL_SIZE: u32 = 24; // Smaller avatars for the user list
+    const AVATAR_PIXEL_SIZE: u32 = 24;
     let (font_w, font_h) = app.picker.font_size();
     let (font_w, font_h) = if font_w == 0 || font_h == 0 { (8, 16) } else { (font_w, font_h) };
-
     let avatar_cell_width = (AVATAR_PIXEL_SIZE as f32 / font_w as f32).ceil() as u16;
     let avatar_cell_height = (AVATAR_PIXEL_SIZE as f32 / font_h as f32).ceil() as u16;
     let row_height = avatar_cell_height.max(1);
 
-    // NOTE: The original code uses `forum_list_state` here. This is likely a bug
-    // and should be a separate state for the user list, e.g., `app.user_list_state`.
     let list_state = app.forum_list_state.clone();
     let selected_index = list_state.selected();
     let offset = list_state.offset();
 
     let mut current_y = inner_area.y;
-    for (i, user) in app.connected_users.iter().enumerate().skip(offset) {
-        if current_y + row_height > inner_area.y + inner_area.height {
-            break; // Stop if we run out of vertical space
-        }
+    // Collect connected_users into a temporary vector before the loop
+    let users: Vec<_> = app.connected_users.iter().enumerate().skip(offset).map(|(i, user)| (i, user.clone())).collect();
+    for (i, user) in users {
+        if current_y + row_height > inner_area.y + inner_area.height { break; }
         let row_area = Rect::new(inner_area.x, current_y, inner_area.width, row_height);
 
-        // Determine style based on selection and focus
         let is_selected = focused && selected_index == Some(i);
         let text_style = if is_selected {
             Style::default().fg(Color::Black).add_modifier(Modifier::BOLD)
@@ -635,27 +609,19 @@ fn draw_user_list(f: &mut Frame, app: &App, area: Rect, focused: bool) {
             f.render_widget(Block::default().style(Style::default().bg(Color::Cyan)), row_area);
         }
 
-        let avatar_state_opt = get_avatar_state(app, user, AVATAR_PIXEL_SIZE);
-
-        if let Some(avatar_state_rc) = avatar_state_opt {
+        if let Some(state) = get_avatar_protocol(app, &user, AVATAR_PIXEL_SIZE) {
             let row_chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Length(avatar_cell_width), Constraint::Min(0)])
                 .split(row_area);
-            let avatar_area = row_chunks[0];
-            let text_area = row_chunks[1];
-
-            if let Ok(mut state_guard) = avatar_state_rc.try_borrow_mut() {
-                let image_widget = StatefulImage::default();
-                f.render_stateful_widget(image_widget, avatar_area, &mut *state_guard);
-            }
-
+            let image_widget = StatefulImage::default();
+            f.render_stateful_widget(image_widget, row_chunks[0], state);
             let text = Line::from(vec![
                 Span::raw(" "),
                 Span::styled(&user.username, text_style),
                 Span::styled(format!(" ({:?})", user.role), text_style.remove_modifier(Modifier::BOLD).add_modifier(Modifier::DIM)),
             ]);
-            f.render_widget(Paragraph::new(text).alignment(Alignment::Left), text_area);
+            f.render_widget(Paragraph::new(text).alignment(Alignment::Left), row_chunks[1]);
         } else {
             let text = Line::from(vec![
                 Span::raw(" ○ "),
@@ -667,6 +633,7 @@ fn draw_user_list(f: &mut Frame, app: &App, area: Rect, focused: bool) {
         current_y += row_height;
     }
 }
+
 
 
 fn draw_dm_input_popup(f: &mut Frame, app: &App) {

@@ -9,6 +9,7 @@ use std::fs;
 use std::io::Cursor;
 use std::path::Path;
 use base64::engine::Engine as _;
+use std::collections::HashMap;
 
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
 
@@ -95,6 +96,7 @@ pub struct App<'a> {
     pub profile_view: Option<UserProfile>,
     pub profile_image_state: Option<StatefulProtocol>,
     pub profile_banner_image_state: Option<StatefulProtocol>,
+    pub avatar_protocol_cache: HashMap<(uuid::Uuid, u32), StatefulProtocol>,
 }
 
 impl<'a> App<'a> {
@@ -150,6 +152,7 @@ impl<'a> App<'a> {
             profile_view: None,
             profile_image_state: None,
             profile_banner_image_state: None,
+            avatar_protocol_cache: HashMap::new(),
         }
     }
 
