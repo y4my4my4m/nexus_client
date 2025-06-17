@@ -298,6 +298,32 @@ impl<'a> App<'a> {
                     }
                 }
             },
+            ServerMessage::NewChannelMessage(msg) => {
+                // Get selected server/channel indices and selected channel id before the loop
+                let selected_server = self.selected_server;
+                let selected_channel = self.selected_channel;
+                let selected_channel_id = if let (Some(s), Some(c)) = (selected_server, selected_channel) {
+                    self.servers.get(s).and_then(|srv| srv.channels.get(c)).map(|ch| ch.id)
+                } else {
+                    None
+                };
+                for (si, server) in self.servers.iter_mut().enumerate() {
+                    if let Some(channel) = server.channels.iter_mut().find(|c| c.id == msg.channel_id) {
+                        channel.messages.push(msg.clone());
+                        // If this is the currently viewed channel, update chat_messages
+                        if let (Some(s), Some(sel_id)) = (selected_server, selected_channel_id) {
+                            if si == s && sel_id == msg.channel_id {
+                                self.chat_messages = channel.messages.iter().map(|m| common::ChatMessage {
+                                    author: m.sent_by.to_string(), // TODO: resolve username
+                                    content: m.content.clone(),
+                                    color: ratatui::style::Color::White,
+                                }).collect();
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
             ServerMessage::Notification(text, is_error) => {
                 let prefix = if is_error { "Error: " } else { "Info: " };
                 self.set_notification(format!("{}{}", prefix, text), Some(2000), false);
@@ -374,10 +400,18 @@ impl<'a> App<'a> {
                         self.chat_messages = self.servers[0].channels[0]
                             .messages
                             .iter()
-                            .map(|m| common::ChatMessage {
-                                author: m.sent_by.to_string(), // TODO: resolve username
-                                content: m.content.clone(),
-                                color: ratatui::style::Color::White,
+                            .map(|m| {
+                                let author = self.connected_users.iter().find(|u| u.id == m.sent_by)
+                                    .map(|u| u.username.clone())
+                                    .unwrap_or_else(|| m.sent_by.to_string());
+                                let color = self.connected_users.iter().find(|u| u.id == m.sent_by)
+                                    .map(|u| u.color)
+                                    .unwrap_or(ratatui::style::Color::White);
+                                common::ChatMessage {
+                                    author,
+                                    content: m.content.clone(),
+                                    color,
+                                }
                             })
                             .collect();
                     }
