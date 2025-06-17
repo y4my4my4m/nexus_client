@@ -323,34 +323,6 @@ impl<'a> App<'a> {
         }
     }
 
-    pub fn validate_profile_fields(&self) -> Result<(), String> {
-        if self.edit_bio.len() > 5000 {
-            return Err("Bio must be at most 5000 characters.".to_string());
-        }
-        for (i, url) in [
-            &self.edit_url1,
-            &self.edit_url2,
-            &self.edit_url3,
-        ]
-        .iter()
-        .enumerate()
-        {
-            if url.len() > 100 {
-                return Err(format!("URL{} must be at most 100 characters.", i + 1));
-            }
-        }
-        if self.edit_location.len() > 100 {
-            return Err("Location must be at most 100 characters.".to_string());
-        }
-        if self.edit_profile_pic.len() > 1024 * 1024 {
-            return Err("Profile picture must be at most 1MB (base64 or URL).".to_string());
-        }
-        if self.edit_cover_banner.len() > 1024 * 1024 {
-            return Err("Cover banner must be at most 1MB (base64 or URL).".to_string());
-        }
-        Ok(())
-    }
-
     pub fn file_or_url_to_base64(val: &str) -> Option<String> {
         let trimmed = val.trim();
         if trimmed.is_empty() {
