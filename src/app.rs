@@ -363,34 +363,11 @@ impl<'a> App<'a> {
             return Some(trimmed.to_string());
         }
         if Path::new(trimmed).exists() {
-            match image::open(trimmed) {
-                Ok(img) => {
-                    let mut rgba_img = img.to_rgba8();
-                    for pixel in rgba_img.pixels_mut() {
-                        pixel[3] = 128; // Set alpha to 50% for all pixels
-                    }
-                    // Use a single buffer for both images
-                    let mut shared_buf = Cursor::new(Vec::new());
-                    match image::DynamicImage::ImageRgba8(rgba_img)
-                        .write_to(&mut shared_buf, image::ImageFormat::Png)
-                    {
-                        Ok(_) => {
-                            let bytes = shared_buf.into_inner();
-                            eprintln!("DEBUG: Encoded PNG buffer length: {}", bytes.len());
-                            return Some(base64::engine::general_purpose::STANDARD.encode(bytes));
-                        }
-                        Err(e) => {
-                            eprintln!("ERROR: Failed to write PNG: {e}");
-                            return None;
-                        }
-                    }
-                }
+            match fs::read(trimmed) {
+                Ok(bytes) => return Some(base64::engine::general_purpose::STANDARD.encode(bytes)),
                 Err(e) => {
-                    eprintln!("ERROR: Failed to open image: {e}");
-                    match fs::read(trimmed) {
-                        Ok(bytes) => return Some(base64::engine::general_purpose::STANDARD.encode(bytes)),
-                        Err(_) => return None,
-                    }
+                    eprintln!("ERROR: Failed to read file: {e}");
+                    return None;
                 }
             }
         } else {
