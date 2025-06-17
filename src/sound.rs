@@ -31,7 +31,7 @@ impl SoundManager {
         let base_path = env!("CARGO_MANIFEST_DIR");
         let error_path = PathBuf::from(base_path).join("sounds/error.mp3");
         let notify_path = PathBuf::from(base_path).join("sounds/notify.mp3");
-        let login_success_path = PathBuf::from(base_path).join("sounds/login_success_1.mp3");
+        let login_success_path = PathBuf::from(base_path).join("sounds/login_success_24.mp3");
         let login_failure_path = PathBuf::from(base_path).join("sounds/login_error_3.mp3");
         let received_direct_message_path = PathBuf::from(base_path).join("sounds/voice/new_msg.mp3");
         let sent_direct_message_path = PathBuf::from(base_path).join("sounds/dm.mp3");
