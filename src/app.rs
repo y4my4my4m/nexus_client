@@ -1,12 +1,16 @@
 // client/src/app.rs
 
-use common::{ChatMessage, ClientMessage, Forum, ServerMessage, User};
+use common::{ChatMessage, ClientMessage, Forum, ServerMessage, User, UserProfile};
 use crate::sound::{SoundManager, SoundType};
 use ratatui::widgets::ListState;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 use std::fs;
 use std::path::Path;
+use base64::engine::Engine as _;
+
+use ratatui_image::{picker::Picker, protocol::StatefulProtocol, FontSize};
+use image::load_from_memory;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum AppMode {
@@ -15,15 +19,12 @@ pub enum AppMode {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum InputMode {
-    // Auth Screen Focus States
     LoginUsername,
     LoginPassword,
     RegisterUsername,
     RegisterPassword,
-    AuthSubmit, // Focus on the main [LOGIN] or [REGISTER] button
-    AuthSwitch, // Focus on the "Switch to..." button
-
-    // Generic Input Popups
+    AuthSubmit,
+    AuthSwitch,
     NewThreadTitle,
     NewThreadContent,
     NewPostContent,
@@ -34,7 +35,7 @@ pub enum InputMode {
 pub enum ChatFocus {
     Messages,
     Users,
-    DMInput, // For DM input popup
+    DMInput,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,7 +56,7 @@ pub struct App<'a> {
     pub input_mode: Option<InputMode>,
     pub current_input: String,
     pub password_input: String,
-    pub notification: Option<(String, Option<u64>, bool)>, // (message, Some(tick_to_close), minimal)
+    pub notification: Option<(String, Option<u64>, bool)>,
     pub current_user: Option<User>,
     pub main_menu_state: ListState,
     pub forum_list_state: ListState,
@@ -69,7 +70,6 @@ pub struct App<'a> {
     pub should_quit: bool,
     pub to_server: mpsc::UnboundedSender<ClientMessage>,
     pub sound_manager: &'a SoundManager,
-    // --- User list toggle and data ---
     pub show_user_list: bool,
     pub connected_users: Vec<User>,
     pub chat_focus: ChatFocus,
@@ -78,8 +78,6 @@ pub struct App<'a> {
     pub show_user_actions: bool,
     pub user_actions_selected: usize,
     pub user_actions_target: Option<usize>,
-
-    // Profile editing state
     pub edit_bio: String,
     pub edit_url1: String,
     pub edit_url2: String,
@@ -88,19 +86,27 @@ pub struct App<'a> {
     pub edit_profile_pic: String,
     pub edit_cover_banner: String,
     pub profile_edit_error: Option<String>,
-
-    // Profile viewing state
-    pub profile_view: Option<common::UserProfile>,
     pub show_profile_view_popup: bool,
-
     pub profile_edit_focus: ProfileEditFocus,
-
-    // Flag to track if the profile popup should be shown
     pub profile_requested_by_user: bool,
+
+    // --- Image rendering fields ---
+    pub picker: Picker,
+    pub profile_view: Option<UserProfile>,
+    pub profile_image_state: Option<StatefulProtocol>,
 }
 
 impl<'a> App<'a> {
     pub fn new(to_server: mpsc::UnboundedSender<ClientMessage>, sound_manager: &'a SoundManager) -> App<'a> {
+        // --- CORRECTED: Use the new Picker API ---
+        let picker = Picker::from_query_stdio().unwrap_or_else(|e| {
+            eprintln!(
+                "Failed to query terminal for graphics support: {}. Falling back to ASCII picker.",
+                e
+            );
+            Picker::from_fontsize((16, 16))
+        });
+
         App {
             mode: AppMode::Login,
             input_mode: Some(InputMode::LoginUsername),
@@ -136,25 +142,21 @@ impl<'a> App<'a> {
             edit_profile_pic: String::new(),
             edit_cover_banner: String::new(),
             profile_edit_error: None,
-            profile_view: None,
             show_profile_view_popup: false,
             profile_edit_focus: ProfileEditFocus::Bio,
             profile_requested_by_user: false,
+            picker,
+            profile_view: None,
+            profile_image_state: None,
         }
     }
 
-    /// Set a notification with optional auto-close in ms (if ms is Some) and minimal flag
     pub fn set_notification(&mut self, message: impl Into<String>, ms: Option<u64>, minimal: bool) {
         let msg = message.into();
-        // Play error or notify sound
         if msg.to_lowercase().contains("error") {
             self.sound_manager.play(SoundType::Error);
         }
-        // Add a boolean for default sound type
-        // else {
-        //     self.sound_manager.play(SoundType::Notify);
-        // }
-        let close_tick = ms.map(|ms| self.tick_count + (ms / 100)); // 100ms per tick
+        let close_tick = ms.map(|ms| self.tick_count + (ms / 100));
         self.notification = Some((msg, close_tick, minimal));
     }
 
@@ -162,6 +164,24 @@ impl<'a> App<'a> {
         if let Err(e) = self.to_server.send(msg) {
             self.set_notification(format!("Connection Error: {}", e), None, true);
         }
+    }
+
+    pub fn set_profile_for_viewing(&mut self, profile: UserProfile) {
+        let mut image_state: Option<StatefulProtocol> = None;
+        if let Some(pfp_str) = &profile.profile_pic {
+            if !pfp_str.starts_with("http") {
+                if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(pfp_str) {
+                    if let Ok(dynamic_image) = load_from_memory(&bytes) {
+                        // --- CORRECTED: new_resize_protocol returns the struct directly ---
+                        let protocol = self.picker.new_resize_protocol(dynamic_image);
+                        image_state = Some(protocol);
+                    }
+                }
+            }
+        }
+        self.profile_image_state = image_state;
+        self.profile_view = Some(profile);
+        self.show_profile_view_popup = true;
     }
     
     pub fn handle_server_message(&mut self, msg: ServerMessage) {
@@ -174,7 +194,6 @@ impl<'a> App<'a> {
                 self.password_input.clear();
                 self.main_menu_state.select(Some(0));
                 self.sound_manager.play(SoundType::LoginSuccess);
-                // --- Request the user list after successful login/registration ---
                 self.send_to_server(ClientMessage::GetUserList);
             }
             ServerMessage::AuthFailure(reason) => {
@@ -219,10 +238,8 @@ impl<'a> App<'a> {
             }
             ServerMessage::Profile(profile) => {
                 if self.profile_requested_by_user {
-                    self.profile_view = Some(profile);
-                    self.show_profile_view_popup = true;
+                    self.set_profile_for_viewing(profile);
                 } else {
-                    // Prepopulate edit fields for editing
                     self.edit_bio = profile.bio.unwrap_or_default();
                     self.edit_url1 = profile.url1.unwrap_or_default();
                     self.edit_url2 = profile.url2.unwrap_or_default();
@@ -246,7 +263,6 @@ impl<'a> App<'a> {
 
     pub fn on_tick(&mut self) {
         self.tick_count += 1;
-        // Auto-close notification if needed
         if let Some((_, Some(close_tick), _)) = &self.notification {
             if self.tick_count >= *close_tick {
                 self.notification = None;
@@ -282,24 +298,20 @@ impl<'a> App<'a> {
         Ok(())
     }
 
-    /// Helper: If the value is a file path, convert to base64, else return as is
     pub fn file_or_url_to_base64(val: &str) -> Option<String> {
         let trimmed = val.trim();
         if trimmed.is_empty() {
             return None;
         }
-        // If it's a URL (starts with http/https), just return as is
         if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
             return Some(trimmed.to_string());
         }
-        // If it's already base64 (very naive check: long, no slashes, no spaces)
         if trimmed.len() > 100 && !trimmed.contains('/') && !trimmed.contains(' ') {
             return Some(trimmed.to_string());
         }
-        // If it's a file path and exists, read and encode
         if Path::new(trimmed).exists() {
             match fs::read(trimmed) {
-                Ok(bytes) => Some(base64::encode(bytes)),
+                Ok(bytes) => Some(base64::engine::general_purpose::STANDARD.encode(bytes)),
                 Err(_) => None,
             }
         } else {
