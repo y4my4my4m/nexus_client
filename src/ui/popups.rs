@@ -112,7 +112,6 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
         .split(banner_area);
 
     // --- Banner background: crop and stretch to fit ---
-    // IMPORTANT: Do NOT use get_styled_banner_lines or any glitch effect here!
     if let Some(state) = &mut app.profile_banner_image_state {
         let banner_block = Block::default()
             .borders(Borders::ALL)
@@ -161,7 +160,17 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
 
     // --- Rest of profile info below banner ---
     let mut lines = vec![];
-    if let Some(bio) = &profile.bio { lines.push(Line::from(vec![Span::styled("Bio: ", Style::default().fg(Color::Cyan)), Span::raw(bio)])); }
+    if let Some(bio) = &profile.bio {
+        let mut bio_lines: Vec<&str> = bio.lines().collect();
+        if bio_lines.len() > 10 {
+            bio_lines.truncate(9);
+            bio_lines.push("...");
+        }
+        lines.push(Line::from(vec![Span::styled("Bio: ", Style::default().fg(Color::Cyan))]));
+        for line in bio_lines {
+            lines.push(Line::from(Span::raw(line)));
+        }
+    }
     if let Some(loc) = &profile.location { lines.push(Line::from(vec![Span::styled("Location: ", Style::default().fg(Color::Cyan)), Span::raw(loc)])); }
     if let Some(url1) = &profile.url1 { if !url1.is_empty() { lines.push(Line::from(vec![Span::styled("URL1: ", Style::default().fg(Color::Cyan)), Span::raw(url1)])); } }
     if let Some(url2) = &profile.url2 { if !url2.is_empty() { lines.push(Line::from(vec![Span::styled("URL2: ", Style::default().fg(Color::Cyan)), Span::raw(url2)])); } }
