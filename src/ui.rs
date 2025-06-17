@@ -302,15 +302,25 @@ fn draw_user_list(f: &mut Frame, app: &App, area: Rect, focused: bool) {
             Span::raw(format!(" ({:?})", user.role)),
         ]))
     }).collect();
-    let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Users [U]").border_style(border_style))
-        .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black));
-    f.render_widget(list, area);
+    let mut list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title("Users [U]").border_style(border_style));
+    if focused {
+        list = list.highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black));
+    } else {
+        list = list.highlight_style(Style::default());
+    }
+    f.render_stateful_widget(list, area, &mut app.forum_list_state.clone());
 }
 
 fn draw_dm_input_popup(f: &mut Frame, app: &App) {
+    let username = app.dm_target.and_then(|uid| app.connected_users.iter().find(|u| u.id == uid)).map(|u| u.username.as_str()).unwrap_or("");
+    let title = if !username.is_empty() {
+        format!("Send Direct Message to {}", username)
+    } else {
+        "Send Direct Message".to_string()
+    };
     let area = draw_centered_rect(f.size(), 50, 20);
-    let block = Block::default().title("Send Direct Message").borders(Borders::ALL).border_type(BorderType::Double);
+    let block = Block::default().title(title).borders(Borders::ALL).border_type(BorderType::Double);
     let input_field = Paragraph::new(app.dm_input.as_str()).wrap(Wrap { trim: true }).block(block);
     f.render_widget(Clear, area);
     f.render_widget(input_field, area);
