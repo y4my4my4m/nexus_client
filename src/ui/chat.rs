@@ -116,74 +116,93 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
 
     // Calculate how many messages fit
     let max_rows = (inner_area.height as usize) / (row_height as usize + 1);
-    let total_msgs = app.chat_messages.len();
-    let start_idx = if total_msgs > max_rows { total_msgs - max_rows } else { 0 };
-    let display_items: Vec<_> = app.chat_messages.iter().skip(start_idx).map(|msg| {
-        let user = app.connected_users.iter().find(|u| u.username == msg.author).cloned();
-        let author = msg.author.clone();
-        let color = msg.color;
-        let content = msg.content.clone();
-        (user, author, color, content)
-    }).collect();
+    let (display_items, is_channel_chat) = if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
+        if let Some(server) = app.servers.get(s) {
+            if let Some(channel) = server.channels.get(c) {
+                let total_msgs = channel.messages.len();
+                let start_idx = if total_msgs > max_rows { total_msgs - max_rows } else { 0 };
+                let items: Vec<_> = channel.messages.iter().skip(start_idx).map(|msg| {
+                    (Some(msg.author_username.clone()), msg.author_color, msg.content.clone(), msg.author_profile_pic.clone())
+                }).collect();
+                (items, true)
+            } else { (vec![], true) }
+        } else { (vec![], true) }
+    } else {
+        let total_msgs = app.chat_messages.len();
+        let start_idx = if total_msgs > max_rows { total_msgs - max_rows } else { 0 };
+        let items: Vec<_> = app.chat_messages.iter().skip(start_idx).map(|msg| {
+            (Some(msg.author.clone()), msg.color, msg.content.clone(), None)
+        }).collect();
+        (items, false)
+    };
 
     let mut current_y = inner_area.y;
-    for (user_opt, author, color, content) in display_items.into_iter() {
+    for (author_opt, color, content, profile_pic) in display_items.into_iter() {
         if current_y + row_height > inner_area.y + inner_area.height { break; }
         let row_area = Rect::new(inner_area.x, current_y, inner_area.width, row_height);
-        if let Some(user) = user_opt {
-            if let Some(state) = get_avatar_protocol(app, &user, AVATAR_PIXEL_SIZE) {
-                let row_chunks = Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([Constraint::Length(avatar_cell_width), Constraint::Length(1), Constraint::Min(0)])
-                    .split(row_area);
-                let image_widget = StatefulImage::default();
-                f.render_stateful_widget(image_widget, row_chunks[0], state);
-                // TODO: probably should use hidden code and save the color in the message struct
-                // Parse content for @mentions
-                let mut spans = Vec::new();
-                let mut last = 0;
-                let content_str = &content;
-                let mention_re = regex::Regex::new(r"@([a-zA-Z0-9_]+)").unwrap();
-                for m in mention_re.find_iter(content_str) {
-                    let start = m.start();
-                    let end = m.end();
-                    if start > last {
-                        spans.push(Span::raw(&content_str[last..start]));
+        // Avatar/profile pic rendering
+        let avatar_area = Rect::new(row_area.x, row_area.y, avatar_cell_width, avatar_cell_height);
+        let text_area = Rect::new(row_area.x + avatar_cell_width + 1, row_area.y, row_area.width - avatar_cell_width - 1, row_height);
+        if is_channel_chat {
+            if let Some(ref author) = author_opt {
+                // Find the user first, then drop the borrow before calling get_avatar_protocol
+                let user_opt = app.connected_users.iter().find(|u| u.username == *author).cloned();
+                if let Some(user) = user_opt {
+                    if let Some(state) = get_avatar_protocol(app, &user, AVATAR_PIXEL_SIZE) {
+                        let image_widget = StatefulImage::default();
+                        f.render_stateful_widget(image_widget, avatar_area, state);
                     }
-                    let mention = &content_str[start+1..end];
-                    if let Some(mentioned_user) = app.connected_users.iter().find(|u| u.username == mention) {
-                        spans.push(Span::styled(
-                            format!("@{}" , mention),
-                            Style::default().bg(mentioned_user.color).fg(Color::Black).add_modifier(Modifier::BOLD)
-                        ));
-                    } else {
-                        spans.push(Span::raw(&content_str[start..end]));
+                } else if let Some(ref pic) = profile_pic {
+                    // Fallback: build a fake User with nil id
+                    let user = common::User {
+                        id: uuid::Uuid::nil(),
+                        username: author.to_string(),
+                        color,
+                        role: common::UserRole::User,
+                        profile_pic: Some(pic.to_string()),
+                        cover_banner: None,
+                    };
+                    if let Some(state) = get_avatar_protocol(app, &user, AVATAR_PIXEL_SIZE) {
+                        let image_widget = StatefulImage::default();
+                        f.render_stateful_widget(image_widget, avatar_area, state);
                     }
-                    last = end;
                 }
-                if last < content_str.len() {
-                    spans.push(Span::raw(&content_str[last..]));
-                }
-                let text = vec![
-                    Line::from(Span::styled(format!("<{}>", author), Style::default().fg(color).add_modifier(Modifier::BOLD))),
-                    Line::from(spans),
-                ];
-                f.render_widget(Paragraph::new(text).wrap(Wrap { trim: true }), row_chunks[2]);
-            } else {
-                let row_chunks = Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([Constraint::Length(avatar_cell_width), Constraint::Length(1), Constraint::Min(0)])
-                    .split(row_area);
-                let text = vec![
-                    Line::from(vec![
-                        Span::raw("○ "),
-                        Span::styled(format!("<{}>:", author), Style::default().fg(color).add_modifier(Modifier::BOLD)),
-                    ]),
-                    Line::from(vec![Span::raw("  "), Span::raw(&content)]),
-                ];
-                f.render_widget(Paragraph::new(text).wrap(Wrap { trim: true }), row_chunks[2]);
             }
+        } else {
+            // For global chat, show a fallback icon
+            let fallback = Line::from(Span::styled("○", Style::default().fg(Color::Gray)));
+            f.render_widget(Paragraph::new(fallback), avatar_area);
         }
+        // Mention parsing and coloring
+        let mut spans = Vec::new();
+        let mut last = 0;
+        let content_str = &content;
+        let mention_re = regex::Regex::new(r"@([a-zA-Z0-9_]+)").unwrap();
+        for m in mention_re.find_iter(content_str) {
+            let start = m.start();
+            let end = m.end();
+            if start > last {
+                spans.push(Span::raw(&content_str[last..start]));
+            }
+            let mention = &content_str[start+1..end];
+            // Try to find the mentioned user in connected_users (for color)
+            let mention_color = app.connected_users.iter().find(|u| u.username == mention).map(|u| u.color);
+            if let Some(mcolor) = mention_color {
+                spans.push(Span::styled(format!("@{}", mention), Style::default().fg(mcolor).add_modifier(Modifier::BOLD)));
+            } else {
+                spans.push(Span::styled(format!("@{}", mention), Style::default().add_modifier(Modifier::BOLD)));
+            }
+            last = end;
+        }
+        if last < content_str.len() {
+            spans.push(Span::raw(&content_str[last..]));
+        }
+        let author = author_opt.unwrap_or_else(|| "?".to_string());
+        let text = vec![
+            Line::from(Span::styled(format!("<{}>", author), Style::default().fg(color).add_modifier(Modifier::BOLD))),
+            Line::from(spans),
+        ];
+        f.render_widget(Paragraph::new(text).wrap(Wrap { trim: true }), text_area);
         current_y += row_height + 1;
     }
 
