@@ -429,7 +429,18 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                             app.send_to_server(ClientMessage::SendChatMessage(message_content));
                         }
                     },
+                    KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
+                        app.show_user_list = !app.show_user_list;
+                        app.chat_focus = if app.show_user_list {
+                            crate::app::ChatFocus::Users
+                        } else {
+                            crate::app::ChatFocus::Messages
+                        };
+                    },
                     KeyCode::Char(c) => {
+                        if key.modifiers.contains(KeyModifiers::CONTROL) {
+                            return;
+                        }
                         app.current_input.push(c);
                         // Check for @mention context
                         let cursor = app.current_input.len();
