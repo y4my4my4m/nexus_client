@@ -23,6 +23,13 @@ pub fn handle_key_event(key: KeyEvent, app: &mut crate::app::App) {
         return;
     }
 
+    // Close profile view popup on any key, and do nothing else
+    if app.show_profile_view_popup {
+        app.show_profile_view_popup = false;
+        app.profile_view = None;
+        return;
+    }
+
     match app.mode {
         AppMode::Login | AppMode::Register => handle_auth_mode(key, app),
         AppMode::Input => handle_input_mode(key, app),
@@ -460,10 +467,6 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
     }
 
     // Global: close profile view popup
-    if app.show_profile_view_popup && key.code == KeyCode::Esc {
-        app.show_profile_view_popup = false;
-        app.profile_view = None;
-    }
 }
 
 fn cycle_color(app: &mut App) {
