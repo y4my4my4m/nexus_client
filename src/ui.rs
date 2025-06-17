@@ -7,69 +7,9 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Wrap},
     Frame,
 };
-use ratatui_image::picker::ProtocolType;
-use std::collections::HashMap;
-use std::rc::Rc;
-use std::cell::RefCell;
 use ratatui_image::StatefulImage;
 use base64::Engine;
 use image::{DynamicImage, RgbaImage};
-
-// --- CACHE MODIFICATION ---
-// We now cache the expensive-to-create data (the decoded, resized image),
-// not the stateful protocol itself.
-thread_local! {
-    static AVATAR_CACHE: RefCell<HashMap<(uuid::Uuid, u32), Rc<RgbaImage>>> = RefCell::new(HashMap::new());
-}
-
-// Renamed and refactored to only handle image retrieval and caching.
-fn get_avatar_image(user: &common::User, size: u32) -> Option<Rc<RgbaImage>> {
-    if let Some(pic) = &user.profile_pic {
-        let key = (user.id, size);
-        AVATAR_CACHE.with(|c| {
-            let mut cache = c.borrow_mut();
-            if !cache.contains_key(&key) {
-                let b64 = if let Some(idx) = pic.find(',') {
-                    if idx + 1 >= pic.len() { return None; }
-                    &pic[idx + 1..]
-                } else { pic };
-
-                if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
-                    if let Ok(img) = image::load_from_memory(&bytes) {
-                        let resized_img = img.resize_exact(size, size, image::imageops::FilterType::Lanczos3).to_rgba8();
-                        cache.insert(key, Rc::new(resized_img));
-                    }
-                }
-            }
-            cache.get(&key).cloned()
-        })
-    } else {
-        None
-    }
-}
-
-// --- NEW HELPER FUNCTION ---
-// Creates a fresh, unique StatefulProtocol for each render call. This is the core of the fix.
-fn get_avatar_stateful_protocol(app: &App, image: Rc<RgbaImage>) -> Option<ratatui_image::protocol::StatefulProtocol> {
-    let font_size = app.picker.font_size();
-    let image_source = ratatui_image::protocol::ImageSource::new(
-        DynamicImage::ImageRgba8((*image).clone()),
-        font_size,
-        image::Rgba([0, 0, 0, 0]), // transparent background
-    );
-
-    let protocol_type = match app.picker.protocol_type() {
-        ProtocolType::Sixel => Some(ratatui_image::protocol::StatefulProtocolType::Sixel(Default::default())),
-        ProtocolType::Kitty => Some(ratatui_image::protocol::StatefulProtocolType::Kitty(ratatui_image::protocol::kitty::StatefulKitty::new(0, false))),
-        // Correctly implement Iterm2 protocol
-        ProtocolType::Iterm2 => todo!(),
-        ProtocolType::Halfblocks => None, // Stateless, not supported by this stateful renderer
-    };
-
-    protocol_type.map(|spt| {
-        ratatui_image::protocol::StatefulProtocol::new(image_source, font_size, spt)
-    })
-}
 
 // Returns a mutable reference to a cached StatefulProtocol for the user's avatar, creating it if needed.
 fn get_avatar_protocol<'a>(app: &'a mut App, user: &common::User, size: u32) -> Option<&'a mut ratatui_image::protocol::StatefulProtocol> {
@@ -82,13 +22,32 @@ fn get_avatar_protocol<'a>(app: &'a mut App, user: &common::User, size: u32) -> 
         } else { pic };
         let bytes = base64::engine::general_purpose::STANDARD.decode(b64).ok()?;
         let img = image::load_from_memory(&bytes).ok()?;
-        let resized = img.resize_exact(size, size, image::imageops::FilterType::Lanczos3);
-        let protocol = app.picker.new_resize_protocol(resized);
+        let mut resized = img.resize_exact(size, size, image::imageops::FilterType::Lanczos3).to_rgba8();
+        apply_circular_mask(&mut resized);
+        let protocol = app.picker.new_resize_protocol(DynamicImage::ImageRgba8(resized));
         app.avatar_protocol_cache.insert(key, protocol);
     }
     app.avatar_protocol_cache.get_mut(&key)
 }
 
+// Helper: Apply a circular alpha mask to an RgbaImage in-place
+fn apply_circular_mask(img: &mut RgbaImage) {
+    let (w, h) = (img.width() as i32, img.height() as i32);
+    let cx = w / 2;
+    let cy = h / 2;
+    let r = w.min(h) as f32 / 2.0;
+    for y in 0..h {
+        for x in 0..w {
+            let dx = x - cx;
+            let dy = y - cy;
+            let dist = ((dx * dx + dy * dy) as f32).sqrt();
+            if dist > r {
+                let p = img.get_pixel_mut(x as u32, y as u32);
+                p[3] = 0; // Set alpha to 0 (transparent)
+            }
+        }
+    }
+}
 
 pub fn ui(f: &mut Frame, app: &mut App) {
     let size = f.area();
