@@ -92,4 +92,8 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     if app.show_user_actions {
         draw_user_actions_popup(f, app);
     }
+    if app.show_quit_confirm {
+        crate::ui::popups::draw_quit_confirm_popup(f, app);
+        return;
+    }
 }

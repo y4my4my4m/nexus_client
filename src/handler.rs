@@ -11,6 +11,28 @@ pub fn handle_key_event(key: KeyEvent, app: &mut crate::app::App) {
 
     // app.sound_manager.play(SoundType::Click);
 
+    if app.show_quit_confirm {
+        match key.code {
+            KeyCode::Left | KeyCode::Tab => {
+                app.quit_confirm_selected = (app.quit_confirm_selected + 1) % 2;
+            },
+            KeyCode::Right => {
+                app.quit_confirm_selected = (app.quit_confirm_selected + 1) % 2;
+            },
+            KeyCode::Enter => {
+                if app.quit_confirm_selected == 0 {
+                    app.should_quit = true;
+                }
+                app.show_quit_confirm = false;
+            },
+            KeyCode::Esc => {
+                app.show_quit_confirm = false;
+            },
+            _ => {}
+        }
+        return;
+    }
+
     if key.code == KeyCode::Char('c') && key.modifiers == KeyModifiers::CONTROL {
         app.should_quit = true; return;
     }
@@ -181,7 +203,15 @@ fn handle_input_mode(key: KeyEvent, app: &mut App) {
 }
 
 fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
-    if key.code == KeyCode::Char('q') { app.should_quit = true; return; }
+    // Only allow quit popup if not in any input/edit mode or DM input
+    let in_input = matches!(app.mode,
+        AppMode::Input | AppMode::EditProfile | AppMode::Chat
+    );
+    if key.code == KeyCode::Char('q') && !in_input {
+        app.show_quit_confirm = true;
+        app.quit_confirm_selected = 1; // Default to No
+        return;
+    }
     match app.mode {
         AppMode::MainMenu => match key.code {
             KeyCode::Down => app.main_menu_state.select(Some(app.main_menu_state.selected().map_or(0, |s| (s + 1) % 4))),

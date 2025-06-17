@@ -102,6 +102,10 @@ pub struct App<'a> {
     pub mention_suggestions: Vec<String>,
     pub mention_selected: usize,
     pub mention_prefix: Option<String>,
+
+    // --- Quit confirmation fields ---
+    pub show_quit_confirm: bool,
+    pub quit_confirm_selected: usize,
 }
 
 impl<'a> App<'a> {
@@ -161,6 +165,8 @@ impl<'a> App<'a> {
             mention_suggestions: vec![],
             mention_selected: 0,
             mention_prefix: None,
+            show_quit_confirm: false,
+            quit_confirm_selected: 0,
         }
     }
 

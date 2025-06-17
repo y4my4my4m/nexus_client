@@ -171,3 +171,43 @@ pub fn draw_user_actions_popup(f: &mut Frame, app: &App) {
     let para = Paragraph::new(lines).block(block).alignment(Alignment::Left);
     f.render_widget(para, area);
 }
+
+pub fn draw_quit_confirm_popup(f: &mut Frame, app: &App) {
+    let area = draw_centered_rect(f.area(), 40, 18);
+    let block = Block::default()
+        .title("Are you sure?")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Double);
+    let mut lines = vec![
+        Line::from(""),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Do you really want to quit?",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(""),
+    ];
+    let yes_style = if app.quit_confirm_selected == 0 {
+        Style::default().fg(Color::Black).bg(Color::Green).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::Green)
+    };
+    let no_style = if app.quit_confirm_selected == 1 {
+        Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::Red)
+    };
+    let buttons = vec![
+        Span::styled("[ Yes ]", yes_style),
+        Span::raw("  "),
+        Span::styled("[ No ]", no_style),
+    ];
+    lines.push(Line::from(buttons));
+    let para = Paragraph::new(lines)
+        .block(block)
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
+    f.render_widget(Clear, area);
+    f.render_widget(para, area);
+}
