@@ -6,11 +6,11 @@ use ratatui::widgets::ListState;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 use std::fs;
+use std::io::Cursor;
 use std::path::Path;
 use base64::engine::Engine as _;
 
-use ratatui_image::{picker::Picker, protocol::StatefulProtocol, FontSize};
-use image::load_from_memory;
+use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum AppMode {
@@ -94,6 +94,7 @@ pub struct App<'a> {
     pub picker: Picker,
     pub profile_view: Option<UserProfile>,
     pub profile_image_state: Option<StatefulProtocol>,
+    pub profile_banner_image_state: Option<StatefulProtocol>,
 }
 
 impl<'a> App<'a> {
@@ -148,6 +149,7 @@ impl<'a> App<'a> {
             picker,
             profile_view: None,
             profile_image_state: None,
+            profile_banner_image_state: None,
         }
     }
 
@@ -167,19 +169,70 @@ impl<'a> App<'a> {
     }
 
     pub fn set_profile_for_viewing(&mut self, profile: UserProfile) {
-        let mut image_state: Option<StatefulProtocol> = None;
-        if let Some(pfp_str) = &profile.profile_pic {
-            if !pfp_str.starts_with("http") {
-                if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(pfp_str) {
-                    if let Ok(dynamic_image) = load_from_memory(&bytes) {
-                        // --- CORRECTED: new_resize_protocol returns the struct directly ---
-                        let protocol = self.picker.new_resize_protocol(dynamic_image);
-                        image_state = Some(protocol);
-                    }
+        fn decode_image_bytes(val: &Option<String>) -> Option<Vec<u8>> {
+            if let Some(s) = val {
+                if s.starts_with("http") {
+                    None // Not handling URLs here
+                } else {
+                    let b64 = if let Some(idx) = s.find(",") {
+                        &s[idx+1..]
+                    } else {
+                        s.as_str()
+                    };
+                    base64::engine::general_purpose::STANDARD.decode(b64).ok()
                 }
+            } else {
+                None
             }
         }
-        self.profile_image_state = image_state;
+        let banner_bytes = decode_image_bytes(&profile.cover_banner);
+        let pfp_bytes = decode_image_bytes(&profile.profile_pic);
+        if let (Some(banner), Some(pfp)) = (banner_bytes, pfp_bytes) {
+            // Remove unused variables banner_cells_w and banner_cells_h
+            let font_size = self.picker.font_size();
+            // Fallback: use 70 cols x 7 rows as a reasonable default
+            let banner_px_w = 70 * font_size.0;
+            let banner_px_h = 7 * font_size.1;
+            let banner_size = (banner_px_w as u32, banner_px_h as u32);
+            let pfp_size = (32, 32);
+            let pfp_padding_left = 16;
+            let composited = Self::composite_banner_and_pfp(&banner, &pfp, banner_size, pfp_size, pfp_padding_left);
+            if let Some(composite_bytes) = composited {
+                if let Ok(dynamic_image) = image::load_from_memory(&composite_bytes) {
+                    self.profile_banner_image_state = Some(self.picker.new_resize_protocol(dynamic_image));
+                } else {
+                    self.profile_banner_image_state = None;
+                }
+            } else {
+                self.profile_banner_image_state = None;
+            }
+            self.profile_image_state = None; // Only render the composited image
+        } else {
+            // Fallback: render separately as before
+            fn decode_image_field(picker: &Picker, val: &Option<String>) -> Option<StatefulProtocol> {
+                if let Some(s) = val {
+                    if s.starts_with("http") {
+                        None
+                    } else {
+                        let b64 = if let Some(idx) = s.find(",") {
+                            &s[idx+1..]
+                        } else {
+                            s.as_str()
+                        };
+                        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
+                            if let Ok(dynamic_image) = image::load_from_memory(&bytes) {
+                                return Some(picker.new_resize_protocol(dynamic_image));
+                            }
+                        }
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            self.profile_image_state = decode_image_field(&self.picker, &profile.profile_pic);
+            self.profile_banner_image_state = decode_image_field(&self.picker, &profile.cover_banner);
+        }
         self.profile_view = Some(profile);
         self.show_profile_view_popup = true;
     }
@@ -310,12 +363,119 @@ impl<'a> App<'a> {
             return Some(trimmed.to_string());
         }
         if Path::new(trimmed).exists() {
-            match fs::read(trimmed) {
-                Ok(bytes) => Some(base64::engine::general_purpose::STANDARD.encode(bytes)),
-                Err(_) => None,
+            match image::open(trimmed) {
+                Ok(img) => {
+                    let mut rgba_img = img.to_rgba8();
+                    for pixel in rgba_img.pixels_mut() {
+                        pixel[3] = 128; // Set alpha to 50% for all pixels
+                    }
+                    // Use a single buffer for both images
+                    let mut shared_buf = Cursor::new(Vec::new());
+                    match image::DynamicImage::ImageRgba8(rgba_img)
+                        .write_to(&mut shared_buf, image::ImageFormat::Png)
+                    {
+                        Ok(_) => {
+                            let bytes = shared_buf.into_inner();
+                            eprintln!("DEBUG: Encoded PNG buffer length: {}", bytes.len());
+                            return Some(base64::engine::general_purpose::STANDARD.encode(bytes));
+                        }
+                        Err(e) => {
+                            eprintln!("ERROR: Failed to write PNG: {e}");
+                            return None;
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("ERROR: Failed to open image: {e}");
+                    match fs::read(trimmed) {
+                        Ok(bytes) => return Some(base64::engine::general_purpose::STANDARD.encode(bytes)),
+                        Err(_) => return None,
+                    }
+                }
             }
         } else {
             Some(trimmed.to_string())
+        }
+    }
+
+    /// Composite the banner and profile picture images in memory, overlaying the PFP on the banner.
+    /// banner_size: (width, height) in pixels for the banner
+    /// pfp_size: (width, height) in pixels for the PFP (should be 32x32)
+    /// pfp_padding_left: left padding in pixels
+    pub fn composite_banner_and_pfp(
+        banner_bytes: &[u8],
+        pfp_bytes: &[u8],
+        banner_size: (u32, u32),
+        pfp_size: (u32, u32),
+        pfp_padding_left: u32,
+    ) -> Option<Vec<u8>> {
+        use image::{DynamicImage, ImageFormat, Rgba, imageops};
+        // Resize banner
+        let banner_img = image::load_from_memory(banner_bytes).ok()?;
+        let mut banner_img = banner_img.resize_exact(banner_size.0, banner_size.1, imageops::FilterType::Lanczos3).to_rgba8();
+        // Resize PFP
+        let pfp_img = image::load_from_memory(pfp_bytes).ok()?;
+        let mut pfp_img = pfp_img.resize_exact(pfp_size.0, pfp_size.1, imageops::FilterType::Lanczos3).to_rgba8();
+        // Apply circular mask to PFP
+        let radius = pfp_size.0.min(pfp_size.1) as f32 / 2.0;
+        let center = (pfp_size.0 as f32 / 2.0, pfp_size.1 as f32 / 2.0);
+        for y in 0..pfp_size.1 {
+            for x in 0..pfp_size.0 {
+                let dx = x as f32 + 0.5 - center.0;
+                let dy = y as f32 + 0.5 - center.1;
+                if (dx*dx + dy*dy).sqrt() > radius {
+                    let px = pfp_img.get_pixel_mut(x, y);
+                    *px = Rgba([0, 0, 0, 0]);
+                }
+            }
+        }
+        // Vertically center PFP on banner
+        let pfp_y = (banner_size.1.saturating_sub(pfp_size.1)) / 2;
+        imageops::overlay(&mut banner_img, &pfp_img, pfp_padding_left.into(), pfp_y.into());
+        let mut out_buf = Vec::new();
+        DynamicImage::ImageRgba8(banner_img)
+            .write_to(&mut Cursor::new(&mut out_buf), ImageFormat::Png)
+            .ok()?;
+        Some(out_buf)
+    }
+
+    pub fn update_profile_banner_composite(&mut self, banner_area_width_cells: u16, banner_area_height_cells: u16) {
+        if let Some(profile) = self.profile_view.as_ref() {
+            if let (Some(banner_str), Some(pfp_str)) = (profile.cover_banner.as_ref(), profile.profile_pic.as_ref()) {
+                fn decode_image_bytes(val: &str) -> Option<Vec<u8>> {
+                    if val.starts_with("http") {
+                        None
+                    } else {
+                        let b64 = if let Some(idx) = val.find(",") {
+                            &val[idx+1..]
+                        } else {
+                            val
+                        };
+                        base64::engine::general_purpose::STANDARD.decode(b64).ok()
+                    }
+                }
+                let banner_bytes = decode_image_bytes(banner_str);
+                let pfp_bytes = decode_image_bytes(pfp_str);
+                if let (Some(banner), Some(pfp)) = (banner_bytes, pfp_bytes) {
+                    let font_size = self.picker.font_size();
+                    let banner_px_w = banner_area_width_cells as u32 * font_size.0 as u32;
+                    let banner_px_h = banner_area_height_cells as u32 * font_size.1 as u32;
+                    let banner_size = (banner_px_w, banner_px_h);
+                    let pfp_size = (32, 32);
+                    let pfp_padding_left = 16;
+                    let composited = Self::composite_banner_and_pfp(&banner, &pfp, banner_size, pfp_size, pfp_padding_left);
+                    if let Some(composite_bytes) = composited {
+                        if let Ok(dynamic_image) = image::load_from_memory(&composite_bytes) {
+                            self.profile_banner_image_state = Some(self.picker.new_resize_protocol(dynamic_image));
+                        } else {
+                            self.profile_banner_image_state = None;
+                        }
+                    } else {
+                        self.profile_banner_image_state = None;
+                    }
+                    self.profile_image_state = None;
+                }
+            }
         }
     }
 }

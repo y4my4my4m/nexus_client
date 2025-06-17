@@ -11,7 +11,7 @@ use ratatui::{
 use ratatui_image::StatefulImage;
 
 pub fn ui(f: &mut Frame, app: &mut App) {
-    let size = f.size();
+    let size = f.area();
 
     let chunks = Layout::default()
         .constraints([
@@ -140,9 +140,9 @@ fn draw_login(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(Paragraph::new(Span::styled("[ To Register ]", switch_style)).alignment(Alignment::Center), button_chunks[1]);
 
     if let Some(InputMode::LoginUsername) = &app.input_mode {
-        f.set_cursor(chunks[0].x + app.current_input.len() as u16 + 1, chunks[0].y + 1);
+        f.set_cursor_position((chunks[0].x + app.current_input.len() as u16 + 1, chunks[0].y + 1));
     } else if let Some(InputMode::LoginPassword) = &app.input_mode {
-        f.set_cursor(chunks[1].x + app.password_input.len() as u16 + 1, chunks[1].y + 1);
+        f.set_cursor_position((chunks[1].x + app.password_input.len() as u16 + 1, chunks[1].y + 1));
     }
 }
 
@@ -184,9 +184,9 @@ fn draw_register(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(Paragraph::new(Span::styled("[ To Login ]", switch_style)).alignment(Alignment::Center), button_chunks[1]);
     
     if let Some(InputMode::RegisterUsername) = &app.input_mode {
-        f.set_cursor(chunks[0].x + app.current_input.len() as u16 + 1, chunks[0].y + 1);
+        f.set_cursor_position((chunks[0].x + app.current_input.len() as u16 + 1, chunks[0].y + 1));
     } else if let Some(InputMode::RegisterPassword) = &app.input_mode {
-        f.set_cursor(chunks[1].x + app.password_input.len() as u16 + 1, chunks[1].y + 1);
+        f.set_cursor_position((chunks[1].x + app.password_input.len() as u16 + 1, chunks[1].y + 1));
     }
 }
 fn draw_main_menu(f: &mut Frame, app: &mut App, area: Rect) {
@@ -390,7 +390,7 @@ fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
         _ => (0, 0),
     };
     if matches!(app.profile_edit_focus, Bio|Url1|Url2|Url3|Location|ProfilePic|CoverBanner) {
-        f.set_cursor(cursor.0, cursor.1);
+        f.set_cursor_position(cursor);
     }
 }
 
@@ -462,12 +462,12 @@ fn draw_dm_input_popup(f: &mut Frame, app: &App) {
     } else {
         "Send Direct Message".to_string()
     };
-    let area = draw_centered_rect(f.size(), 50, 20);
+    let area = draw_centered_rect(f.area(), 50, 20);
     let block = Block::default().title(title).borders(Borders::ALL).border_type(BorderType::Double);
     let input_field = Paragraph::new(app.dm_input.as_str()).wrap(Wrap { trim: true }).block(block);
     f.render_widget(Clear, area);
     f.render_widget(input_field, area);
-    f.set_cursor(area.x + app.dm_input.len() as u16 + 1, area.y + 1);
+    f.set_cursor_position((area.x + app.dm_input.len() as u16 + 1, area.y + 1));
 }
 
 fn draw_input_popup(f: &mut Frame, app: &mut App) {
@@ -486,11 +486,11 @@ fn draw_input_popup(f: &mut Frame, app: &mut App) {
     let input_field = Paragraph::new(text_to_render).wrap(Wrap { trim: true }).block(block);
     f.render_widget(Clear, area);
     f.render_widget(input_field, area);
-    f.set_cursor(area.x + app.current_input.len() as u16 + 1, area.y + 1);
+    f.set_cursor_position((area.x + app.current_input.len() as u16 + 1, area.y + 1));
 }
 
 fn draw_notification_popup(f: &mut Frame, text: String) {
-    let area = draw_centered_rect(f.size(), 50, 20);
+    let area = draw_centered_rect(f.area(), 50, 20);
     let block = Block::default().title("Notification").borders(Borders::ALL).border_type(BorderType::Double);
     let popup_height = area.height.saturating_sub(2);
     let lines: Vec<&str> = text.lines().collect();
@@ -507,7 +507,7 @@ fn draw_notification_popup(f: &mut Frame, text: String) {
 }
 
 fn draw_minimal_notification_popup(f: &mut Frame, text: String) {
-    let size = f.size();
+    let size = f.area();
     let width = 30u16.max(text.len() as u16 + 2).min(size.width / 2);
     let height = 3u16;
     let x = size.x + size.width - width - 2;
@@ -520,69 +520,82 @@ fn draw_minimal_notification_popup(f: &mut Frame, text: String) {
 }
 
 fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::UserProfile) {
-    let area = draw_centered_rect(f.size(), 70, 60);
+    let area = draw_centered_rect(f.area(), 70, 60);
     f.render_widget(Clear, area);
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(7), // Banner
-            Constraint::Length(5), // PFP + username
             Constraint::Min(0),    // Rest
         ])
         .split(area);
 
-    let banner_text = if let Some(ref banner) = profile.cover_banner {
-        if banner.starts_with("http") {
-            format!("[Banner: {}]", banner)
-        } else if banner.len() > 100 {
-            "[Banner: base64 image]".to_string()
-        } else {
-            banner.clone()
-        }
-    } else {
-        "[No Banner]".to_string()
-    };
-    let banner_block = Block::default()
-        .borders(Borders::ALL)
-        .title(Span::styled(&profile.username, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
-        .style(Style::default().bg(Color::Blue));
-    f.render_widget(banner_block, layout[0]);
-    let banner_text_area = Layout::default()
-        .margin(1)
-        .constraints([Constraint::Min(1)])
-        .split(layout[0])[0];
-    f.render_widget(Paragraph::new(banner_text).alignment(Alignment::Center), banner_text_area);
+    // --- Banner with PFP and Username ---
+    let banner_area = layout[0];
+    // Dynamically update the composite image to match the banner area
+    app.update_profile_banner_composite(banner_area.width, banner_area.height);
+    // Add a border to the top of the banner
+    let banner_border = Block::default()
+        .borders(Borders::TOP)
+        .border_type(BorderType::Double);
+    f.render_widget(banner_border, banner_area);
 
-    let pfp_area = layout[1];
-    let pfp_chunks = Layout::default()
+    // Split horizontally: [pfp] [username]
+    let banner_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(10), // PFP
-            Constraint::Length(2),
+            Constraint::Length(12), // PFP
             Constraint::Min(10),    // Username
         ])
-        .split(pfp_area);
+        .split(banner_area);
 
-    let pfp_chunk_area = pfp_chunks[0];
-    let pfp_block = Block::default().borders(Borders::ALL).title("Profile Pic");
-    let inner_area = pfp_block.inner(pfp_chunk_area);
-    f.render_widget(pfp_block, pfp_chunk_area);
-
-    // --- CORRECTED ---
-    if let Some(state) = &mut app.profile_image_state {
-        let image_widget = StatefulImage::default();
-        f.render_stateful_widget(image_widget, inner_area, state);
+    // --- Banner background: crop and stretch to fit ---
+    if let Some(state) = &mut app.profile_banner_image_state {
+        // Only render the composited image (banner + PFP)
+        let image_widget = StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
+        f.render_stateful_widget(image_widget, banner_area, state);
     } else {
-        let placeholder_text = if let Some(pfp_str) = &profile.profile_pic {
-            if pfp_str.starts_with("http") { "[Image URL]" }
-            else { "[Invalid Image]" }
-        } else {
-            "[No Pic]"
-        };
-        let p = Paragraph::new(placeholder_text).alignment(Alignment::Center);
-        f.render_widget(p, inner_area);
+        let banner_bg = Color::Blue;
+        let banner_block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Plain)
+            .style(Style::default().bg(banner_bg));
+        f.render_widget(banner_block, banner_area);
     }
 
+    // --- PFP inside banner, with cropping/clipping ---
+    // Do NOT render a separate PFP image if composited image is present
+    if app.profile_banner_image_state.is_none() {
+        if let Some(state) = &mut app.profile_image_state {
+            let pfp_area = banner_chunks[0];
+            let image_widget = StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
+            f.render_stateful_widget(image_widget, pfp_area, state);
+        } else {
+            let pfp_block = Block::default().borders(Borders::ALL).title("Profile Pic");
+            let pfp_inner = pfp_block.inner(banner_chunks[0]);
+            f.render_widget(pfp_block, banner_chunks[0]);
+            let placeholder_text = if let Some(pfp_str) = &profile.profile_pic {
+                if pfp_str.starts_with("http") { "[Image URL]" }
+                else { "[Invalid Image]" }
+            } else {
+                "[No Pic]"
+            };
+            let p = Paragraph::new(placeholder_text).alignment(Alignment::Center);
+            f.render_widget(p, pfp_inner);
+        }
+    }
+
+    // Username in big font next to PFP, with bg color for visibility
+    let username_area = banner_chunks[1];
+    let username_style = Style::default()
+        .fg(Color::Yellow)
+        .bg(Color::Black)
+        .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
+    let username_para = Paragraph::new(Span::styled(&profile.username, username_style))
+        .alignment(Alignment::Center);
+    f.render_widget(username_para, username_area);
+
+    // --- Rest of profile info below banner ---
     let mut lines = vec![];
     if let Some(bio) = &profile.bio { lines.push(Line::from(vec![Span::styled("Bio: ", Style::default().fg(Color::Cyan)), Span::raw(bio)])); }
     if let Some(loc) = &profile.location { lines.push(Line::from(vec![Span::styled("Location: ", Style::default().fg(Color::Cyan)), Span::raw(loc)])); }
@@ -591,11 +604,11 @@ fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::UserP
     if let Some(url3) = &profile.url3 { if !url3.is_empty() { lines.push(Line::from(vec![Span::styled("URL3: ", Style::default().fg(Color::Cyan)), Span::raw(url3)])); } }
     lines.push(Line::from(vec![Span::styled("Role: ", Style::default().fg(Color::Cyan)), Span::raw(format!("{:?}", profile.role))]));
     let rest = Paragraph::new(lines).wrap(Wrap { trim: true }).block(Block::default().borders(Borders::ALL));
-    f.render_widget(rest, layout[2]);
+    f.render_widget(rest, layout[1]);
 }
 
 fn draw_user_actions_popup(f: &mut Frame, app: &App) {
-    let area = draw_centered_rect(f.size(), 40, 20);
+    let area = draw_centered_rect(f.area(), 40, 20);
     f.render_widget(Clear, area);
     let user = app.user_actions_target.and_then(|idx| app.connected_users.get(idx));
     let username = user.map(|u| u.username.as_str()).unwrap_or("<unknown>");
