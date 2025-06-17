@@ -579,21 +579,21 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                                         app.mention_prefix = None;
                                     }
                                 }
-                            } else if !app.current_input.is_empty() {
-                                if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
-                                    if let Some(server) = app.servers.get(s) {
-                                        if let Some(channel) = server.channels.get(c) {
-                                            let content = app.current_input.drain(..).collect();
-                                            app.send_to_server(ClientMessage::SendChannelMessage {
-                                                channel_id: channel.id,
-                                                content,
-                                            });
-                                        }
+                            }
+                        } else if !app.current_input.is_empty() {
+                            if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
+                                if let Some(server) = app.servers.get(s) {
+                                    if let Some(channel) = server.channels.get(c) {
+                                        let content = app.current_input.drain(..).collect();
+                                        app.send_to_server(ClientMessage::SendChannelMessage {
+                                            channel_id: channel.id,
+                                            content,
+                                        });
                                     }
                                 }
                             }
                         }
-                    },
+                },
                     KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
                         app.show_user_list = !app.show_user_list;
                         app.chat_focus = if app.show_user_list {
