@@ -517,7 +517,7 @@ fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
                 f.render_widget(Paragraph::new(text).wrap(Wrap { trim: true }), row_chunks[2]);
             }
         }
-        current_y += row_height;
+        current_y += row_height + 1;
     }
 
     let input = Paragraph::new(app.current_input.as_str()).style(Style::default().fg(Color::Cyan))
@@ -534,13 +534,13 @@ fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     } else {
         Style::default()
     };
-    let block = Block::default().borders(Borders::ALL).title("Users [U]").border_style(border_style);
+    let block = Block::default().borders(Borders::ALL).title("Users [Ctrl+U]").border_style(border_style);
     f.render_widget(block.clone(), area);
 
     let inner_area = block.inner(area);
     if inner_area.width == 0 || inner_area.height == 0 { return; }
 
-    const AVATAR_PIXEL_SIZE: u32 = 24;
+    const AVATAR_PIXEL_SIZE: u32 = 16;
     let (font_w, font_h) = app.picker.font_size();
     let (font_w, font_h) = if font_w == 0 || font_h == 0 { (8, 16) } else { (font_w, font_h) };
     let avatar_cell_width = (AVATAR_PIXEL_SIZE as f32 / font_w as f32).ceil() as u16;
