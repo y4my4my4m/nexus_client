@@ -69,9 +69,36 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
                     .split(row_area);
                 let image_widget = StatefulImage::default();
                 f.render_stateful_widget(image_widget, row_chunks[0], state);
+                // TODO: probably should use hidden code and save the color in the message struct
+                // Parse content for @mentions
+                let mut spans = Vec::new();
+                let mut last = 0;
+                let content_chars: Vec<_> = content.chars().collect();
+                let content_str = &content;
+                let mention_re = regex::Regex::new(r"@([a-zA-Z0-9_]+)").unwrap();
+                for m in mention_re.find_iter(content_str) {
+                    let start = m.start();
+                    let end = m.end();
+                    if start > last {
+                        spans.push(Span::raw(&content_str[last..start]));
+                    }
+                    let mention = &content_str[start+1..end];
+                    if let Some(mentioned_user) = app.connected_users.iter().find(|u| u.username == mention) {
+                        spans.push(Span::styled(
+                            format!("@{}" , mention),
+                            Style::default().bg(mentioned_user.color).fg(Color::Black).add_modifier(Modifier::BOLD)
+                        ));
+                    } else {
+                        spans.push(Span::raw(&content_str[start..end]));
+                    }
+                    last = end;
+                }
+                if last < content_str.len() {
+                    spans.push(Span::raw(&content_str[last..]));
+                }
                 let text = vec![
                     Line::from(Span::styled(format!("<{}>", author), Style::default().fg(color).add_modifier(Modifier::BOLD))),
-                    Line::from(Span::raw(&content)),
+                    Line::from(spans),
                 ];
                 f.render_widget(Paragraph::new(text).wrap(Wrap { trim: true }), row_chunks[2]);
             } else {
