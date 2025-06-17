@@ -280,20 +280,12 @@ impl<'a> App<'a> {
                 if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {
                     if let Some(server) = self.servers.get_mut(s) {
                         if let Some(channel) = server.channels.get_mut(c) {
-                            // For now, treat all NewChatMessage as for the selected channel
-                            channel.messages.push(common::ChannelMessage {
-                                id: uuid::Uuid::new_v4(),
-                                channel_id: channel.id,
-                                sent_by: self.current_user.as_ref().map(|u| u.id).unwrap_or_default(),
-                                timestamp: chrono::Utc::now().timestamp(),
-                                content: msg.content.clone(),
-                            });
-                            // If this is the currently viewed channel, update chat_messages
-                            self.chat_messages = channel.messages.iter().map(|m| common::ChatMessage {
+                            // For local echo, just add a ChatMessage (not ChannelMessage)
+                            self.chat_messages.push(common::ChatMessage {
                                 author: msg.author.clone(),
-                                content: m.content.clone(),
+                                content: msg.content.clone(),
                                 color: msg.color,
-                            }).collect();
+                            });
                         }
                     }
                 }
@@ -310,16 +302,11 @@ impl<'a> App<'a> {
                         channel.messages.push(msg.clone());
                         if is_selected == Some(msg.channel_id) {
                             self.chat_messages.push(common::ChatMessage {
-                                author: self.connected_users.iter().find(|u| u.id == msg.sent_by)
-                                    .map(|u| u.username.clone())
-                                    .unwrap_or_else(|| msg.sent_by.to_string()),
+                                author: msg.author_username.clone(),
                                 content: msg.content.clone(),
-                                color: self.connected_users.iter().find(|u| u.id == msg.sent_by)
-                                    .map(|u| u.color)
-                                    .unwrap_or(ratatui::style::Color::White),
+                                color: msg.author_color,
                             });
                         }
-                        break;
                     }
                 }
             }
@@ -333,14 +320,10 @@ impl<'a> App<'a> {
                     if let Some(channel) = server.channels.iter_mut().find(|c| c.id == channel_id) {
                         channel.messages = messages.clone();
                         if is_selected == Some(channel_id) {
-                            self.chat_messages = channel.messages.iter().map(|m| common::ChatMessage {
-                                author: self.connected_users.iter().find(|u| u.id == m.sent_by)
-                                    .map(|u| u.username.clone())
-                                    .unwrap_or_else(|| m.sent_by.to_string()),
+                            self.chat_messages = messages.iter().map(|m| common::ChatMessage {
+                                author: m.author_username.clone(),
                                 content: m.content.clone(),
-                                color: self.connected_users.iter().find(|u| u.id == m.sent_by)
-                                    .map(|u| u.color)
-                                    .unwrap_or(ratatui::style::Color::White),
+                                color: m.author_color,
                             }).collect();
                         }
                         break;
