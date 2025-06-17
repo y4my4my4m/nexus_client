@@ -312,6 +312,27 @@ impl<'a> App<'a> {
                 }
                 self.profile_requested_by_user = false;
             }
+            ServerMessage::UserUpdated(user) => {
+                // Update the user in connected_users if present
+                if let Some(existing) = self.connected_users.iter_mut().find(|u| u.id == user.id) {
+                    *existing = user.clone();
+                }
+                // Also update current_user if it's this user
+                if let Some(current) = &mut self.current_user {
+                    if current.id == user.id {
+                        *current = user.clone();
+                    }
+                }
+                // Update chat messages' author info if present
+                for msg in &mut self.chat_messages {
+                    if msg.author == user.username {
+                        msg.color = user.color;
+                        // If you add avatar/profile_pic to ChatMessage, update here too
+                    }
+                }
+                // Invalidate avatar cache for this user (all sizes)
+                self.avatar_protocol_cache.retain(|(uid, _), _| *uid != user.id);
+            }
         }
     }
 
