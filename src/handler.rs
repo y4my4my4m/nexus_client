@@ -79,7 +79,7 @@ fn handle_auth_mode(key: KeyEvent, app: &mut App) {
                     let username = app.current_input.clone();
                     let password = app.password_input.clone();
                     if username.is_empty() || password.is_empty() {
-                        app.notification = Some("Fields cannot be empty.".into());
+                        app.set_notification("Fields cannot be empty.", None);
                         return;
                     }
                     if app.mode == AppMode::Login {
@@ -121,7 +121,7 @@ fn handle_input_mode(key: KeyEvent, app: &mut App) {
                 match im {
                     InputMode::NewThreadTitle => {
                         if input.trim().is_empty() {
-                            app.notification = Some("Thread title cannot be empty.".into());
+                            app.set_notification("Thread title cannot be empty.", None);
                             app.input_mode = Some(InputMode::NewThreadTitle);
                             return;
                         }
@@ -132,26 +132,26 @@ fn handle_input_mode(key: KeyEvent, app: &mut App) {
                         let title = prev_input;
                         let content = input;
                         if title.trim().is_empty() || content.trim().is_empty() {
-                            app.notification = Some("Thread title and content cannot be empty.".into());
+                            app.set_notification("Thread title and content cannot be empty.", None);
                             app.input_mode = Some(InputMode::NewThreadContent);
                             app.password_input = title;
                             return;
                         }
                         if let Some(forum_id) = app.current_forum_id {
                             app.send_to_server(ClientMessage::CreateThread{ forum_id, title: title.clone(), content: content.clone() });
-                            app.notification = Some("Thread submitted!".into());
+                            app.set_notification("Thread submitted!", Some(1500));
                         }
                         app.mode = AppMode::ForumList;
                     },
                     InputMode::NewPostContent => {
                         if input.trim().is_empty() {
-                            app.notification = Some("Post content cannot be empty.".into());
+                            app.set_notification("Post content cannot be empty.", None);
                             app.input_mode = Some(InputMode::NewPostContent);
                             return;
                         }
                         if let Some(thread_id) = app.current_thread_id {
                             app.send_to_server(ClientMessage::CreatePost { thread_id, content: input.clone() });
-                            app.notification = Some("Reply submitted!".into());
+                            app.set_notification("Reply submitted!", Some(1500));
                         }
                         app.mode = AppMode::PostView;
                     }
@@ -199,7 +199,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
             },
             KeyCode::Char('n') | KeyCode::Char('N') => {
                 if app.forum_list_state.selected().is_some() { app.enter_input_mode(InputMode::NewThreadTitle) } 
-                else { app.notification = Some("Select a forum first to create a thread in.".into()); }
+                else { app.set_notification("Select a forum first to create a thread in.", None); }
             },
             KeyCode::Esc => app.mode = AppMode::MainMenu,
             _ => {}

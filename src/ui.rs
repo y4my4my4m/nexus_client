@@ -68,7 +68,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         }
     }
 
-    if let Some(notification) = &app.notification {
+    if let Some((notification, _)) = &app.notification {
         draw_notification_popup(f, notification.clone());
     }
 }
@@ -285,7 +285,17 @@ fn draw_input_popup(f: &mut Frame, app: &mut App) {
 fn draw_notification_popup(f: &mut Frame, text: String) {
     let area = draw_centered_rect(f.size(), 50, 20);
     let block = Block::default().title("Notification").borders(Borders::ALL).border_type(BorderType::Double);
-    let p = Paragraph::new(text).wrap(Wrap { trim: true }).block(block).alignment(Alignment::Center);
+    // Vertically center the text in the popup
+    let popup_height = area.height.saturating_sub(2); // minus borders
+    let lines: Vec<&str> = text.lines().collect();
+    let text_lines = lines.len() as u16;
+    let pad_top = (popup_height.saturating_sub(text_lines)) / 2;
+    let pad_bottom = popup_height.saturating_sub(pad_top + text_lines);
+    let mut content = Vec::new();
+    for _ in 0..pad_top { content.push(Line::raw("")); }
+    for l in lines.iter() { content.push(Line::from(*l)); }
+    for _ in 0..pad_bottom { content.push(Line::raw("")); }
+    let p = Paragraph::new(content).wrap(Wrap { trim: true }).block(block).alignment(Alignment::Center);
     f.render_widget(Clear, area);
     f.render_widget(p, area);
 }

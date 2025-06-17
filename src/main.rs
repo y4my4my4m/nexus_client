@@ -83,7 +83,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // This task's ONLY job is to send a Tick event at a fixed interval.
     let tick_event_tx = event_tx;
     tokio::spawn(async move {
-        let frame_rate = Duration::from_millis(100); // Target ~60 FPS
+        let frame_rate = Duration::from_millis(100);
         loop {
             tokio::time::sleep(frame_rate).await;
             if tick_event_tx.send(AppEvent::Tick).is_err() {

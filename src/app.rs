@@ -32,7 +32,7 @@ pub struct App {
     pub input_mode: Option<InputMode>,
     pub current_input: String,
     pub password_input: String,
-    pub notification: Option<String>,
+    pub notification: Option<(String, Option<u64>)>, // (message, Some(tick_to_close) or None)
     pub current_user: Option<User>,
     pub main_menu_state: ListState,
     pub forum_list_state: ListState,
@@ -70,16 +70,22 @@ impl App {
         }
     }
 
+    /// Set a notification with optional auto-close in ms (if ms is Some)
+    pub fn set_notification(&mut self, message: impl Into<String>, ms: Option<u64>) {
+        let close_tick = ms.map(|ms| self.tick_count + (ms / 100)); // 100ms per tick
+        self.notification = Some((message.into(), close_tick));
+    }
+
     pub fn send_to_server(&mut self, msg: ClientMessage) {
         if let Err(e) = self.to_server.send(msg) {
-            self.notification = Some(format!("Connection Error: {}", e));
+            self.set_notification(format!("Connection Error: {}", e), None);
         }
     }
     
     pub fn handle_server_message(&mut self, msg: ServerMessage) {
         match msg {
             ServerMessage::AuthSuccess(user) => {
-                self.notification = Some("AuthSuccess received!".to_string());
+                self.set_notification("AuthSuccess received!", Some(1500));
                 self.current_user = Some(user);
                 self.mode = AppMode::MainMenu;
                 self.input_mode = None;
@@ -88,7 +94,7 @@ impl App {
                 self.main_menu_state.select(Some(0));
             }
             ServerMessage::AuthFailure(reason) => {
-                self.notification = Some(format!("Error: {}", reason));
+                self.set_notification(format!("Error: {}", reason), None);
             }
             ServerMessage::Forums(forums) => self.forums = forums,
             ServerMessage::NewChatMessage(msg) => {
@@ -97,7 +103,7 @@ impl App {
             },
             ServerMessage::Notification(text, is_error) => {
                 let prefix = if is_error { "Error: " } else { "Info: " };
-                self.notification = Some(format!("{}{}", prefix, text));
+                self.set_notification(format!("{}{}", prefix, text), Some(2000));
             }
         }
     }
@@ -112,5 +118,11 @@ impl App {
 
     pub fn on_tick(&mut self) {
         self.tick_count += 1;
+        // Auto-close notification if needed
+        if let Some((_, Some(close_tick))) = &self.notification {
+            if self.tick_count >= *close_tick {
+                self.notification = None;
+            }
+        }
     }
 }
