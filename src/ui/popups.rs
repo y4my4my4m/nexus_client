@@ -102,15 +102,6 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
         .border_type(BorderType::Double);
     f.render_widget(banner_border, banner_area);
 
-    // Split horizontally: [pfp] [username]
-    let banner_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Length(12), // PFP
-            Constraint::Min(10),    // Username
-        ])
-        .split(banner_area);
-
     // --- Banner background: crop and stretch to fit ---
     if let Some(state) = &mut app.profile_banner_image_state {
         let banner_block = Block::default()
@@ -134,28 +125,6 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
             .title(Span::styled(&profile.username, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
             .style(Style::default().bg(banner_bg));
         f.render_widget(banner_block, banner_area);
-    }
-
-    // --- PFP inside banner, with cropping/clipping ---
-    // Do NOT render a separate PFP image if composited image is present
-    if app.profile_banner_image_state.is_none() {
-        if let Some(state) = &mut app.profile_image_state {
-            let pfp_area = banner_chunks[0];
-            let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
-            f.render_stateful_widget(image_widget, pfp_area, state);
-        } else {
-            let pfp_block = Block::default().borders(Borders::ALL).title("Profile Pic");
-            let pfp_inner = pfp_block.inner(banner_chunks[0]);
-            f.render_widget(pfp_block, banner_chunks[0]);
-            let placeholder_text = if let Some(pfp_str) = &profile.profile_pic {
-                if pfp_str.starts_with("http") { "[Image URL]" }
-                else { "[Invalid Image]" }
-            } else {
-                "[No Pic]"
-            };
-            let p = Paragraph::new(placeholder_text).alignment(Alignment::Center);
-            f.render_widget(p, pfp_inner);
-        }
     }
 
     // --- Rest of profile info below banner ---

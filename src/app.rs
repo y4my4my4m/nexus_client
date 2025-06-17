@@ -196,18 +196,26 @@ impl<'a> App<'a> {
                 None
             }
         }
-        let banner_bytes = decode_image_bytes(&profile.cover_banner);
-        let pfp_bytes = decode_image_bytes(&profile.profile_pic);
-        if let (Some(banner), Some(pfp)) = (banner_bytes, pfp_bytes) {
-            // Remove unused variables banner_cells_w and banner_cells_h
-            let font_size = self.picker.font_size();
-            // Fallback: use 70 cols x 7 rows as a reasonable default
-            let banner_px_w = 70 * font_size.0;
-            let banner_px_h = 7 * font_size.1;
-            let banner_size = (banner_px_w as u32, banner_px_h as u32);
-            let pfp_size = (32, 32);
-            let pfp_padding_left = 16;
-            let composited = Self::composite_banner_and_pfp(&banner, &pfp, banner_size, pfp_size, pfp_padding_left);
+        let font_size = self.picker.font_size();
+        let banner_px_w = 70 * font_size.0;
+        let banner_px_h = 7 * font_size.1;
+        let banner_size = (banner_px_w as u32, banner_px_h as u32);
+        let pfp_size = (32, 32);
+        let pfp_padding_left = 16;
+        let banner_bytes = decode_image_bytes(&profile.cover_banner)
+            .or_else(|| Some(vec![0u8; (banner_size.0 * banner_size.1 * 4) as usize]));
+        let pfp_bytes = decode_image_bytes(&profile.profile_pic)
+            .or_else(|| Some(vec![0u8; (pfp_size.0 * pfp_size.1 * 4) as usize]));
+        // Only show composite if at least one is not fully transparent
+        let show_composite = profile.cover_banner.is_some() || profile.profile_pic.is_some();
+        if show_composite {
+            let composited = Self::composite_banner_and_pfp(
+                &banner_bytes.unwrap(),
+                &pfp_bytes.unwrap(),
+                banner_size,
+                pfp_size,
+                pfp_padding_left,
+            );
             if let Some(composite_bytes) = composited {
                 if let Ok(dynamic_image) = image::load_from_memory(&composite_bytes) {
                     self.profile_banner_image_state = Some(self.picker.new_resize_protocol(dynamic_image));
@@ -219,30 +227,8 @@ impl<'a> App<'a> {
             }
             self.profile_image_state = None; // Only render the composited image
         } else {
-            // Fallback: render separately as before
-            fn decode_image_field(picker: &Picker, val: &Option<String>) -> Option<StatefulProtocol> {
-                if let Some(s) = val {
-                    if s.starts_with("http") {
-                        None
-                    } else {
-                        let b64 = if let Some(idx) = s.find(",") {
-                            &s[idx+1..]
-                        } else {
-                            s.as_str()
-                        };
-                        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
-                            if let Ok(dynamic_image) = image::load_from_memory(&bytes) {
-                                return Some(picker.new_resize_protocol(dynamic_image));
-                            }
-                        }
-                        None
-                    }
-                } else {
-                    None
-                }
-            }
-            self.profile_image_state = decode_image_field(&self.picker, &profile.profile_pic);
-            self.profile_banner_image_state = decode_image_field(&self.picker, &profile.cover_banner);
+            self.profile_banner_image_state = None;
+            self.profile_image_state = None;
         }
         self.profile_view = Some(profile);
         self.show_profile_view_popup = true;
@@ -370,9 +356,13 @@ impl<'a> App<'a> {
         pfp_padding_left: u32,
     ) -> Option<Vec<u8>> {
         use image::{DynamicImage, ImageFormat, Rgba, imageops};
-        // Resize banner
-        let banner_img = image::load_from_memory(banner_bytes).ok()?;
-        let mut banner_img = banner_img.resize_exact(banner_size.0, banner_size.1, imageops::FilterType::Lanczos3).to_rgba8();
+        // If banner_bytes is all zero (fully transparent), create a transparent image
+        let mut banner_img = if banner_bytes.iter().all(|&b| b == 0) {
+            image::RgbaImage::from_pixel(banner_size.0, banner_size.1, Rgba([0, 0, 0, 0]))
+        } else {
+            let img = image::load_from_memory(banner_bytes).ok()?;
+            img.resize_exact(banner_size.0, banner_size.1, imageops::FilterType::Lanczos3).to_rgba8()
+        };
         // Add a subtle black gradient to transparent left to right
         for y in 0..banner_size.1 {
             for x in 0..banner_size.0 {
@@ -382,8 +372,12 @@ impl<'a> App<'a> {
             }
         }
         // Resize PFP
-        let pfp_img = image::load_from_memory(pfp_bytes).ok()?;
-        let mut pfp_img = pfp_img.resize_exact(pfp_size.0, pfp_size.1, imageops::FilterType::Lanczos3).to_rgba8();
+        let mut pfp_img = if pfp_bytes.iter().all(|&b| b == 0) {
+            image::RgbaImage::from_pixel(pfp_size.0, pfp_size.1, Rgba([0, 0, 0, 0]))
+        } else {
+            let img = image::load_from_memory(pfp_bytes).ok()?;
+            img.resize_exact(pfp_size.0, pfp_size.1, imageops::FilterType::Lanczos3).to_rgba8()
+        };
         // Apply circular mask to PFP
         let radius = pfp_size.0.min(pfp_size.1) as f32 / 2.0;
         let center = (pfp_size.0 as f32 / 2.0, pfp_size.1 as f32 / 2.0);
@@ -409,40 +403,54 @@ impl<'a> App<'a> {
 
     pub fn update_profile_banner_composite(&mut self, banner_area_width_cells: u16, banner_area_height_cells: u16) {
         if let Some(profile) = self.profile_view.as_ref() {
-            if let (Some(banner_str), Some(pfp_str)) = (profile.cover_banner.as_ref(), profile.profile_pic.as_ref()) {
-                fn decode_image_bytes(val: &str) -> Option<Vec<u8>> {
-                    if val.starts_with("http") {
+            fn decode_image_bytes(val: &Option<String>) -> Option<Vec<u8>> {
+                if let Some(s) = val {
+                    if s.starts_with("http") {
                         None
                     } else {
-                        let b64 = if let Some(idx) = val.find(",") {
-                            &val[idx+1..]
+                        let b64 = if let Some(idx) = s.find(",") {
+                            &s[idx+1..]
                         } else {
-                            val
+                            s.as_str()
                         };
                         base64::engine::general_purpose::STANDARD.decode(b64).ok()
                     }
+                } else {
+                    None
                 }
-                let banner_bytes = decode_image_bytes(banner_str);
-                let pfp_bytes = decode_image_bytes(pfp_str);
-                if let (Some(banner), Some(pfp)) = (banner_bytes, pfp_bytes) {
-                    let font_size = self.picker.font_size();
-                    let banner_px_w = banner_area_width_cells as u32 * font_size.0 as u32;
-                    let banner_px_h = banner_area_height_cells as u32 * font_size.1 as u32;
-                    let banner_size = (banner_px_w, banner_px_h);
-                    let pfp_size = (64, 64);
-                    let pfp_padding_left = 16;
-                    let composited = Self::composite_banner_and_pfp(&banner, &pfp, banner_size, pfp_size, pfp_padding_left);
-                    if let Some(composite_bytes) = composited {
-                        if let Ok(dynamic_image) = image::load_from_memory(&composite_bytes) {
-                            self.profile_banner_image_state = Some(self.picker.new_resize_protocol(dynamic_image));
-                        } else {
-                            self.profile_banner_image_state = None;
-                        }
+            }
+            let font_size = self.picker.font_size();
+            let banner_px_w = banner_area_width_cells as u32 * font_size.0 as u32;
+            let banner_px_h = banner_area_height_cells as u32 * font_size.1 as u32;
+            let banner_size = (banner_px_w, banner_px_h);
+            let pfp_size = (64, 64);
+            let pfp_padding_left = 16;
+            let banner_bytes = decode_image_bytes(&profile.cover_banner)
+                .or_else(|| Some(vec![0u8; (banner_size.0 * banner_size.1 * 4) as usize]));
+            let pfp_bytes = decode_image_bytes(&profile.profile_pic)
+                .or_else(|| Some(vec![0u8; (pfp_size.0 * pfp_size.1 * 4) as usize]));
+            let show_composite = profile.cover_banner.is_some() || profile.profile_pic.is_some();
+            if show_composite {
+                let composited = Self::composite_banner_and_pfp(
+                    &banner_bytes.unwrap(),
+                    &pfp_bytes.unwrap(),
+                    banner_size,
+                    pfp_size,
+                    pfp_padding_left,
+                );
+                if let Some(composite_bytes) = composited {
+                    if let Ok(dynamic_image) = image::load_from_memory(&composite_bytes) {
+                        self.profile_banner_image_state = Some(self.picker.new_resize_protocol(dynamic_image));
                     } else {
                         self.profile_banner_image_state = None;
                     }
-                    self.profile_image_state = None;
+                } else {
+                    self.profile_banner_image_state = None;
                 }
+                self.profile_image_state = None;
+            } else {
+                self.profile_banner_image_state = None;
+                self.profile_image_state = None;
             }
         }
     }
