@@ -210,9 +210,18 @@ impl<'a> App<'a> {
                 );
             }
             ServerMessage::Profile(profile) => {
-                self.profile_view = Some(profile);
                 if self.profile_requested_by_user {
+                    self.profile_view = Some(profile);
                     self.show_profile_view_popup = true;
+                } else {
+                    // Prepopulate edit fields for editing
+                    self.edit_bio = profile.bio.unwrap_or_default();
+                    self.edit_url1 = profile.url1.unwrap_or_default();
+                    self.edit_url2 = profile.url2.unwrap_or_default();
+                    self.edit_url3 = profile.url3.unwrap_or_default();
+                    self.edit_location = profile.location.unwrap_or_default();
+                    self.edit_profile_pic = profile.profile_pic.unwrap_or_default();
+                    self.edit_cover_banner = profile.cover_banner.unwrap_or_default();
                 }
                 self.profile_requested_by_user = false;
             }

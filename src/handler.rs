@@ -234,7 +234,14 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     0 => app.enter_input_mode(InputMode::UpdatePassword),
                     1 => cycle_color(app),
                     2 => {
-                        app.mode = AppMode::EditProfile;
+                        // Fetch latest profile before entering edit mode
+                        if let Some(user) = &app.current_user {
+                            app.profile_requested_by_user = false; // Not a view, but for edit
+                            app.send_to_server(common::ClientMessage::GetProfile { user_id: user.id });
+                            // Set a flag to indicate we want to enter edit mode after profile arrives
+                            app.profile_edit_focus = crate::app::ProfileEditFocus::Bio;
+                            app.mode = AppMode::EditProfile; // Optionally, show a loading state
+                        }
                     },
                     _ => {}
                 }

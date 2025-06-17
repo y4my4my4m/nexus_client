@@ -522,16 +522,21 @@ fn draw_minimal_notification_popup(f: &mut Frame, text: String) {
 fn draw_profile_view_popup(f: &mut Frame, profile: &common::UserProfile) {
     let area = draw_centered_rect(f.size(), 60, 60);
     let block = Block::default().title(format!("Profile: {}", profile.username)).borders(Borders::ALL).border_type(BorderType::Double);
-    let mut lines = vec![
-        Line::from(vec![Span::styled("Bio:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.bio.as_deref().unwrap_or(""))]),
-        Line::from(vec![Span::styled("Location:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.location.as_deref().unwrap_or(""))]),
-        Line::from(vec![Span::styled("URL1:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.url1.as_deref().unwrap_or(""))]),
-        Line::from(vec![Span::styled("URL2:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.url2.as_deref().unwrap_or(""))]),
-        Line::from(vec![Span::styled("URL3:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.url3.as_deref().unwrap_or(""))]),
-        Line::from(vec![Span::styled("Profile Pic:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.profile_pic.as_deref().unwrap_or(""))]),
-        Line::from(vec![Span::styled("Cover Banner:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.cover_banner.as_deref().unwrap_or(""))]),
-        Line::from(vec![Span::styled("[Esc] Close", Style::default().fg(Color::Red))]),
-    ];
+    // Multiline bio rendering
+    let mut lines = vec![];
+    lines.push(Line::from(vec![Span::styled("Bio:", Style::default().fg(Color::Yellow))]));
+    if let Some(bio) = &profile.bio {
+        for l in bio.lines() {
+            lines.push(Line::from(Span::raw(l)));
+        }
+    }
+    lines.push(Line::from(vec![Span::styled("Location:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.location.as_deref().unwrap_or(""))]));
+    lines.push(Line::from(vec![Span::styled("URL1:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.url1.as_deref().unwrap_or(""))]));
+    lines.push(Line::from(vec![Span::styled("URL2:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.url2.as_deref().unwrap_or(""))]));
+    lines.push(Line::from(vec![Span::styled("URL3:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.url3.as_deref().unwrap_or(""))]));
+    lines.push(Line::from(vec![Span::styled("Profile Pic:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.profile_pic.as_deref().unwrap_or(""))]));
+    lines.push(Line::from(vec![Span::styled("Cover Banner:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.cover_banner.as_deref().unwrap_or(""))]));
+    lines.push(Line::from(vec![Span::styled("[Esc] Close", Style::default().fg(Color::Red))]));
     let p = Paragraph::new(lines).block(block).wrap(Wrap { trim: false });
     f.render_widget(Clear, area);
     f.render_widget(p, area);
