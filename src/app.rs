@@ -390,6 +390,14 @@ impl<'a> App<'a> {
         // Resize banner
         let banner_img = image::load_from_memory(banner_bytes).ok()?;
         let mut banner_img = banner_img.resize_exact(banner_size.0, banner_size.1, imageops::FilterType::Lanczos3).to_rgba8();
+        // Add a subtle black gradient to transparent left to right
+        for y in 0..banner_size.1 {
+            for x in 0..banner_size.0 {
+                let px = banner_img.get_pixel_mut(x, y);
+                let alpha = (x as f32 / banner_size.0 as f32 * 255.0) as u8;
+                *px = Rgba([px[0], px[1], px[2], alpha]);
+            }
+        }
         // Resize PFP
         let pfp_img = image::load_from_memory(pfp_bytes).ok()?;
         let mut pfp_img = pfp_img.resize_exact(pfp_size.0, pfp_size.1, imageops::FilterType::Lanczos3).to_rgba8();
