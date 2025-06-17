@@ -147,9 +147,11 @@ impl<'a> App<'a> {
         // Play error or notify sound
         if msg.to_lowercase().contains("error") {
             self.sound_manager.play(SoundType::Error);
-        } else {
-            self.sound_manager.play(SoundType::Notify);
         }
+        // Add a boolean for default sound type
+        // else {
+        //     self.sound_manager.play(SoundType::Notify);
+        // }
         let close_tick = ms.map(|ms| self.tick_count + (ms / 100)); // 100ms per tick
         self.notification = Some((msg, close_tick, minimal));
     }
@@ -163,16 +165,18 @@ impl<'a> App<'a> {
     pub fn handle_server_message(&mut self, msg: ServerMessage) {
         match msg {
             ServerMessage::AuthSuccess(user) => {
-                self.set_notification("AuthSuccess received!", Some(1500), false);
+                // self.set_notification("AuthSuccess received!", Some(1500), false);
                 self.current_user = Some(user);
                 self.mode = AppMode::MainMenu;
                 self.input_mode = None;
                 self.current_input.clear();
                 self.password_input.clear();
                 self.main_menu_state.select(Some(0));
+                self.sound_manager.play(SoundType::LoginSuccess);
             }
             ServerMessage::AuthFailure(reason) => {
                 self.set_notification(format!("Error: {}", reason), None, false);
+                self.sound_manager.play(SoundType::LoginFailure);
             }
             ServerMessage::Forums(forums) => self.forums = forums,
             ServerMessage::NewChatMessage(msg) => {
@@ -200,6 +204,7 @@ impl<'a> App<'a> {
                     Some(4000),
                     true,
                 );
+                self.sound_manager.play(SoundType::DirectMessage);
             }
             ServerMessage::MentionNotification { from, content } => {
                 self.set_notification(

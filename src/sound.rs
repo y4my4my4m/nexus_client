@@ -7,8 +7,12 @@ use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
 #[derive(Hash, Eq, PartialEq, Clone, Copy)]
 pub enum SoundType {
     // Click,
+    DirectMessage,
     Error,
     Notify,
+    LoginSuccess,
+    LoginFailure,
+    MessageSent,
 }
 
 pub struct SoundManager {
@@ -22,10 +26,16 @@ impl SoundManager {
         let (_stream, stream_handle) = OutputStream::try_default().expect("Failed to open audio output");
         let mut sounds = HashMap::new();
         let base_path = env!("CARGO_MANIFEST_DIR");
-        // let click_path = PathBuf::from(base_path).join("sounds/click.mp3");
         let error_path = PathBuf::from(base_path).join("sounds/error.mp3");
         let notify_path = PathBuf::from(base_path).join("sounds/notify.mp3");
-        // sounds.insert(SoundType::Click, std::fs::read(click_path).unwrap_or_default());
+        let login_success_path = PathBuf::from(base_path).join("sounds/login_success_1.mp3");
+        let login_failure_path = PathBuf::from(base_path).join("sounds/login_error_3.mp3");
+        let direct_message_path = PathBuf::from(base_path).join("sounds/voice/new_msg.mp3");
+        let message_sent_path = PathBuf::from(base_path).join("sounds/dm.mp3");
+        sounds.insert(SoundType::LoginSuccess, std::fs::read(login_success_path).unwrap_or_default());
+        sounds.insert(SoundType::LoginFailure, std::fs::read(login_failure_path).unwrap_or_default());
+        sounds.insert(SoundType::DirectMessage, std::fs::read(direct_message_path).unwrap_or_default());
+        sounds.insert(SoundType::MessageSent, std::fs::read(message_sent_path).unwrap_or_default());
         sounds.insert(SoundType::Error, std::fs::read(error_path).unwrap_or_default());
         sounds.insert(SoundType::Notify, std::fs::read(notify_path).unwrap_or_default());
         Self { _stream, stream_handle, sounds }

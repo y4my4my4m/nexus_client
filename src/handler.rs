@@ -1,7 +1,7 @@
 // client/src/handler.rs
 
 use crate::app::{App, AppMode, InputMode};
-// use crate::sound::SoundType;
+use crate::sound::SoundType;
 use common::{ClientMessage, SerializableColor};
 use crossterm::event::{self, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::Color;
@@ -447,6 +447,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                             let msg = app.dm_input.clone();
                             if !msg.trim().is_empty() {
                                 app.send_to_server(ClientMessage::SendDirectMessage { to: target, content: msg });
+                                app.sound_manager.play(SoundType::MessageSent);
                             }
                         }
                         app.dm_input.clear();
