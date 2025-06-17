@@ -228,15 +228,107 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
             _ => {}
         },
         AppMode::Settings => match key.code {
-            KeyCode::Down | KeyCode::Up => app.settings_list_state.select(Some(app.settings_list_state.selected().map_or(0, |s| (s + 1) % 2))),
+            KeyCode::Down | KeyCode::Up => app.settings_list_state.select(Some(app.settings_list_state.selected().map_or(0, |s| (s + 1) % 3))),
             KeyCode::Enter => if let Some(s) = app.settings_list_state.selected() {
                 match s {
                     0 => app.enter_input_mode(InputMode::UpdatePassword),
                     1 => cycle_color(app),
+                    2 => {
+                        app.mode = AppMode::EditProfile;
+                    },
                     _ => {}
                 }
             },
             KeyCode::Esc => app.mode = AppMode::MainMenu,
+            _ => {}
+        },
+        AppMode::EditProfile => match key.code {
+            KeyCode::Tab => {
+                use crate::app::ProfileEditFocus::*;
+                app.profile_edit_focus = match app.profile_edit_focus {
+                    Bio => Url1,
+                    Url1 => Url2,
+                    Url2 => Url3,
+                    Url3 => Location,
+                    Location => ProfilePic,
+                    ProfilePic => CoverBanner,
+                    CoverBanner => Save,
+                    Save => Cancel,
+                    Cancel => Bio,
+                };
+            },
+            KeyCode::BackTab => {
+                use crate::app::ProfileEditFocus::*;
+                app.profile_edit_focus = match app.profile_edit_focus {
+                    Bio => Cancel,
+                    Url1 => Bio,
+                    Url2 => Url1,
+                    Url3 => Url2,
+                    Location => Url3,
+                    ProfilePic => Location,
+                    CoverBanner => ProfilePic,
+                    Save => CoverBanner,
+                    Cancel => Save,
+                };
+            },
+            KeyCode::Enter => {
+                use crate::app::ProfileEditFocus::*;
+                match app.profile_edit_focus {
+                    Save => {
+                        match app.validate_profile_fields() {
+                            Ok(()) => {
+                                app.profile_edit_error = None;
+                                app.send_to_server(common::ClientMessage::UpdateProfile {
+                                    bio: Some(app.edit_bio.clone()),
+                                    url1: Some(app.edit_url1.clone()),
+                                    url2: Some(app.edit_url2.clone()),
+                                    url3: Some(app.edit_url3.clone()),
+                                    location: Some(app.edit_location.clone()),
+                                    profile_pic: Some(app.edit_profile_pic.clone()),
+                                    cover_banner: Some(app.edit_cover_banner.clone()),
+                                });
+                                app.set_notification("Profile update sent!", Some(1500), false);
+                            }
+                            Err(e) => {
+                                app.profile_edit_error = Some(e);
+                            }
+                        }
+                    },
+                    Cancel => {
+                        app.mode = AppMode::Settings;
+                    },
+                    _ => {}
+                }
+            },
+            KeyCode::Esc => {
+                app.mode = AppMode::Settings;
+            },
+            KeyCode::Char(c) => {
+                use crate::app::ProfileEditFocus::*;
+                match app.profile_edit_focus {
+                    Bio => app.edit_bio.push(c),
+                    Url1 => app.edit_url1.push(c),
+                    Url2 => app.edit_url2.push(c),
+                    Url3 => app.edit_url3.push(c),
+                    Location => app.edit_location.push(c),
+                    ProfilePic => app.edit_profile_pic.push(c),
+                    CoverBanner => app.edit_cover_banner.push(c),
+                    _ => {}
+                }
+            },
+            KeyCode::Backspace => {
+                use crate::app::ProfileEditFocus::*;
+                match app.profile_edit_focus {
+                    Bio => { app.edit_bio.pop(); },
+                    Url1 => { app.edit_url1.pop(); },
+                    Url2 => { app.edit_url2.pop(); },
+                    Url3 => { app.edit_url3.pop(); },
+                    Location => { app.edit_location.pop(); },
+                    ProfilePic => { app.edit_profile_pic.pop(); },
+                    CoverBanner => { app.edit_cover_banner.pop(); },
+                    _ => {}
+                }
+            },
             _ => {}
         },
         AppMode::Chat => match app.chat_focus {
@@ -294,6 +386,13 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         }
                     }
                 },
+                KeyCode::Char('p') => {
+                    if let Some(idx) = app.forum_list_state.selected() {
+                        if let Some(user) = app.connected_users.get(idx) {
+                            app.send_to_server(ClientMessage::GetProfile { user_id: user.id });
+                        }
+                    }
+                },
                 KeyCode::Esc => app.mode = AppMode::MainMenu,
                 _ => {}
             },
@@ -319,6 +418,12 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
             _ => {}
         },
         _ => {}
+    }
+
+    // Global: close profile view popup
+    if app.show_profile_view_popup && key.code == KeyCode::Esc {
+        app.show_profile_view_popup = false;
+        app.profile_view = None;
     }
 }
 

@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum AppMode {
-    Login, Register, MainMenu, Settings, ForumList, ThreadList, PostView, Chat, Input,
+    Login, Register, MainMenu, Settings, ForumList, ThreadList, PostView, Chat, Input, EditProfile,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -34,6 +34,19 @@ pub enum ChatFocus {
     Users,
     Actions, // For future: action menu
     DMInput, // For DM input popup
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProfileEditFocus {
+    Bio,
+    Url1,
+    Url2,
+    Url3,
+    Location,
+    ProfilePic,
+    CoverBanner,
+    Save,
+    Cancel,
 }
 
 pub struct App<'a> {
@@ -62,6 +75,22 @@ pub struct App<'a> {
     pub dm_input: String,
     pub dm_target: Option<uuid::Uuid>,
     pub show_user_actions: bool,
+
+    // Profile editing state
+    pub edit_bio: String,
+    pub edit_url1: String,
+    pub edit_url2: String,
+    pub edit_url3: String,
+    pub edit_location: String,
+    pub edit_profile_pic: String,
+    pub edit_cover_banner: String,
+    pub profile_edit_error: Option<String>,
+
+    // Profile viewing state
+    pub profile_view: Option<common::UserProfile>,
+    pub show_profile_view_popup: bool,
+
+    pub profile_edit_focus: ProfileEditFocus,
 }
 
 impl<'a> App<'a> {
@@ -91,6 +120,17 @@ impl<'a> App<'a> {
             dm_input: String::new(),
             dm_target: None,
             show_user_actions: false,
+            edit_bio: String::new(),
+            edit_url1: String::new(),
+            edit_url2: String::new(),
+            edit_url3: String::new(),
+            edit_location: String::new(),
+            edit_profile_pic: String::new(),
+            edit_cover_banner: String::new(),
+            profile_edit_error: None,
+            profile_view: None,
+            show_profile_view_popup: false,
+            profile_edit_focus: ProfileEditFocus::Bio,
         }
     }
 
@@ -161,6 +201,10 @@ impl<'a> App<'a> {
                     true,
                 );
             }
+            ServerMessage::Profile(profile) => {
+                self.profile_view = Some(profile);
+                self.show_profile_view_popup = true;
+            }
         }
     }
 
@@ -180,5 +224,33 @@ impl<'a> App<'a> {
                 self.notification = None;
             }
         }
+    }
+
+    pub fn validate_profile_fields(&self) -> Result<(), String> {
+        if self.edit_bio.len() > 5000 {
+            return Err("Bio must be at most 5000 characters.".to_string());
+        }
+        for (i, url) in [
+            &self.edit_url1,
+            &self.edit_url2,
+            &self.edit_url3,
+        ]
+        .iter()
+        .enumerate()
+        {
+            if url.len() > 100 {
+                return Err(format!("URL{} must be at most 100 characters.", i + 1));
+            }
+        }
+        if self.edit_location.len() > 100 {
+            return Err("Location must be at most 100 characters.".to_string());
+        }
+        if self.edit_profile_pic.len() > 1024 * 1024 {
+            return Err("Profile picture must be at most 1MB (base64 or URL).".to_string());
+        }
+        if self.edit_cover_banner.len() > 1024 * 1024 {
+            return Err("Cover banner must be at most 1MB (base64 or URL).".to_string());
+        }
+        Ok(())
     }
 }

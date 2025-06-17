@@ -66,6 +66,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
             }
             draw_input_popup(f, app);
         }
+        AppMode::EditProfile => draw_profile_edit_page(f, app, main_area),
     }
 
     if let Some((notification, _, minimal)) = &app.notification {
@@ -73,6 +74,11 @@ pub fn ui(f: &mut Frame, app: &mut App) {
             draw_minimal_notification_popup(f, notification.clone());
         } else {
             draw_notification_popup(f, notification.clone());
+        }
+    }
+    if app.show_profile_view_popup {
+        if let Some(profile) = &app.profile_view {
+            draw_profile_view_popup(f, profile);
         }
     }
 }
@@ -245,10 +251,135 @@ fn draw_post_view(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
-    let items = vec![ListItem::new("Change Password"), ListItem::new("Change User Color (Cycle)")];
+    let items = vec![
+        ListItem::new("Change Password"),
+        ListItem::new("Change User Color (Cycle)"),
+        ListItem::new("Edit Profile"),
+    ];
     let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Settings"))
         .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black)).highlight_symbol(">> ");
     f.render_stateful_widget(list, area, &mut app.settings_list_state);
+}
+
+fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
+    use crate::app::ProfileEditFocus::*;
+    let block = Block::default().title("Edit Profile").borders(Borders::ALL).border_type(BorderType::Double);
+    let inner = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2)
+        .constraints([
+            Constraint::Length(3), // Bio
+            Constraint::Length(3), // Url1
+            Constraint::Length(3), // Url2
+            Constraint::Length(3), // Url3
+            Constraint::Length(3), // Location
+            Constraint::Length(3), // ProfilePic
+            Constraint::Length(3), // CoverBanner
+            Constraint::Length(2), // Spacer
+            Constraint::Length(3), // Save/Cancel
+            Constraint::Min(0),    // Error
+        ])
+        .split(area);
+    f.render_widget(block, area);
+    // Inline Paragraphs for each field to avoid closure lifetime issues
+    let bio_style = if app.profile_edit_focus == Bio {
+        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+    } else { Style::default() };
+    f.render_widget(
+        Paragraph::new(app.edit_bio.clone())
+            .block(Block::default().borders(Borders::ALL).title("Bio").border_style(bio_style))
+            .style(bio_style),
+        inner[0],
+    );
+    let url1_style = if app.profile_edit_focus == Url1 {
+        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+    } else { Style::default() };
+    f.render_widget(
+        Paragraph::new(app.edit_url1.clone())
+            .block(Block::default().borders(Borders::ALL).title("URL1").border_style(url1_style))
+            .style(url1_style),
+        inner[1],
+    );
+    let url2_style = if app.profile_edit_focus == Url2 {
+        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+    } else { Style::default() };
+    f.render_widget(
+        Paragraph::new(app.edit_url2.clone())
+            .block(Block::default().borders(Borders::ALL).title("URL2").border_style(url2_style))
+            .style(url2_style),
+        inner[2],
+    );
+    let url3_style = if app.profile_edit_focus == Url3 {
+        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+    } else { Style::default() };
+    f.render_widget(
+        Paragraph::new(app.edit_url3.clone())
+            .block(Block::default().borders(Borders::ALL).title("URL3").border_style(url3_style))
+            .style(url3_style),
+        inner[3],
+    );
+    let location_style = if app.profile_edit_focus == Location {
+        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+    } else { Style::default() };
+    f.render_widget(
+        Paragraph::new(app.edit_location.clone())
+            .block(Block::default().borders(Borders::ALL).title("Location").border_style(location_style))
+            .style(location_style),
+        inner[4],
+    );
+    let pic_style = if app.profile_edit_focus == ProfilePic {
+        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+    } else { Style::default() };
+    f.render_widget(
+        Paragraph::new(app.edit_profile_pic.clone())
+            .block(Block::default().borders(Borders::ALL).title("Profile Pic").border_style(pic_style))
+            .style(pic_style),
+        inner[5],
+    );
+    let banner_style = if app.profile_edit_focus == CoverBanner {
+        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+    } else { Style::default() };
+    f.render_widget(
+        Paragraph::new(app.edit_cover_banner.clone())
+            .block(Block::default().borders(Borders::ALL).title("Cover Banner").border_style(banner_style))
+            .style(banner_style),
+        inner[6],
+    );
+    // Save/Cancel buttons
+    let save_style = if app.profile_edit_focus == Save {
+        Style::default().fg(Color::Black).bg(Color::Green).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::Green)
+    };
+    let cancel_style = if app.profile_edit_focus == Cancel {
+        Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::Red)
+    };
+    let buttons = Line::from(vec![
+        Span::styled("[ Save ]", save_style),
+        Span::raw("   "),
+        Span::styled("[ Cancel ]", cancel_style),
+    ]);
+    f.render_widget(Paragraph::new(buttons).alignment(Alignment::Center), inner[8]);
+    // Error message
+    if let Some(err) = &app.profile_edit_error {
+        f.render_widget(Paragraph::new(err.as_str()).style(Style::default().fg(Color::Red)), inner[9]);
+    }
+    // Set cursor for focused field
+    let cursor = match app.profile_edit_focus {
+        Bio => (inner[0].x + app.edit_bio.len() as u16 + 1, inner[0].y + 1),
+        Url1 => (inner[1].x + app.edit_url1.len() as u16 + 1, inner[1].y + 1),
+        Url2 => (inner[2].x + app.edit_url2.len() as u16 + 1, inner[2].y + 1),
+        Url3 => (inner[3].x + app.edit_url3.len() as u16 + 1, inner[3].y + 1),
+        Location => (inner[4].x + app.edit_location.len() as u16 + 1, inner[4].y + 1),
+        ProfilePic => (inner[5].x + app.edit_profile_pic.len() as u16 + 1, inner[5].y + 1),
+        CoverBanner => (inner[6].x + app.edit_cover_banner.len() as u16 + 1, inner[6].y + 1),
+        _ => (0, 0),
+    };
+    if matches!(app.profile_edit_focus, Bio|Url1|Url2|Url3|Location|ProfilePic|CoverBanner) {
+        f.set_cursor(cursor.0, cursor.1);
+    }
 }
 
 fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
@@ -374,6 +505,24 @@ fn draw_minimal_notification_popup(f: &mut Frame, text: String) {
     let area = Rect { x, y, width, height };
     let block = Block::default().borders(Borders::ALL).border_type(BorderType::Plain);
     let p = Paragraph::new(text).block(block).alignment(Alignment::Left);
+    f.render_widget(Clear, area);
+    f.render_widget(p, area);
+}
+
+fn draw_profile_view_popup(f: &mut Frame, profile: &common::UserProfile) {
+    let area = draw_centered_rect(f.size(), 60, 60);
+    let block = Block::default().title(format!("Profile: {}", profile.username)).borders(Borders::ALL).border_type(BorderType::Double);
+    let mut lines = vec![
+        Line::from(vec![Span::styled("Bio:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.bio.as_deref().unwrap_or(""))]),
+        Line::from(vec![Span::styled("Location:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.location.as_deref().unwrap_or(""))]),
+        Line::from(vec![Span::styled("URL1:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.url1.as_deref().unwrap_or(""))]),
+        Line::from(vec![Span::styled("URL2:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.url2.as_deref().unwrap_or(""))]),
+        Line::from(vec![Span::styled("URL3:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.url3.as_deref().unwrap_or(""))]),
+        Line::from(vec![Span::styled("Profile Pic:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.profile_pic.as_deref().unwrap_or(""))]),
+        Line::from(vec![Span::styled("Cover Banner:", Style::default().fg(Color::Yellow)), Span::raw(" "), Span::raw(profile.cover_banner.as_deref().unwrap_or(""))]),
+        Line::from(vec![Span::styled("[Esc] Close", Style::default().fg(Color::Red))]),
+    ];
+    let p = Paragraph::new(lines).block(block).wrap(Wrap { trim: false });
     f.render_widget(Clear, area);
     f.render_widget(p, area);
 }
