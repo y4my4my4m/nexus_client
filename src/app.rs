@@ -47,7 +47,9 @@ pub enum ProfileEditFocus {
     Url3,
     Location,
     ProfilePic,
+    ProfilePicDelete,
     CoverBanner,
+    CoverBannerDelete,
     Save,
     Cancel,
 }

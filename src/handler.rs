@@ -335,8 +335,10 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     Url2 => Url3,
                     Url3 => Location,
                     Location => ProfilePic,
-                    ProfilePic => CoverBanner,
-                    CoverBanner => Save,
+                    ProfilePic => ProfilePicDelete,
+                    ProfilePicDelete => CoverBanner,
+                    CoverBanner => CoverBannerDelete,
+                    CoverBannerDelete => Save,
                     Save => Cancel,
                     Cancel => Bio,
                 };
@@ -350,8 +352,10 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     Url3 => Url2,
                     Location => Url3,
                     ProfilePic => Location,
-                    CoverBanner => ProfilePic,
-                    Save => CoverBanner,
+                    ProfilePicDelete => ProfilePic,
+                    CoverBanner => ProfilePicDelete,
+                    CoverBannerDelete => CoverBanner,
+                    Save => CoverBannerDelete,
                     Cancel => Save,
                 };
             },
@@ -375,10 +379,16 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     }
                     Cancel => {
                         app.mode = AppMode::Settings;
-                    },
+                    }
                     Bio => {
                         app.edit_bio.push('\n');
-                    },
+                    }
+                    ProfilePicDelete => {
+                        app.edit_profile_pic = String::new();
+                    }
+                    CoverBannerDelete => {
+                        app.edit_cover_banner = String::new();
+                    }
                     _ => {}
                 }
             },

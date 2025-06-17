@@ -3,6 +3,7 @@
 use ratatui::{Frame, layout::Rect, style::{Style, Color, Modifier}, widgets::{Block, List, ListItem, Paragraph, Borders, BorderType, Wrap}, text::{Line, Span}, layout::Constraint, layout::Layout};
 use ratatui::prelude::{Alignment, Direction};
 use crate::app::{App};
+use base64::Engine;
 
 pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
     let items = vec![
@@ -27,8 +28,10 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             Constraint::Length(3), // Url2
             Constraint::Length(3), // Url3
             Constraint::Length(3), // Location
-            Constraint::Length(3), // ProfilePic
-            Constraint::Length(3), // CoverBanner
+            Constraint::Length(5), // ProfilePic Preview
+            Constraint::Length(3), // ProfilePic Field+Delete
+            Constraint::Length(5), // CoverBanner Preview
+            Constraint::Length(3), // CoverBanner Field+Delete
             Constraint::Length(2), // Spacer
             Constraint::Length(3), // Save/Cancel
             Constraint::Min(0),    // Error
@@ -82,23 +85,79 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             .style(location_style),
         inner[4],
     );
+    // Profile Pic preview (if any) above the field
     let pic_style = if app.profile_edit_focus == ProfilePic {
         Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
     } else { Style::default() };
+    if !app.edit_profile_pic.trim().is_empty() {
+        let mut show_placeholder = true;
+        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.edit_profile_pic.trim()) {
+            if let Ok(img) = image::load_from_memory(&bytes) {
+                let mut protocol = app.picker.new_resize_protocol(img);
+                let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
+                f.render_stateful_widget(image_widget, inner[5], &mut protocol);
+                show_placeholder = false;
+            }
+        }
+        if show_placeholder {
+            let preview_block = Block::default().borders(Borders::ALL).title("Profile Pic Preview");
+            f.render_widget(preview_block, inner[5]);
+        }
+    }
+    // Always render the field+delete row
+    let row = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(80), Constraint::Percentage(20)])
+        .split(inner[6]);
     f.render_widget(
         Paragraph::new(app.edit_profile_pic.clone())
             .block(Block::default().borders(Borders::ALL).title("Profile Pic").border_style(pic_style))
             .style(pic_style),
-        inner[5],
+        row[0],
     );
+    let del_style = if app.profile_edit_focus == ProfilePicDelete {
+        Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
+    } else { Style::default().fg(Color::Red) };
+    f.render_widget(
+        Paragraph::new(Span::styled("[ Delete ]", del_style)).alignment(Alignment::Center),
+        row[1],
+    );
+    // Cover Banner preview (if any) above the field
     let banner_style = if app.profile_edit_focus == CoverBanner {
         Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
     } else { Style::default() };
+    if !app.edit_cover_banner.trim().is_empty() {
+        let mut show_placeholder = true;
+        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.edit_cover_banner.trim()) {
+            if let Ok(img) = image::load_from_memory(&bytes) {
+                let mut protocol = app.picker.new_resize_protocol(img);
+                let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
+                f.render_stateful_widget(image_widget, inner[7], &mut protocol);
+                show_placeholder = false;
+            }
+        }
+        if show_placeholder {
+            let preview_block = Block::default().borders(Borders::ALL).title("Banner Preview");
+            f.render_widget(preview_block, inner[7]);
+        }
+    }
+    // Always render the field+delete row
+    let row = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(80), Constraint::Percentage(20)])
+        .split(inner[8]);
     f.render_widget(
         Paragraph::new(app.edit_cover_banner.clone())
             .block(Block::default().borders(Borders::ALL).title("Cover Banner").border_style(banner_style))
             .style(banner_style),
-        inner[6],
+        row[0],
+    );
+    let del_style = if app.profile_edit_focus == CoverBannerDelete {
+        Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
+    } else { Style::default().fg(Color::Red) };
+    f.render_widget(
+        Paragraph::new(Span::styled("[ Delete ]", del_style)).alignment(Alignment::Center),
+        row[1],
     );
     // Save/Cancel buttons
     let save_style = if app.profile_edit_focus == Save {
@@ -116,10 +175,10 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
         Span::raw("   "),
         Span::styled("[ Cancel ]", cancel_style),
     ]);
-    f.render_widget(Paragraph::new(buttons).alignment(Alignment::Center), inner[8]);
+    f.render_widget(Paragraph::new(buttons).alignment(Alignment::Center), inner[9]);
     // Error message
     if let Some(err) = &app.profile_edit_error {
-        f.render_widget(Paragraph::new(err.as_str()).style(Style::default().fg(Color::Red)), inner[9]);
+        f.render_widget(Paragraph::new(err.as_str()).style(Style::default().fg(Color::Red)), inner[10]);
     }
     // Set cursor for focused field
     let cursor = match app.profile_edit_focus {
@@ -134,8 +193,8 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
         Url2 => (inner[2].x + app.edit_url2.len() as u16 + 1, inner[2].y + 1),
         Url3 => (inner[3].x + app.edit_url3.len() as u16 + 1, inner[3].y + 1),
         Location => (inner[4].x + app.edit_location.len() as u16 + 1, inner[4].y + 1),
-        ProfilePic => (inner[5].x + app.edit_profile_pic.len() as u16 + 1, inner[5].y + 1),
-        CoverBanner => (inner[6].x + app.edit_cover_banner.len() as u16 + 1, inner[6].y + 1),
+        ProfilePic => (inner[6].x + app.edit_profile_pic.len() as u16 + 1, inner[6].y + 1),
+        CoverBanner => (inner[8].x + app.edit_cover_banner.len() as u16 + 1, inner[8].y + 1),
         _ => (0, 0),
     };
     if matches!(app.profile_edit_focus, Bio|Url1|Url2|Url3|Location|ProfilePic|CoverBanner) {
