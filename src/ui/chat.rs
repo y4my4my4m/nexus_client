@@ -100,27 +100,43 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     }
 
     // Draw mention suggestions popup if present
-    if focused && !app.mention_suggestions.is_empty() {
-        let popup_area = Rect::new(
-            input_area.x,
-            input_area.y.saturating_sub(app.mention_suggestions.len() as u16 + 1),
-            input_area.width.min(32),
-            app.mention_suggestions.len() as u16 + 2
-        );
-        let mut lines = vec![Line::from(Span::styled(
-            "@mention suggestions:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
-        ))];
-        for (i, name) in app.mention_suggestions.iter().enumerate() {
-            let style = if i == app.mention_selected {
-                Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-            lines.push(Line::from(Span::styled(name.clone(), style)));
+    if focused {
+        if !app.mention_suggestions.is_empty() {
+            let max_name_len = app.mention_suggestions.iter().map(|n| n.len()).chain(app.connected_users.iter().map(|u| u.username.len())).max().unwrap_or(8).max(8);
+            let popup_width = (max_name_len + 12).min(input_area.width as usize) as u16;
+            let mut lines = vec![];
+            for (i, name) in app.mention_suggestions.iter().enumerate() {
+                let style = if i == app.mention_selected {
+                    Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::White).bg(Color::Black)
+                };
+                lines.push(Line::from(Span::styled(format!("{}", name), style)));
+            }
+            // Height: lines + 2 (for borders/title)
+            let popup_height = (lines.len() as u16).saturating_add(2);
+            // Default: below input
+            let mut popup_y = input_area.y + input_area.height;
+            // If overflow, move above input
+            if popup_y + popup_height > area.y + area.height {
+                if input_area.y >= popup_height {
+                    popup_y = input_area.y - popup_height;
+                } else {
+                    popup_y = area.y; // Clamp to top
+                }
+            }
+            // Clamp popup_y to not go above chat area
+            if popup_y < area.y { popup_y = area.y; }
+            let popup_area = Rect::new(
+                input_area.x,
+                popup_y,
+                popup_width,
+                popup_height
+            );
+            let block = Block::default().borders(Borders::ALL).title("Mentions");
+            let para = Paragraph::new(lines).block(block).wrap(Wrap { trim: true });
+            f.render_widget(para, popup_area);
         }
-        let block = Block::default().borders(Borders::ALL).title("Mentions");
-        let para = Paragraph::new(lines).block(block).wrap(Wrap { trim: true });
-        f.render_widget(para, popup_area);
     }
 }
 
