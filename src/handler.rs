@@ -470,7 +470,21 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
             match app.chat_focus {
                 crate::app::ChatFocus::Sidebar => match key.code {
                     KeyCode::Tab => {
-                        app.chat_focus = crate::app::ChatFocus::Messages;
+                        if app.show_user_list {
+                            app.chat_focus = crate::app::ChatFocus::Messages;
+                        } else {
+                            app.chat_focus = crate::app::ChatFocus::Messages;
+                        }
+                    },
+                    KeyCode::BackTab => {
+                        if app.show_user_list {
+                            app.chat_focus = crate::app::ChatFocus::Users;
+                        } else {
+                            app.chat_focus = crate::app::ChatFocus::Messages;
+                        }
+                    },
+                    KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
+                        app.show_user_list = !app.show_user_list;
                     },
                     KeyCode::Down => {
                         move_sidebar_selection(app, 1);
@@ -486,7 +500,17 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                 },
                 crate::app::ChatFocus::Messages => match key.code {
                     KeyCode::Tab => {
+                        if app.show_user_list {
+                            app.chat_focus = crate::app::ChatFocus::Users;
+                        } else {
+                            app.chat_focus = crate::app::ChatFocus::Sidebar;
+                        }
+                    },
+                    KeyCode::BackTab => {
                         app.chat_focus = crate::app::ChatFocus::Sidebar;
+                    },
+                    KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
+                        app.show_user_list = !app.show_user_list;
                     },
                     KeyCode::Down => {
                         if !app.mention_suggestions.is_empty() {
@@ -606,7 +630,12 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     _ => {}
                 },
                 crate::app::ChatFocus::Users => match key.code {
-                    KeyCode::Tab => { app.chat_focus = crate::app::ChatFocus::Messages; },
+                    KeyCode::Tab => {
+                        app.chat_focus = crate::app::ChatFocus::Sidebar;
+                    },
+                    KeyCode::BackTab => {
+                        app.chat_focus = crate::app::ChatFocus::Messages;
+                    },
                     KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
                         app.show_user_list = !app.show_user_list;
                         app.chat_focus = if app.show_user_list {
