@@ -32,7 +32,6 @@ pub enum InputMode {
 pub enum ChatFocus {
     Messages,
     Users,
-    Actions, // For future: action menu
     DMInput, // For DM input popup
 }
 

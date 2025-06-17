@@ -460,7 +460,6 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     },
                     _ => {}
                 },
-                _ => {}
             }
         },
         _ => {}
