@@ -81,6 +81,9 @@ pub fn ui(f: &mut Frame, app: &mut App) {
             draw_profile_view_popup(f, profile);
         }
     }
+    if app.show_user_actions {
+        draw_user_actions_popup(f, app);
+    }
 }
 
 fn draw_centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
@@ -268,7 +271,7 @@ fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
         .direction(Direction::Vertical)
         .margin(2)
         .constraints([
-            Constraint::Length(3), // Bio
+            Constraint::Length(5), // Bio (multiline, taller)
             Constraint::Length(3), // Url1
             Constraint::Length(3), // Url2
             Constraint::Length(3), // Url3
@@ -281,14 +284,15 @@ fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
         ])
         .split(area);
     f.render_widget(block, area);
-    // Inline Paragraphs for each field to avoid closure lifetime issues
+    // Multiline bio
     let bio_style = if app.profile_edit_focus == Bio {
         Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
     } else { Style::default() };
     f.render_widget(
-        Paragraph::new(app.edit_bio.clone())
+        Paragraph::new(app.edit_bio.as_str())
             .block(Block::default().borders(Borders::ALL).title("Bio").border_style(bio_style))
-            .style(bio_style),
+            .style(bio_style)
+            .wrap(Wrap { trim: false }),
         inner[0],
     );
     let url1_style = if app.profile_edit_focus == Url1 {
@@ -368,7 +372,13 @@ fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
     }
     // Set cursor for focused field
     let cursor = match app.profile_edit_focus {
-        Bio => (inner[0].x + app.edit_bio.len() as u16 + 1, inner[0].y + 1),
+        Bio => {
+            // Find cursor position in multiline bio
+            let lines: Vec<&str> = app.edit_bio.split('\n').collect();
+            let y = inner[0].y + lines.len() as u16 - 1 + 1;
+            let x = inner[0].x + lines.last().map(|l| l.len()).unwrap_or(0) as u16 + 1;
+            (x, y)
+        },
         Url1 => (inner[1].x + app.edit_url1.len() as u16 + 1, inner[1].y + 1),
         Url2 => (inner[2].x + app.edit_url2.len() as u16 + 1, inner[2].y + 1),
         Url3 => (inner[3].x + app.edit_url3.len() as u16 + 1, inner[3].y + 1),
@@ -525,4 +535,22 @@ fn draw_profile_view_popup(f: &mut Frame, profile: &common::UserProfile) {
     let p = Paragraph::new(lines).block(block).wrap(Wrap { trim: false });
     f.render_widget(Clear, area);
     f.render_widget(p, area);
+}
+
+fn draw_user_actions_popup(f: &mut Frame, app: &App) {
+    use ratatui::widgets::Clear;
+    let area = draw_centered_rect(f.size(), 30, 20);
+    let block = Block::default().title("User Actions").borders(Borders::ALL).border_type(BorderType::Double);
+    let actions = ["View Profile", "Send DM"];
+    let items: Vec<ListItem> = actions.iter().enumerate().map(|(i, &label)| {
+        let style = if i == app.user_actions_selected {
+            Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        };
+        ListItem::new(Span::styled(label, style))
+    }).collect();
+    let list = List::new(items).block(block).highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black));
+    f.render_widget(Clear, area);
+    f.render_widget(list, area);
 }

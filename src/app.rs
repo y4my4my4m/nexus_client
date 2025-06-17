@@ -75,6 +75,8 @@ pub struct App<'a> {
     pub dm_input: String,
     pub dm_target: Option<uuid::Uuid>,
     pub show_user_actions: bool,
+    pub user_actions_selected: usize,
+    pub user_actions_target: Option<usize>,
 
     // Profile editing state
     pub edit_bio: String,
@@ -91,6 +93,9 @@ pub struct App<'a> {
     pub show_profile_view_popup: bool,
 
     pub profile_edit_focus: ProfileEditFocus,
+
+    // Flag to track if the profile popup should be shown
+    pub profile_requested_by_user: bool,
 }
 
 impl<'a> App<'a> {
@@ -120,6 +125,8 @@ impl<'a> App<'a> {
             dm_input: String::new(),
             dm_target: None,
             show_user_actions: false,
+            user_actions_selected: 0,
+            user_actions_target: None,
             edit_bio: String::new(),
             edit_url1: String::new(),
             edit_url2: String::new(),
@@ -131,6 +138,7 @@ impl<'a> App<'a> {
             profile_view: None,
             show_profile_view_popup: false,
             profile_edit_focus: ProfileEditFocus::Bio,
+            profile_requested_by_user: false,
         }
     }
 
@@ -203,7 +211,10 @@ impl<'a> App<'a> {
             }
             ServerMessage::Profile(profile) => {
                 self.profile_view = Some(profile);
-                self.show_profile_view_popup = true;
+                if self.profile_requested_by_user {
+                    self.show_profile_view_popup = true;
+                }
+                self.profile_requested_by_user = false;
             }
         }
     }
