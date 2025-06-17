@@ -515,23 +515,11 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         }
                     },
                     KeyCode::Enter => {
-                        // If a channel is selected, update chat_messages to that channel
+                        // If a channel is selected, request latest messages for that channel
                         if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
                             if let Some(server) = app.servers.get(s) {
                                 if let Some(channel) = server.channels.get(c) {
-                                    app.chat_messages = channel.messages.iter().map(|m| {
-                                        let author = app.connected_users.iter().find(|u| u.id == m.sent_by)
-                                            .map(|u| u.username.clone())
-                                            .unwrap_or_else(|| m.sent_by.to_string());
-                                        let color = app.connected_users.iter().find(|u| u.id == m.sent_by)
-                                            .map(|u| u.color)
-                                            .unwrap_or(ratatui::style::Color::White);
-                                        common::ChatMessage {
-                                            author,
-                                            content: m.content.clone(),
-                                            color,
-                                        }
-                                    }).collect();
+                                    app.send_to_server(ClientMessage::GetChannelMessages { channel_id: channel.id });
                                 }
                             }
                             app.chat_focus = crate::app::ChatFocus::Messages;
@@ -541,6 +529,8 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                                 if let Some(server) = app.servers.get(s) {
                                     if !server.channels.is_empty() {
                                         app.selected_channel = Some(0);
+                                        let channel = &server.channels[0];
+                                        app.send_to_server(ClientMessage::GetChannelMessages { channel_id: channel.id });
                                     }
                                 }
                             }
