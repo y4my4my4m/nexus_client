@@ -1,6 +1,7 @@
 // client/src/app.rs
 
 use common::{ChatMessage, ClientMessage, Forum, ServerMessage, User};
+use crate::sound::{SoundManager, SoundType};
 use ratatui::widgets::ListState;
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -27,7 +28,7 @@ pub enum InputMode {
     UpdatePassword,
 }
 
-pub struct App {
+pub struct App<'a> {
     pub mode: AppMode,
     pub input_mode: Option<InputMode>,
     pub current_input: String,
@@ -45,10 +46,11 @@ pub struct App {
     pub tick_count: u64,
     pub should_quit: bool,
     pub to_server: mpsc::UnboundedSender<ClientMessage>,
+    pub sound_manager: &'a SoundManager,
 }
 
-impl App {
-    pub fn new(to_server: mpsc::UnboundedSender<ClientMessage>) -> App {
+impl<'a> App<'a> {
+    pub fn new(to_server: mpsc::UnboundedSender<ClientMessage>, sound_manager: &'a SoundManager) -> App<'a> {
         App {
             mode: AppMode::Login,
             input_mode: Some(InputMode::LoginUsername),
@@ -67,13 +69,21 @@ impl App {
             tick_count: 0,
             should_quit: false,
             to_server,
+            sound_manager,
         }
     }
 
     /// Set a notification with optional auto-close in ms (if ms is Some)
     pub fn set_notification(&mut self, message: impl Into<String>, ms: Option<u64>) {
+        let msg = message.into();
+        // Play error or notify sound
+        if msg.to_lowercase().contains("error") {
+            self.sound_manager.play(SoundType::Error);
+        } else {
+            self.sound_manager.play(SoundType::Notify);
+        }
         let close_tick = ms.map(|ms| self.tick_count + (ms / 100)); // 100ms per tick
-        self.notification = Some((message.into(), close_tick));
+        self.notification = Some((msg, close_tick));
     }
 
     pub fn send_to_server(&mut self, msg: ClientMessage) {

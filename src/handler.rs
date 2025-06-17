@@ -1,12 +1,15 @@
 // client/src/handler.rs
 
 use crate::app::{App, AppMode, InputMode};
+// use crate::sound::SoundType;
 use common::{ClientMessage, SerializableColor};
 use crossterm::event::{self, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::Color;
 
-pub fn handle_key_event(key: KeyEvent, app: &mut App) {
+pub fn handle_key_event(key: KeyEvent, app: &mut crate::app::App) {
     if key.kind != event::KeyEventKind::Press { return; }
+
+    // app.sound_manager.play(SoundType::Click);
 
     if key.code == KeyCode::Char('c') && key.modifiers == KeyModifiers::CONTROL {
         app.should_quit = true; return;

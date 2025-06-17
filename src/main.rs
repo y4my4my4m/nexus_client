@@ -4,8 +4,10 @@ mod app;
 mod handler;
 mod ui;
 mod banner;
+mod sound;
 
 use crate::app::App;
+use crate::sound::SoundManager;
 use common::{ClientMessage, ServerMessage};
 use crossterm::{
     event::{self, Event as CEvent},
@@ -94,7 +96,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 
     // --- CHANGE 3: The Main Loop now handles Ticks ---
-    let mut app = App::new(to_server_tx);
+    let sound_manager = SoundManager::new();
+    let mut app = App::new(to_server_tx, &sound_manager);
     // Use a `while let` loop to continuously process events from the channel
     while let Some(event) = event_rx.recv().await {
         // First, handle any logic based on the event
