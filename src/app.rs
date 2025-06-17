@@ -5,6 +5,8 @@ use crate::sound::{SoundManager, SoundType};
 use ratatui::widgets::ListState;
 use tokio::sync::mpsc;
 use uuid::Uuid;
+use std::fs;
+use std::path::Path;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum AppMode {
@@ -278,5 +280,30 @@ impl<'a> App<'a> {
             return Err("Cover banner must be at most 1MB (base64 or URL).".to_string());
         }
         Ok(())
+    }
+
+    /// Helper: If the value is a file path, convert to base64, else return as is
+    pub fn file_or_url_to_base64(val: &str) -> Option<String> {
+        let trimmed = val.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        // If it's a URL (starts with http/https), just return as is
+        if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+            return Some(trimmed.to_string());
+        }
+        // If it's already base64 (very naive check: long, no slashes, no spaces)
+        if trimmed.len() > 100 && !trimmed.contains('/') && !trimmed.contains(' ') {
+            return Some(trimmed.to_string());
+        }
+        // If it's a file path and exists, read and encode
+        if Path::new(trimmed).exists() {
+            match fs::read(trimmed) {
+                Ok(bytes) => Some(base64::encode(bytes)),
+                Err(_) => None,
+            }
+        } else {
+            Some(trimmed.to_string())
+        }
     }
 }

@@ -282,27 +282,20 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                 use crate::app::ProfileEditFocus::*;
                 match app.profile_edit_focus {
                     Save => {
-                        match app.validate_profile_fields() {
-                            Ok(()) => {
-                                app.profile_edit_error = None;
-                                app.profile_requested_by_user = false;
-                                app.send_to_server(common::ClientMessage::UpdateProfile {
-                                    bio: Some(app.edit_bio.clone()),
-                                    url1: Some(app.edit_url1.clone()),
-                                    url2: Some(app.edit_url2.clone()),
-                                    url3: Some(app.edit_url3.clone()),
-                                    location: Some(app.edit_location.clone()),
-                                    profile_pic: Some(app.edit_profile_pic.clone()),
-                                    cover_banner: Some(app.edit_cover_banner.clone()),
-                                });
-                                app.set_notification("Profile update sent!", Some(1500), false);
-                                app.mode = AppMode::Settings;
-                            }
-                            Err(e) => {
-                                app.profile_edit_error = Some(e);
-                            }
-                        }
-                    },
+                        // On save, process profile_pic and cover_banner
+                        let profile_pic = App::file_or_url_to_base64(&app.edit_profile_pic);
+                        let cover_banner = App::file_or_url_to_base64(&app.edit_cover_banner);
+                        app.send_to_server(ClientMessage::UpdateProfile {
+                            bio: Some(app.edit_bio.clone()),
+                            url1: Some(app.edit_url1.clone()),
+                            url2: Some(app.edit_url2.clone()),
+                            url3: Some(app.edit_url3.clone()),
+                            location: Some(app.edit_location.clone()),
+                            profile_pic,
+                            cover_banner,
+                        });
+                        app.mode = AppMode::Settings;
+                    }
                     Cancel => {
                         app.mode = AppMode::Settings;
                     },
