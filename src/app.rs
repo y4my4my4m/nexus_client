@@ -97,6 +97,11 @@ pub struct App<'a> {
     pub profile_image_state: Option<StatefulProtocol>,
     pub profile_banner_image_state: Option<StatefulProtocol>,
     pub avatar_protocol_cache: HashMap<(uuid::Uuid, u32), StatefulProtocol>,
+
+    // --- Mention fields ---
+    pub mention_suggestions: Vec<String>,
+    pub mention_selected: usize,
+    pub mention_prefix: Option<String>,
 }
 
 impl<'a> App<'a> {
@@ -153,6 +158,9 @@ impl<'a> App<'a> {
             profile_image_state: None,
             profile_banner_image_state: None,
             avatar_protocol_cache: HashMap::new(),
+            mention_suggestions: vec![],
+            mention_selected: 0,
+            mention_prefix: None,
         }
     }
 

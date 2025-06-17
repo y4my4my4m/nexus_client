@@ -98,6 +98,30 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     if focused {
         f.set_cursor_position((input_area.x + app.current_input.len() as u16 + 1, input_area.y + 1));
     }
+
+    // Draw mention suggestions popup if present
+    if focused && !app.mention_suggestions.is_empty() {
+        let popup_area = Rect::new(
+            input_area.x,
+            input_area.y.saturating_sub(app.mention_suggestions.len() as u16 + 1),
+            input_area.width.min(32),
+            app.mention_suggestions.len() as u16 + 2
+        );
+        let mut lines = vec![Line::from(Span::styled(
+            "@mention suggestions:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        ))];
+        for (i, name) in app.mention_suggestions.iter().enumerate() {
+            let style = if i == app.mention_selected {
+                Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+            lines.push(Line::from(Span::styled(name.clone(), style)));
+        }
+        let block = Block::default().borders(Borders::ALL).title("Mentions");
+        let para = Paragraph::new(lines).block(block).wrap(Wrap { trim: true });
+        f.render_widget(para, popup_area);
+    }
 }
 
 pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {

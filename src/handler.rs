@@ -387,21 +387,107 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
             }
             match app.chat_focus {
                 crate::app::ChatFocus::Messages => match key.code {
-                    KeyCode::Tab => { app.chat_focus = crate::app::ChatFocus::Users; },
-                    KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
-                        app.show_user_list = !app.show_user_list;
-                        app.chat_focus = if app.show_user_list {
-                            crate::app::ChatFocus::Users
+                    KeyCode::Tab => { 
+                        if !app.mention_suggestions.is_empty() {
+                            // Tab cycles through suggestions
+                            app.mention_selected = (app.mention_selected + 1) % app.mention_suggestions.len();
                         } else {
-                            crate::app::ChatFocus::Messages
-                        };
+                            app.chat_focus = crate::app::ChatFocus::Users;
+                        }
                     },
-                    KeyCode::Char(c) => app.current_input.push(c),
-                    KeyCode::Backspace => { app.current_input.pop(); },
+                    KeyCode::Down => {
+                        if !app.mention_suggestions.is_empty() {
+                            app.mention_selected = (app.mention_selected + 1) % app.mention_suggestions.len();
+                        }
+                    },
+                    KeyCode::Up => {
+                        if !app.mention_suggestions.is_empty() {
+                            if app.mention_selected == 0 {
+                                app.mention_selected = app.mention_suggestions.len() - 1;
+                            } else {
+                                app.mention_selected -= 1;
+                            }
+                        }
+                    },
                     KeyCode::Enter => {
-                        if !app.current_input.is_empty() {
+                        if !app.mention_suggestions.is_empty() {
+                            // Insert selected mention
+                            if let Some(prefix) = &app.mention_prefix {
+                                if let Some(suggestion) = app.mention_suggestions.get(app.mention_selected) {
+                                    // Replace the last @mention prefix in input
+                                    if let Some(idx) = app.current_input.rfind(&format!("@{}", prefix)) {
+                                        let after = &app.current_input[(idx + 1 + prefix.len())..];
+                                        app.current_input.replace_range(idx..(idx + 1 + prefix.len()), &format!("@{}", suggestion));
+                                        app.mention_suggestions.clear();
+                                        app.mention_prefix = None;
+                                    }
+                                }
+                            }
+                        } else if !app.current_input.is_empty() {
                             let message_content = app.current_input.drain(..).collect();
                             app.send_to_server(ClientMessage::SendChatMessage(message_content));
+                        }
+                    },
+                    KeyCode::Char(c) => {
+                        app.current_input.push(c);
+                        // Check for @mention context
+                        let cursor = app.current_input.len();
+                        let upto = &app.current_input[..cursor];
+                        if let Some(idx) = upto.rfind('@') {
+                            let after_at = &upto[(idx+1)..];
+                            if after_at.chars().all(|ch| ch.is_alphanumeric() || ch == '_' ) && !after_at.is_empty() {
+                                let prefix = after_at;
+                                let mut suggestions: Vec<String> = app.connected_users.iter()
+                                    .map(|u| u.username.clone())
+                                    .filter(|u| u.to_lowercase().starts_with(&prefix.to_lowercase()))
+                                    .collect();
+                                suggestions.sort();
+                                if !suggestions.is_empty() {
+                                    app.mention_suggestions = suggestions;
+                                    app.mention_selected = 0;
+                                    app.mention_prefix = Some(prefix.to_string());
+                                } else {
+                                    app.mention_suggestions.clear();
+                                    app.mention_prefix = None;
+                                }
+                            } else {
+                                app.mention_suggestions.clear();
+                                app.mention_prefix = None;
+                            }
+                        } else {
+                            app.mention_suggestions.clear();
+                            app.mention_prefix = None;
+                        }
+                    },
+                    KeyCode::Backspace => {
+                        app.current_input.pop();
+                        // Recompute mention suggestions
+                        let cursor = app.current_input.len();
+                        let upto = &app.current_input[..cursor];
+                        if let Some(idx) = upto.rfind('@') {
+                            let after_at = &upto[(idx+1)..];
+                            if after_at.chars().all(|ch| ch.is_alphanumeric() || ch == '_' ) && !after_at.is_empty() {
+                                let prefix = after_at;
+                                let mut suggestions: Vec<String> = app.connected_users.iter()
+                                    .map(|u| u.username.clone())
+                                    .filter(|u| u.to_lowercase().starts_with(&prefix.to_lowercase()))
+                                    .collect();
+                                suggestions.sort();
+                                if !suggestions.is_empty() {
+                                    app.mention_suggestions = suggestions;
+                                    app.mention_selected = 0;
+                                    app.mention_prefix = Some(prefix.to_string());
+                                } else {
+                                    app.mention_suggestions.clear();
+                                    app.mention_prefix = None;
+                                }
+                            } else {
+                                app.mention_suggestions.clear();
+                                app.mention_prefix = None;
+                            }
+                        } else {
+                            app.mention_suggestions.clear();
+                            app.mention_prefix = None;
                         }
                     },
                     KeyCode::Esc => app.mode = AppMode::MainMenu,
