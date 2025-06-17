@@ -213,6 +213,7 @@ impl<'a> App<'a> {
                     Some(4000),
                     true,
                 );
+                self.sound_manager.play(SoundType::Mention);
             }
             ServerMessage::Profile(profile) => {
                 if self.profile_requested_by_user {
