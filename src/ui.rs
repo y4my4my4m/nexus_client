@@ -68,8 +68,12 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         }
     }
 
-    if let Some((notification, _)) = &app.notification {
-        draw_notification_popup(f, notification.clone());
+    if let Some((notification, _, minimal)) = &app.notification {
+        if *minimal {
+            draw_minimal_notification_popup(f, notification.clone());
+        } else {
+            draw_notification_popup(f, notification.clone());
+        }
     }
 }
 
@@ -322,6 +326,20 @@ fn draw_notification_popup(f: &mut Frame, text: String) {
     for l in lines.iter() { content.push(Line::from(*l)); }
     for _ in 0..pad_bottom { content.push(Line::raw("")); }
     let p = Paragraph::new(content).wrap(Wrap { trim: true }).block(block).alignment(Alignment::Center);
+    f.render_widget(Clear, area);
+    f.render_widget(p, area);
+}
+
+fn draw_minimal_notification_popup(f: &mut Frame, text: String) {
+    let size = f.size();
+    // Minimal size: 30x3 or fit text
+    let width = 30u16.max(text.len() as u16 + 2).min(size.width / 2);
+    let height = 3u16;
+    let x = size.x + size.width - width - 2;
+    let y = size.y + 1;
+    let area = Rect { x, y, width, height };
+    let block = Block::default().borders(Borders::ALL).border_type(BorderType::Plain);
+    let p = Paragraph::new(text).block(block).alignment(Alignment::Left);
     f.render_widget(Clear, area);
     f.render_widget(p, area);
 }

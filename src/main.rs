@@ -45,11 +45,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<AppEvent>();
 
     // Task: Forward messages from our app TO the server
+    let notify_disconnect_tx = event_tx.clone();
     tokio::spawn(async move {
         while let Some(msg) = to_server_rx.recv().await {
             let bytes = bincode::serialize(&msg).unwrap();
             if server_writer.send(bytes.into()).await.is_err() {
-                eprintln!("Failed to send message to server. Connection closed.");
+                let _ = notify_disconnect_tx.send(AppEvent::Terminal(CEvent::Resize(0,0))); // dummy event to wake main loop
                 break;
             }
         }
@@ -57,6 +58,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Task: Read messages FROM the server and send them as events
     let server_event_tx = event_tx.clone();
+    let notify_disconnect_tx2 = event_tx.clone();
     tokio::spawn(async move {
         while let Some(result) = server_reader.next().await {
             match result {
@@ -65,7 +67,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         if server_event_tx.send(AppEvent::Server(msg)).is_err() { break; }
                     }
                 }
-                Err(_) => break,
+                Err(_) => {
+                    let _ = notify_disconnect_tx2.send(AppEvent::Terminal(CEvent::Resize(0,0))); // dummy event
+                    break;
+                },
             }
         }
     });
@@ -98,6 +103,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // --- CHANGE 3: The Main Loop now handles Ticks ---
     let sound_manager = SoundManager::new();
     let mut app = App::new(to_server_tx, &sound_manager);
+    let mut server_disconnected = false;
     // Use a `while let` loop to continuously process events from the channel
     while let Some(event) = event_rx.recv().await {
         // First, handle any logic based on the event
@@ -107,6 +113,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
             AppEvent::Terminal(CEvent::Key(key)) => {
                 handler::handle_key_event(key, &mut app);
+            }
+            AppEvent::Terminal(CEvent::Resize(_, _)) => {
+                if !server_disconnected {
+                    app.set_notification("Server disconnected", None, true);
+                    server_disconnected = true;
+                }
             }
             // On every tick, we update the app's internal tick counter
             AppEvent::Tick => {

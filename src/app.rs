@@ -33,7 +33,7 @@ pub struct App<'a> {
     pub input_mode: Option<InputMode>,
     pub current_input: String,
     pub password_input: String,
-    pub notification: Option<(String, Option<u64>)>, // (message, Some(tick_to_close) or None)
+    pub notification: Option<(String, Option<u64>, bool)>, // (message, Some(tick_to_close), minimal)
     pub current_user: Option<User>,
     pub main_menu_state: ListState,
     pub forum_list_state: ListState,
@@ -78,8 +78,8 @@ impl<'a> App<'a> {
         }
     }
 
-    /// Set a notification with optional auto-close in ms (if ms is Some)
-    pub fn set_notification(&mut self, message: impl Into<String>, ms: Option<u64>) {
+    /// Set a notification with optional auto-close in ms (if ms is Some) and minimal flag
+    pub fn set_notification(&mut self, message: impl Into<String>, ms: Option<u64>, minimal: bool) {
         let msg = message.into();
         // Play error or notify sound
         if msg.to_lowercase().contains("error") {
@@ -88,19 +88,19 @@ impl<'a> App<'a> {
             self.sound_manager.play(SoundType::Notify);
         }
         let close_tick = ms.map(|ms| self.tick_count + (ms / 100)); // 100ms per tick
-        self.notification = Some((msg, close_tick));
+        self.notification = Some((msg, close_tick, minimal));
     }
 
     pub fn send_to_server(&mut self, msg: ClientMessage) {
         if let Err(e) = self.to_server.send(msg) {
-            self.set_notification(format!("Connection Error: {}", e), None);
+            self.set_notification(format!("Connection Error: {}", e), None, true);
         }
     }
     
     pub fn handle_server_message(&mut self, msg: ServerMessage) {
         match msg {
             ServerMessage::AuthSuccess(user) => {
-                self.set_notification("AuthSuccess received!", Some(1500));
+                self.set_notification("AuthSuccess received!", Some(1500), false);
                 self.current_user = Some(user);
                 self.mode = AppMode::MainMenu;
                 self.input_mode = None;
@@ -109,7 +109,7 @@ impl<'a> App<'a> {
                 self.main_menu_state.select(Some(0));
             }
             ServerMessage::AuthFailure(reason) => {
-                self.set_notification(format!("Error: {}", reason), None);
+                self.set_notification(format!("Error: {}", reason), None, false);
             }
             ServerMessage::Forums(forums) => self.forums = forums,
             ServerMessage::NewChatMessage(msg) => {
@@ -118,7 +118,7 @@ impl<'a> App<'a> {
             },
             ServerMessage::Notification(text, is_error) => {
                 let prefix = if is_error { "Error: " } else { "Info: " };
-                self.set_notification(format!("{}{}", prefix, text), Some(2000));
+                self.set_notification(format!("{}{}", prefix, text), Some(2000), false);
             }
             ServerMessage::UserList(users) => {
                 self.connected_users = users;
@@ -145,7 +145,7 @@ impl<'a> App<'a> {
     pub fn on_tick(&mut self) {
         self.tick_count += 1;
         // Auto-close notification if needed
-        if let Some((_, Some(close_tick))) = &self.notification {
+        if let Some((_, Some(close_tick), _)) = &self.notification {
             if self.tick_count >= *close_tick {
                 self.notification = None;
             }
