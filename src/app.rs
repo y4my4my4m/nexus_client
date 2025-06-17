@@ -165,7 +165,6 @@ impl<'a> App<'a> {
     pub fn handle_server_message(&mut self, msg: ServerMessage) {
         match msg {
             ServerMessage::AuthSuccess(user) => {
-                // self.set_notification("AuthSuccess received!", Some(1500), false);
                 self.current_user = Some(user);
                 self.mode = AppMode::MainMenu;
                 self.input_mode = None;
@@ -173,6 +172,8 @@ impl<'a> App<'a> {
                 self.password_input.clear();
                 self.main_menu_state.select(Some(0));
                 self.sound_manager.play(SoundType::LoginSuccess);
+                // --- Request the user list after successful login/registration ---
+                self.send_to_server(ClientMessage::GetUserList);
             }
             ServerMessage::AuthFailure(reason) => {
                 self.set_notification(format!("Error: {}", reason), None, false);
