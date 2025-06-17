@@ -533,7 +533,7 @@ fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::UserP
     // --- Banner with PFP and Username ---
     let banner_area = layout[0];
     // Dynamically update the composite image to match the banner area
-    app.update_profile_banner_composite(banner_area.width, banner_area.height);
+    app.update_profile_banner_composite(banner_area.width - 2, banner_area.height - 2);
     // Add a border to the top of the banner
     let banner_border = Block::default()
         .borders(Borders::TOP)
@@ -551,14 +551,25 @@ fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::UserP
 
     // --- Banner background: crop and stretch to fit ---
     if let Some(state) = &mut app.profile_banner_image_state {
+        let banner_block = Block::default()
+            .borders(Borders::ALL)
+            .title(Span::styled(&profile.username, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
+            .style(Style::default());
+        f.render_widget(banner_block, banner_area);
         // Only render the composited image (banner + PFP)
+        let offset_area = Rect {
+            x: banner_area.x + 1,
+            y: banner_area.y + 1,
+            width: banner_area.width,
+            height: banner_area.height,
+        };
         let image_widget = StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
-        f.render_stateful_widget(image_widget, banner_area, state);
+        f.render_stateful_widget(image_widget, offset_area, state);
     } else {
         let banner_bg = Color::Blue;
         let banner_block = Block::default()
             .borders(Borders::ALL)
-            .border_type(BorderType::Plain)
+            .title(Span::styled(&profile.username, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
             .style(Style::default().bg(banner_bg));
         f.render_widget(banner_block, banner_area);
     }
@@ -584,16 +595,6 @@ fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::UserP
             f.render_widget(p, pfp_inner);
         }
     }
-
-    // Username in big font next to PFP, with bg color for visibility
-    let username_area = banner_chunks[1];
-    let username_style = Style::default()
-        .fg(Color::Yellow)
-        .bg(Color::Black)
-        .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
-    let username_para = Paragraph::new(Span::styled(&profile.username, username_style))
-        .alignment(Alignment::Center);
-    f.render_widget(username_para, username_area);
 
     // --- Rest of profile info below banner ---
     let mut lines = vec![];

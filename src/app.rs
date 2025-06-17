@@ -438,7 +438,7 @@ impl<'a> App<'a> {
                     let banner_px_w = banner_area_width_cells as u32 * font_size.0 as u32;
                     let banner_px_h = banner_area_height_cells as u32 * font_size.1 as u32;
                     let banner_size = (banner_px_w, banner_px_h);
-                    let pfp_size = (32, 32);
+                    let pfp_size = (64, 64);
                     let pfp_padding_left = 16;
                     let composited = Self::composite_banner_and_pfp(&banner, &pfp, banner_size, pfp_size, pfp_padding_left);
                     if let Some(composite_bytes) = composited {
