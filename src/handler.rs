@@ -473,68 +473,13 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         app.chat_focus = crate::app::ChatFocus::Messages;
                     },
                     KeyCode::Down => {
-                        // Move down in sidebar: servers, then channels
-                        if let Some(s) = app.selected_server {
-                            if let Some(server) = app.servers.get(s) {
-                                if let Some(c) = app.selected_channel {
-                                    if c + 1 < server.channels.len() {
-                                        app.selected_channel = Some(c + 1);
-                                    } else if s + 1 < app.servers.len() {
-                                        app.selected_server = Some(s + 1);
-                                        app.selected_channel = None;
-                                    }
-                                } else if !server.channels.is_empty() {
-                                    app.selected_channel = Some(0);
-                                } else if s + 1 < app.servers.len() {
-                                    app.selected_server = Some(s + 1);
-                                    app.selected_channel = None;
-                                }
-                            }
-                        } else if !app.servers.is_empty() {
-                            app.selected_server = Some(0);
-                            app.selected_channel = None;
-                        }
+                        move_sidebar_selection(app, 1);
                     },
                     KeyCode::Up => {
-                        // Move up in sidebar
-                        if let Some(s) = app.selected_server {
-                            if let Some(c) = app.selected_channel {
-                                if c > 0 {
-                                    app.selected_channel = Some(c - 1);
-                                } else {
-                                    app.selected_channel = None;
-                                }
-                            } else if s > 0 {
-                                app.selected_server = Some(s - 1);
-                                if let Some(prev_server) = app.servers.get(s - 1) {
-                                    if !prev_server.channels.is_empty() {
-                                        app.selected_channel = Some(prev_server.channels.len() - 1);
-                                    }
-                                }
-                            }
-                        }
+                        move_sidebar_selection(app, -1);
                     },
                     KeyCode::Enter => {
-                        // If a channel is selected, request latest messages for that channel
-                        if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
-                            if let Some(server) = app.servers.get(s) {
-                                if let Some(channel) = server.channels.get(c) {
-                                    app.send_to_server(ClientMessage::GetChannelMessages { channel_id: channel.id });
-                                }
-                            }
-                            app.chat_focus = crate::app::ChatFocus::Messages;
-                        } else if app.selected_server.is_some() {
-                            // If only server is selected, select first channel if exists
-                            if let Some(s) = app.selected_server {
-                                if let Some(server) = app.servers.get(s) {
-                                    if !server.channels.is_empty() {
-                                        app.selected_channel = Some(0);
-                                        let channel = &server.channels[0];
-                                        app.send_to_server(ClientMessage::GetChannelMessages { channel_id: channel.id });
-                                    }
-                                }
-                            }
-                        }
+                        app.chat_focus = crate::app::ChatFocus::Messages;
                     },
                     KeyCode::Esc => app.mode = AppMode::MainMenu,
                     _ => {}
@@ -719,4 +664,68 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
         _ => {}
     }
 
+}
+
+fn move_sidebar_selection(app: &mut App, direction: i32) {
+    // direction: 1 for down, -1 for up
+    if let Some(s) = app.selected_server {
+        if let Some(server) = app.servers.get(s) {
+            if let Some(c) = app.selected_channel {
+                let next_c = if direction == 1 {
+                    if c + 1 < server.channels.len() { Some(c + 1) } else { None }
+                } else {
+                    if c > 0 { Some(c - 1) } else { None }
+                };
+                if let Some(new_c) = next_c {
+                    app.selected_channel = Some(new_c);
+                } else if direction == 1 && s + 1 < app.servers.len() {
+                    app.selected_server = Some(s + 1);
+                    app.selected_channel = None;
+                } else if direction == -1 && s > 0 {
+                    app.selected_server = Some(s - 1);
+                    if let Some(prev_server) = app.servers.get(s - 1) {
+                        if !prev_server.channels.is_empty() {
+                            app.selected_channel = Some(prev_server.channels.len() - 1);
+                        }
+                    }
+                } else if direction == 1 {
+                    // do nothing, end of list
+                }
+            } else if direction == 1 && !server.channels.is_empty() {
+                app.selected_channel = Some(0);
+            } else if direction == 1 && s + 1 < app.servers.len() {
+                app.selected_server = Some(s + 1);
+                app.selected_channel = None;
+            } else if direction == -1 && s > 0 {
+                app.selected_server = Some(s - 1);
+                if let Some(prev_server) = app.servers.get(s - 1) {
+                    if !prev_server.channels.is_empty() {
+                        app.selected_channel = Some(prev_server.channels.len() - 1);
+                    }
+                }
+            }
+        }
+    } else if direction == 1 && !app.servers.is_empty() {
+        app.selected_server = Some(0);
+        app.selected_channel = None;
+    }
+    // If a channel is selected, request latest messages for that channel
+    if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
+        if let Some(server) = app.servers.get(s) {
+            if let Some(channel) = server.channels.get(c) {
+                app.send_to_server(ClientMessage::GetChannelMessages { channel_id: channel.id });
+            }
+        }
+    } else if app.selected_server.is_some() {
+        // If only server is selected, select first channel if exists
+        if let Some(s) = app.selected_server {
+            if let Some(server) = app.servers.get(s) {
+                if !server.channels.is_empty() {
+                    app.selected_channel = Some(0);
+                    let channel = &server.channels[0];
+                    app.send_to_server(ClientMessage::GetChannelMessages { channel_id: channel.id });
+                }
+            }
+        }
+    }
 }

@@ -115,7 +115,8 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     let row_height = avatar_cell_height.max(2);
 
     // Collect display items first to avoid borrow checker issues
-    let display_items: Vec<_> = app.chat_messages.iter().rev().map(|msg| {
+    // Remove .rev() so oldest messages are at the top, newest at the bottom
+    let display_items: Vec<_> = app.chat_messages.iter().map(|msg| {
         let user = app.connected_users.iter().find(|u| u.username == msg.author).cloned();
         let author = msg.author.clone();
         let color = msg.color;
@@ -124,7 +125,7 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     }).collect();
 
     let mut current_y = inner_area.y;
-    for (user_opt, author, color, content) in display_items.into_iter().rev() {
+    for (user_opt, author, color, content) in display_items.into_iter() {
         let row_area = Rect::new(inner_area.x, current_y, inner_area.width, row_height);
         if let Some(user) = user_opt {
             if let Some(state) = get_avatar_protocol(app, &user, AVATAR_PIXEL_SIZE) {
