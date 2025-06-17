@@ -286,6 +286,7 @@ impl<'a> App<'a> {
                                 content: msg.content.clone(),
                                 color: msg.color,
                             });
+                            self.sound_manager.play(SoundType::ReceiveChatMessage);
                         }
                     }
                 }

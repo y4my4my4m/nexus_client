@@ -9,8 +9,6 @@ use ratatui::style::Color;
 pub fn handle_key_event(key: KeyEvent, app: &mut crate::app::App) {
     if key.kind != event::KeyEventKind::Press { return; }
 
-    // app.sound_manager.play(SoundType::Click);
-
     if app.show_quit_confirm {
         match key.code {
             KeyCode::Left | KeyCode::Tab => {
@@ -548,6 +546,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                                             channel_id: channel.id,
                                             content,
                                         });
+                                        app.sound_manager.play(SoundType::SendChatMessage);
                                     }
                                 }
                             }
@@ -757,4 +756,6 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
             }
         }
     }
+    // play sound
+    app.sound_manager.play(SoundType::ChangeChannel);
 }
