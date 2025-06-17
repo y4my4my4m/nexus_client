@@ -213,6 +213,68 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
         return;
     }
     match app.mode {
+        AppMode::Settings => match key.code {
+            KeyCode::Down => app.settings_list_state.select(Some(app.settings_list_state.selected().map_or(0, |s| (s + 1) % 3))),
+            KeyCode::Up => app.settings_list_state.select(Some(app.settings_list_state.selected().map_or(2, |s| (s + 2) % 3))),
+            KeyCode::Enter => if let Some(s) = app.settings_list_state.selected() {
+                match s {
+                    0 => app.enter_input_mode(InputMode::UpdatePassword),
+                    1 => {
+                        // Enter color picker mode
+                        // Set initial selection to current user color if possible
+                        if let Some(user) = &app.current_user {
+                            let palette = [
+                                Color::Cyan, Color::Green, Color::Yellow, Color::Red, Color::Magenta, Color::Blue, Color::White, Color::LightCyan, Color::LightGreen, Color::LightYellow, Color::LightRed, Color::LightMagenta, Color::LightBlue, Color::Gray, Color::DarkGray, Color::Black
+                            ];
+                            app.color_picker_selected = palette.iter().position(|&c| c == user.color).unwrap_or(0);
+                        } else {
+                            app.color_picker_selected = 0;
+                        }
+                        app.mode = AppMode::ColorPicker;
+                    },
+                    2 => {
+                        if let Some(user) = &app.current_user {
+                            app.profile_requested_by_user = false;
+                            app.send_to_server(common::ClientMessage::GetProfile { user_id: user.id });
+                            app.profile_edit_focus = crate::app::ProfileEditFocus::Bio;
+                            app.mode = AppMode::EditProfile;
+                        }
+                    },
+                    _ => {}
+                }
+            },
+            KeyCode::Esc => app.mode = AppMode::MainMenu,
+            _ => {}
+        },
+        AppMode::ColorPicker => match key.code {
+            KeyCode::Left => {
+                let palette_len = 16;
+                if app.color_picker_selected == 0 {
+                    app.color_picker_selected = palette_len - 1;
+                } else {
+                    app.color_picker_selected -= 1;
+                }
+            },
+            KeyCode::Right => {
+                let palette_len = 16;
+                app.color_picker_selected = (app.color_picker_selected + 1) % palette_len;
+            },
+            KeyCode::Enter => {
+                let palette = [
+                    Color::Cyan, Color::Green, Color::Yellow, Color::Red, Color::Magenta, Color::Blue, Color::White, Color::LightCyan, Color::LightGreen, Color::LightYellow, Color::LightRed, Color::LightMagenta, Color::LightBlue, Color::Gray, Color::DarkGray, Color::Black
+                ];
+                let new_color = palette[app.color_picker_selected];
+                if let Some(user) = &mut app.current_user {
+                    user.color = new_color;
+                    app.send_to_server(ClientMessage::UpdateColor(SerializableColor(new_color)));
+                }
+                app.mode = AppMode::Settings;
+            },
+            KeyCode::Esc => {
+                app.mode = AppMode::Settings;
+            },
+            _ => {}
+        },
         AppMode::MainMenu => match key.code {
             KeyCode::Down => app.main_menu_state.select(Some(app.main_menu_state.selected().map_or(0, |s| (s + 1) % 4))),
             KeyCode::Up => app.main_menu_state.select(Some(app.main_menu_state.selected().map_or(3, |s| (s + 3) % 4))),
@@ -262,28 +324,6 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
         AppMode::PostView => match key.code {
             KeyCode::Char('r') | KeyCode::Char('R') => app.enter_input_mode(InputMode::NewPostContent),
             KeyCode::Esc => app.mode = AppMode::ThreadList,
-            _ => {}
-        },
-        AppMode::Settings => match key.code {
-            KeyCode::Down | KeyCode::Up => app.settings_list_state.select(Some(app.settings_list_state.selected().map_or(0, |s| (s + 1) % 3))),
-            KeyCode::Enter => if let Some(s) = app.settings_list_state.selected() {
-                match s {
-                    0 => app.enter_input_mode(InputMode::UpdatePassword),
-                    1 => cycle_color(app),
-                    2 => {
-                        // Fetch latest profile before entering edit mode
-                        if let Some(user) = &app.current_user {
-                            app.profile_requested_by_user = false; // Not a view, but for edit
-                            app.send_to_server(common::ClientMessage::GetProfile { user_id: user.id });
-                            // Set a flag to indicate we want to enter edit mode after profile arrives
-                            app.profile_edit_focus = crate::app::ProfileEditFocus::Bio;
-                            app.mode = AppMode::EditProfile; // Optionally, show a loading state
-                        }
-                    },
-                    _ => {}
-                }
-            },
-            KeyCode::Esc => app.mode = AppMode::MainMenu,
             _ => {}
         },
         AppMode::EditProfile => match key.code {
@@ -592,16 +632,4 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
         _ => {}
     }
 
-    // Global: close profile view popup
-}
-
-fn cycle_color(app: &mut App) {
-    if let Some(user) = &mut app.current_user {
-        let colors = [Color::Cyan, Color::Green, Color::Yellow, Color::Red, Color::Magenta, Color::Blue, Color::White];
-        let current_color_idx = colors.iter().position(|&c| c == user.color).unwrap_or(0);
-        let next_color_idx = (current_color_idx + 1) % colors.len();
-        let new_color = colors[next_color_idx];
-        user.color = new_color;
-        app.send_to_server(ClientMessage::UpdateColor(SerializableColor(new_color)));
-    }
 }

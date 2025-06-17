@@ -7,7 +7,7 @@ use crate::app::{App};
 pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
     let items = vec![
         ListItem::new("Change Password"),
-        ListItem::new("Change User Color (Cycle)"),
+        ListItem::new("Change User Color"),
         ListItem::new("Edit Profile"),
     ];
     let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Settings"))
@@ -141,4 +141,48 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
     if matches!(app.profile_edit_focus, Bio|Url1|Url2|Url3|Location|ProfilePic|CoverBanner) {
         f.set_cursor_position(cursor);
     }
+}
+
+pub fn draw_color_picker_page(f: &mut Frame, app: &mut App, area: Rect) {
+    let colors = [
+        Color::Cyan, Color::Green, Color::Yellow, Color::Red, Color::Magenta, Color::Blue, Color::White, Color::LightCyan, Color::LightGreen, Color::LightYellow, Color::LightRed, Color::LightMagenta, Color::LightBlue, Color::Gray, Color::DarkGray, Color::Black
+    ];
+    let color_names = [
+        "Cyan", "Green", "Yellow", "Red", "Magenta", "Blue", "White", "LightCyan", "LightGreen", "LightYellow", "LightRed", "LightMagenta", "LightBlue", "Gray", "DarkGray", "Black"
+    ];
+    let block = Block::default().title("Pick a Username Color").borders(Borders::ALL).border_type(BorderType::Double);
+    f.render_widget(block, area);
+    let inner = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2)
+        .constraints([
+            Constraint::Length(3), // Preview
+            Constraint::Length(colors.len() as u16 + 2), // Palette
+            Constraint::Min(0),
+        ])
+        .split(area);
+    // Username preview
+    let username = app.current_user.as_ref().map(|u| u.username.as_str()).unwrap_or("your_username");
+    let preview_color = colors[app.color_picker_selected];
+    let preview = Paragraph::new(Span::styled(
+        format!("Preview: {}", username),
+        Style::default().fg(preview_color).add_modifier(Modifier::BOLD),
+    ))
+    .alignment(Alignment::Center)
+    .block(Block::default().borders(Borders::ALL).title("Preview"));
+    f.render_widget(preview, inner[0]);
+    // Palette
+    let mut palette_lines = Vec::new();
+    for (i, &color) in colors.iter().enumerate() {
+        let style = if i == app.color_picker_selected {
+            Style::default().fg(Color::Black).bg(color).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(color)
+        };
+        palette_lines.push(Span::styled(format!(" {} ", color_names[i]), style));
+    }
+    let palette = Paragraph::new(Line::from(palette_lines))
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::ALL).title("Colors (←/→ to pick, Enter=Save, Esc=Cancel)"));
+    f.render_widget(palette, inner[1]);
 }

@@ -15,7 +15,7 @@ use crate::ui::banner::draw_banner;
 use crate::ui::auth::{draw_login, draw_register};
 use crate::ui::main_menu::draw_main_menu;
 use crate::ui::forums::{draw_forum_list, draw_thread_list, draw_post_view};
-use crate::ui::settings::{draw_settings, draw_profile_edit_page};
+use crate::ui::settings::{draw_settings, draw_profile_edit_page, draw_color_picker_page};
 use crate::ui::chat::draw_chat;
 use crate::ui::popups::{draw_input_popup, draw_notification_popup, draw_minimal_notification_popup, draw_profile_view_popup, draw_user_actions_popup};
 
@@ -75,6 +75,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
             draw_input_popup(f, app);
         }
         AppMode::EditProfile => draw_profile_edit_page(f, app, main_area),
+        AppMode::ColorPicker => draw_color_picker_page(f, app, main_area),
     }
 
     if let Some((notification, _, minimal)) = &app.notification {

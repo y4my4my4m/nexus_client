@@ -15,7 +15,7 @@ use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum AppMode {
-    Login, Register, MainMenu, Settings, ForumList, ThreadList, PostView, Chat, Input, EditProfile,
+    Login, Register, MainMenu, Settings, ForumList, ThreadList, PostView, Chat, Input, EditProfile, ColorPicker,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -106,6 +106,9 @@ pub struct App<'a> {
     // --- Quit confirmation fields ---
     pub show_quit_confirm: bool,
     pub quit_confirm_selected: usize,
+
+    // --- Color picker fields ---
+    pub color_picker_selected: usize, // index in color palette
 }
 
 impl<'a> App<'a> {
@@ -167,6 +170,7 @@ impl<'a> App<'a> {
             mention_prefix: None,
             show_quit_confirm: false,
             quit_confirm_selected: 0,
+            color_picker_selected: 0,
         }
     }
 
