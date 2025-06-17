@@ -2,7 +2,7 @@
 
 use ratatui::{Frame, layout::Rect, style::{Style, Color, Modifier}, widgets::{Block, List, ListItem, Paragraph, Borders, BorderType, Wrap}, text::{Line, Span}, layout::Constraint, layout::Layout};
 use ratatui::prelude::{Alignment, Direction};
-use crate::app::{App, ProfileEditFocus};
+use crate::app::{App};
 
 pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
     let items = vec![

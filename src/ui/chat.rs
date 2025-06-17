@@ -1,7 +1,7 @@
 //! Chat and user list UI screens.
 
 use ratatui::{Frame, layout::{Rect, Layout, Constraint, Direction}, style::{Style, Color, Modifier}, widgets::{Block, Paragraph, Borders, Wrap}, text::{Line, Span}};
-use crate::app::{App, ChatFocus};
+use crate::app::{App};
 use crate::ui::avatar::get_avatar_protocol;
 use ratatui_image::StatefulImage;
 

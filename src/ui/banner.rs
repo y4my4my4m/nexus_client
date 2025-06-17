@@ -1,6 +1,4 @@
-//! Banner drawing utilities for the UI.
-
-use ratatui::{Frame, layout::Rect, text::Line, widgets::Paragraph, style::Style, widgets::Block, widgets::Borders};
+use ratatui::{Frame, layout::Rect, widgets::Paragraph, widgets::Block, widgets::Borders};
 use crate::app::App;
 use crate::banner::get_styled_banner_lines;
 

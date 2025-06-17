@@ -11,7 +11,6 @@ pub mod avatar;
 
 use ratatui::Frame;
 use crate::app::{App, AppMode, InputMode};
-use crate::banner::get_styled_banner_lines;
 use crate::ui::banner::draw_banner;
 use crate::ui::auth::{draw_login, draw_register};
 use crate::ui::main_menu::draw_main_menu;
@@ -20,14 +19,6 @@ use crate::ui::settings::{draw_settings, draw_profile_edit_page};
 use crate::ui::chat::draw_chat;
 use crate::ui::popups::{draw_input_popup, draw_notification_popup, draw_minimal_notification_popup, draw_profile_view_popup, draw_user_actions_popup};
 
-pub use banner::*;
-pub use auth::*;
-pub use main_menu::*;
-pub use forums::*;
-pub use settings::*;
-pub use chat::*;
-pub use popups::*;
-pub use avatar::*;
 
 pub fn ui(f: &mut Frame, app: &mut App) {
     let size = f.area();
