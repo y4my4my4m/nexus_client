@@ -9,7 +9,13 @@ use ratatui::widgets::ListState;
 use chrono::TimeZone;
 
 pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
-    // Sidebar: servers/channels | Main: chat | Optional: user list
+    // Layout: DM block (top), then sidebar, then main/chat, then (optional) user list
+    let dm_block_height = if app.show_dm_list {
+        // 1 for button + N for users (up to 8 or area.height/2)
+        1 + app.dm_user_list.len().min(16) as u16
+    } else {
+        1
+    };
     let sidebar_width = 28;
     let show_users = app.show_user_list;
     let focus = app.chat_focus;
@@ -31,13 +37,64 @@ pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
             ])
             .split(area)
     };
-    draw_sidebar(f, app, chunks[0], focus == ChatFocus::Sidebar);
+    // Split sidebar area into DM block (top) and sidebar (bottom)
+    let sidebar_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(dm_block_height),
+            Constraint::Min(0),
+        ])
+        .split(chunks[0]);
+    draw_dm_block(f, app, sidebar_chunks[0], focus == ChatFocus::Sidebar && app.selected_dm_user.is_some());
+    draw_sidebar(f, app, sidebar_chunks[1], focus == ChatFocus::Sidebar && app.selected_dm_user.is_none());
     draw_chat_main(f, app, chunks[1], focus == ChatFocus::Messages);
     if show_users && chunks.len() > 2 {
         draw_user_list(f, app, chunks[2], focus == ChatFocus::Users);
     }
     if app.chat_focus == ChatFocus::DMInput {
         crate::ui::popups::draw_dm_input_popup(f, app);
+    }
+}
+
+pub fn draw_dm_block(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
+    use ratatui::widgets::{Block, Borders, Paragraph, List, ListItem};
+    use ratatui::style::{Style, Color, Modifier};
+    use ratatui::text::{Span, Line};
+    let block = Block::default().borders(Borders::ALL).title("Direct Messages");
+    f.render_widget(block.clone(), area);
+    let inner = block.inner(area);
+    if inner.width == 0 || inner.height == 0 { return; }
+    // Draw DM button
+    let button_style = if focused && app.selected_dm_user.is_none() {
+        Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::Magenta)
+    };
+    let button = Paragraph::new(Span::styled("[ Direct Messages ]", button_style))
+        .alignment(ratatui::layout::Alignment::Center);
+    f.render_widget(button, Rect { x: inner.x, y: inner.y, width: inner.width, height: 1 });
+    // Draw DM user list if expanded
+    if app.show_dm_list {
+        let user_area = Rect { x: inner.x, y: inner.y + 1, width: inner.width, height: inner.height.saturating_sub(1) };
+        let items: Vec<ListItem> = app.dm_user_list.iter().enumerate().map(|(i, u)| {
+            let selected = app.selected_dm_user == Some(i);
+            let style = if selected && focused {
+                Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(u.color)
+            };
+            let status = match u.status {
+                common::UserStatus::Connected => "●",
+                _ => "○",
+            };
+            ListItem::new(Line::from(vec![Span::styled(format!("{} {}", status, u.username), style)]))
+        }).collect();
+        let mut list_state = ListState::default();
+        list_state.select(app.selected_dm_user);
+        let list = List::new(items)
+            .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD))
+            .highlight_symbol(">> ");
+        f.render_stateful_widget(list, user_area, &mut list_state);
     }
 }
 
@@ -381,10 +438,6 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     let mut idx = 0;
     for role in roles {
         let mut users = role_map.get(&role).cloned().unwrap_or_default();
-        users.sort_by(|a, b| {
-            status_order(&a.status).cmp(&status_order(&b.status))
-                .then_with(|| a.username.to_lowercase().cmp(&b.username.to_lowercase()))
-        });
         // Draw role header
         if current_y + row_height > inner_area.y + inner_area.height { break; }
         let header = Block::default()

@@ -17,7 +17,7 @@ pub struct ChatMessage {
 }
 
 // Remove local Thread and Post definitions, use common::{Thread, Post}
-pub use common::{Thread, Post};
+pub use common::{Thread, Post, DirectMessage};
 
 // // --- Mock Data Creation ---
 

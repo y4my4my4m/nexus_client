@@ -529,8 +529,8 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     KeyCode::Up => {
                         if app.server_actions_selected > 0 {
                             app.server_actions_selected -= 1;
+                            app.sound_manager.play(SoundType::Scroll);
                         }
-                        app.sound_manager.play(SoundType::Scroll);
                     },
                     KeyCode::Down => {
                         let max = if let Some(s) = app.selected_server {
@@ -539,8 +539,8 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         } else { 2 };
                         if app.server_actions_selected + 1 < max {
                             app.server_actions_selected += 1;
+                            app.sound_manager.play(SoundType::Scroll);
                         }
-                        app.sound_manager.play(SoundType::Scroll);
                     },
                     KeyCode::Enter => {
                         // TODO: Implement server action logic here
@@ -835,6 +835,20 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     app.show_server_actions = true;
                     app.sound_manager.play(SoundType::PopupOpen);
                 },
+                KeyCode::F(6) => {
+                    app.set_notification("Called", Some(500), true);
+                    if let Some(current_user) = app.current_user.as_ref() {
+                        app.send_to_server(ClientMessage::GetDirectMessages { user_id: current_user.id, before: None });
+                    }
+                    // if app.show_dm_list && app.selected_dm_user.is_some() {
+                    // if let Some(dm_idx) = app.selected_dm_user {
+                    //     if let Some(user) = app.dm_user_list.get(dm_idx) {
+                    //         app.dm_target = Some(user.id);
+                    //         app.send_to_server(ClientMessage::GetDirectMessages { user_id: user.id, before: None });
+                    //         app.chat_focus = crate::app::ChatFocus::Messages;
+                    //     }
+                    // }
+                },
                 _ => {}
             }
         },
@@ -858,6 +872,20 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
     }
 
 }
+
+    // If DM list is open and a DM user is selected, move within DM users
+    // if app.show_dm_list && app.selected_dm_user.is_some() {
+    //     let len = app.dm_user_list.len();
+    //     if len > 0 {
+    //         let idx = app.selected_dm_user.unwrap();
+    //         let new_idx = if direction == 1 {
+    //             (idx + 1) % len
+    //         } else {
+    //             (idx + len - 1) % len
+    //         };
+    //         app.selected_dm_user = Some(new_idx);
+    //     }
+    // } else {
 
 fn move_sidebar_selection(app: &mut App, direction: i32) {
     // direction: 1 for down, -1 for up

@@ -57,6 +57,12 @@ pub enum ProfileEditFocus {
     Cancel,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SidebarSection {
+    Servers,
+    DMs,
+}
+
 pub struct App<'a> {
     pub mode: AppMode,
     pub input_mode: Option<InputMode>,
@@ -139,6 +145,19 @@ pub struct App<'a> {
 
     // --- Pending new thread fields ---
     pub pending_new_thread_title: Option<String>, // Title of the new thread pending selection
+
+    // --- DM fields ---
+    pub dm_user_list: Vec<User>, // Users you have DMs with
+    pub selected_dm_user: Option<usize>, // Index into dm_user_list
+    pub dm_messages: Vec<common::DirectMessage>, // Current DM conversation
+    pub dm_history_complete: bool, // If all history loaded
+
+    // --- Notification fields ---
+    pub notifications: Vec<common::Notification>,
+    pub notification_history_complete: bool,
+
+    // --- DM UI state ---
+    pub show_dm_list: bool, // Is the DM list expanded?
 }
 
 impl<'a> App<'a> {
@@ -212,6 +231,13 @@ impl<'a> App<'a> {
             show_server_actions: false,
             server_actions_selected: 0,
             pending_new_thread_title: None,
+            dm_user_list: vec![],
+            selected_dm_user: None,
+            dm_messages: vec![],
+            dm_history_complete: false,
+            notifications: vec![],
+            notification_history_complete: false,
+            show_dm_list: false,
         }
     }
 
@@ -508,12 +534,47 @@ impl<'a> App<'a> {
                 }
             }
             ServerMessage::ChannelUserList { channel_id, users } => {
-                self.channel_userlist = users;
+                let mut sorted_users = users;
+                sorted_users.sort_by(|a, b| a.username.to_lowercase().cmp(&b.username.to_lowercase()));
+                sorted_users.reverse();
+                self.channel_userlist = sorted_users;
                 // Reset user list selection to first user if list is not empty
                 if !self.channel_userlist.is_empty() {
                     self.user_list_state.select(Some(0));
                 } else {
                     self.user_list_state.select(None);
+                }
+            }
+            ServerMessage::DMUserList(users) => {
+                self.dm_user_list = users;
+                if self.selected_dm_user.is_none() && !self.dm_user_list.is_empty() {
+                    self.selected_dm_user = Some(0);
+                }
+            }
+            ServerMessage::DirectMessages { user_id, messages, history_complete } => {
+                // If this is a new DM target, replace; else prepend for scrollback
+                if let Some(idx) = self.dm_user_list.iter().position(|u| u.id == user_id) {
+                    if self.selected_dm_user == Some(idx) && !self.dm_messages.is_empty() && !messages.is_empty() && self.dm_messages.first().unwrap().id != messages.first().unwrap().id {
+                        // Scrollback: prepend
+                        let mut new_msgs = messages.clone();
+                        let added = new_msgs.len();
+                        new_msgs.append(&mut self.dm_messages);
+                        self.dm_messages = new_msgs;
+                        // Optionally adjust scroll offset here if you implement DM scrolling
+                    } else {
+                        // Replace (new target or initial load)
+                        self.dm_messages = messages;
+                    }
+                    self.dm_history_complete = history_complete;
+                }
+            }
+            ServerMessage::Notifications { notifications, history_complete } => {
+                self.notifications = notifications;
+                self.notification_history_complete = history_complete;
+            }
+            ServerMessage::NotificationUpdated { notification_id, read } => {
+                if let Some(n) = self.notifications.iter_mut().find(|n| n.id == notification_id) {
+                    n.read = read;
                 }
             }
         }
@@ -669,5 +730,35 @@ impl<'a> App<'a> {
                 self.profile_image_state = None;
             }
         }
+    }
+
+    // --- DM UI stubs ---
+    pub fn draw_dm_user_list(f: &mut ratatui::Frame, app: &mut App, area: ratatui::layout::Rect) {
+        use ratatui::widgets::{Block, Borders, List, ListItem};
+        let items: Vec<ListItem> = app.dm_user_list.iter().map(|u| {
+            let status = match u.status {
+                common::UserStatus::Connected => "●",
+                _ => "○",
+            };
+            ListItem::new(format!("{} {}", status, u.username))
+        }).collect();
+        let list = List::new(items)
+            .block(Block::default().borders(Borders::ALL).title("Direct Messages"))
+            .highlight_symbol(">> ");
+        f.render_stateful_widget(list, area, &mut app.user_list_state.clone());
+    }
+
+    pub fn draw_dm_conversation(f: &mut ratatui::Frame, app: &mut App, area: ratatui::layout::Rect) {
+        use ratatui::widgets::{Block, Borders, Paragraph};
+        use ratatui::text::{Span, Line};
+        let lines: Vec<Line> = app.dm_messages.iter().map(|m| {
+            Line::from(vec![
+                Span::styled(format!("{}: ", m.author_username), ratatui::style::Style::default().fg(m.author_color)),
+                Span::raw(&m.content),
+            ])
+        }).collect();
+        let para = Paragraph::new(lines)
+            .block(Block::default().borders(Borders::ALL).title("Conversation"));
+        f.render_widget(para, area);
     }
 }
