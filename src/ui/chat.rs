@@ -386,16 +386,21 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
                 let text = Line::from(vec![
                     Span::styled(format!(" {} ", status_symbol), Style::default().fg(status_color)),
                     Span::styled(&user.username, text_style),
-                    Span::styled(format!(" ({:?})", user.role), text_style.remove_modifier(Modifier::BOLD).add_modifier(Modifier::DIM)),
                 ]);
                 f.render_widget(Paragraph::new(text).alignment(ratatui::layout::Alignment::Left), row_chunks[1]);
             } else {
+                // Render a blank avatar area for alignment
+                let row_chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([Constraint::Length(avatar_cell_width), Constraint::Min(0)])
+                    .split(row_area);
+                // Optionally, render a placeholder avatar here instead of leaving blank
+                // f.render_widget(Paragraph::new(" "), row_chunks[0]);
                 let text = Line::from(vec![
                     Span::styled(format!(" {} ", status_symbol), Style::default().fg(status_color)),
                     Span::styled(&user.username, text_style),
-                    Span::styled(format!(" ({:?})", user.role), text_style.remove_modifier(Modifier::BOLD).add_modifier(Modifier::DIM)),
                 ]);
-                f.render_widget(Paragraph::new(text).alignment(ratatui::layout::Alignment::Left), row_area);
+                f.render_widget(Paragraph::new(text).alignment(ratatui::layout::Alignment::Left), row_chunks[1]);
             }
             current_y += row_height;
             idx += 1;
