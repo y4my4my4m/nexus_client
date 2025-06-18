@@ -11,7 +11,7 @@ pub mod avatar;
 
 use ratatui::Frame;
 use crate::app::{App, AppMode, InputMode};
-use crate::ui::banner::draw_banner;
+use crate::ui::banner::{draw_full_banner, draw_min_banner};
 use crate::ui::auth::{draw_login, draw_register};
 use crate::ui::main_menu::draw_main_menu;
 use crate::ui::forums::{draw_forum_list, draw_thread_list, draw_post_view};
@@ -22,15 +22,20 @@ use crate::ui::popups::{draw_input_popup, draw_notification_popup, draw_minimal_
 
 pub fn ui(f: &mut Frame, app: &mut App) {
     let size = f.area();
+    let banner_height = if app.current_user.is_none() { 9 } else { 3 };
     let chunks = ratatui::layout::Layout::default()
         .constraints([
-            ratatui::layout::Constraint::Length(9), // Banner height
-            ratatui::layout::Constraint::Min(0),    // Main Content
-            ratatui::layout::Constraint::Length(3), // Footer
+            ratatui::layout::Constraint::Length(banner_height), // Banner height
+            ratatui::layout::Constraint::Min(0),                // Main Content
+            ratatui::layout::Constraint::Length(3),             // Footer
         ])
         .split(size);
 
-    draw_banner(f, app, chunks[0]);
+    if app.current_user.is_none() {
+        draw_full_banner(f, app, chunks[0]);
+    } else {
+        draw_min_banner(f, app, chunks[0]);
+    }
 
     let help_text = match app.mode {
         AppMode::Login | AppMode::Register => "[Esc] QUIT | [F2] Preferences | [Tab]/[Shift+Tab] Change Focus | [Enter] Select/Submit",
