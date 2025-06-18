@@ -119,6 +119,10 @@ pub struct App<'a> {
     // --- Channel selection fields ---
     pub selected_server: Option<usize>,
     pub selected_channel: Option<usize>,
+
+    // --- Chat scrolling fields ---
+    pub chat_scroll_offset: usize, // how many lines up from the latest message
+    pub last_chat_rows: Option<usize>, // number of visible chat rows from last render
 }
 
 impl<'a> App<'a> {
@@ -184,6 +188,8 @@ impl<'a> App<'a> {
             servers: vec![],
             selected_server: None,
             selected_channel: None,
+            chat_scroll_offset: 0,
+            last_chat_rows: None,
         }
     }
 

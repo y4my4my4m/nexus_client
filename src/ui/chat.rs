@@ -116,12 +116,14 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
 
     // Calculate how many messages fit
     let max_rows = (inner_area.height as usize) / (row_height as usize + 1);
+    app.last_chat_rows = Some(max_rows);
     let (display_items, is_channel_chat) = if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
         if let Some(server) = app.servers.get(s) {
             if let Some(channel) = server.channels.get(c) {
                 let total_msgs = channel.messages.len();
-                let start_idx = if total_msgs > max_rows { total_msgs - max_rows } else { 0 };
-                let items: Vec<_> = channel.messages.iter().skip(start_idx).map(|msg| {
+                let offset = app.chat_scroll_offset.min(total_msgs.saturating_sub(max_rows));
+                let start_idx = total_msgs.saturating_sub(max_rows + offset);
+                let items: Vec<_> = channel.messages.iter().skip(start_idx).take(max_rows).map(|msg| {
                     (Some(msg.author_username.clone()), msg.author_color, msg.content.clone(), msg.author_profile_pic.clone())
                 }).collect();
                 (items, true)
@@ -129,8 +131,9 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         } else { (vec![], true) }
     } else {
         let total_msgs = app.chat_messages.len();
-        let start_idx = if total_msgs > max_rows { total_msgs - max_rows } else { 0 };
-        let items: Vec<_> = app.chat_messages.iter().skip(start_idx).map(|msg| {
+        let offset = app.chat_scroll_offset.min(total_msgs.saturating_sub(max_rows));
+        let start_idx = total_msgs.saturating_sub(max_rows + offset);
+        let items: Vec<_> = app.chat_messages.iter().skip(start_idx).take(max_rows).map(|msg| {
             (Some(msg.author.clone()), msg.color, msg.content.clone(), None)
         }).collect();
         (items, false)

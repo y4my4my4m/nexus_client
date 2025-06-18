@@ -519,6 +519,43 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
                         app.show_user_list = !app.show_user_list;
                     },
+                    KeyCode::PageUp => {
+                        // Scroll up chat history
+                        let (max_rows, total_msgs) = if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
+                            if let Some(server) = app.servers.get(s) {
+                                if let Some(channel) = server.channels.get(c) {
+                                    // Estimate max_rows from last render (fallback to 20)
+                                    let max_rows = app.last_chat_rows.unwrap_or(20);
+                                    (max_rows, channel.messages.len())
+                                } else { (20, 0) }
+                            } else { (20, 0) }
+                        } else {
+                            let max_rows = app.last_chat_rows.unwrap_or(20);
+                            (max_rows, app.chat_messages.len())
+                        };
+                        let prev_offset = app.chat_scroll_offset;
+                        app.chat_scroll_offset = app.chat_scroll_offset.saturating_add(max_rows);
+                        if app.chat_scroll_offset > total_msgs.saturating_sub(max_rows) {
+                            app.chat_scroll_offset = total_msgs.saturating_sub(max_rows);
+                            // If at the top, request more from server
+                            if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
+                                if let Some(server) = app.servers.get(s) {
+                                    if let Some(channel) = server.channels.get(c) {
+                                        app.send_to_server(ClientMessage::GetChannelMessages { channel_id: channel.id });
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    KeyCode::PageDown => {
+                        // Scroll down chat history
+                        let max_rows = app.last_chat_rows.unwrap_or(20);
+                        if app.chat_scroll_offset >= max_rows {
+                            app.chat_scroll_offset -= max_rows;
+                        } else {
+                            app.chat_scroll_offset = 0;
+                        }
+                    },
                     KeyCode::Down => {
                         if !app.mention_suggestions.is_empty() {
                             app.mention_selected = (app.mention_selected + 1) % app.mention_suggestions.len();
@@ -748,6 +785,7 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
     }
     // If a channel is selected, request latest messages for that channel
     if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
+        app.chat_scroll_offset = 0; // Reset scroll when switching channels
         if let Some(server) = app.servers.get(s) {
             if let Some(channel) = server.channels.get(c) {
                 app.send_to_server(ClientMessage::GetChannelMessages { channel_id: channel.id });
