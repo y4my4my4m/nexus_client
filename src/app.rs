@@ -281,6 +281,14 @@ impl<'a> App<'a> {
                 self.sound_manager.play(SoundType::LoginSuccess);
                 self.send_to_server(ClientMessage::GetUserList);
                 self.send_to_server(ClientMessage::GetServers); // Ensure servers are requested after login
+                // --- FIX: Request channel user list for first channel if in chat mode ---
+                if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {
+                    if let Some(server) = self.servers.get(s) {
+                        if let Some(channel) = server.channels.get(c) {
+                            self.send_to_server(ClientMessage::GetChannelUserList { channel_id: channel.id });
+                        }
+                    }
+                }
             }
             ServerMessage::AuthFailure(reason) => {
                 self.set_notification(format!("Error: {}", reason), None, false);
@@ -351,12 +359,18 @@ impl<'a> App<'a> {
                 self.connected_users = users;
             }
             ServerMessage::UserJoined(user) => {
-                if !self.connected_users.iter().any(|u| u.id == user.id) {
-                    self.connected_users.push(user);
+                // Add or update user in channel_userlist
+                if let Some(existing) = self.channel_userlist.iter_mut().find(|u| u.id == user.id) {
+                    *existing = user;
+                } else {
+                    self.channel_userlist.push(user);
                 }
             }
             ServerMessage::UserLeft(user_id) => {
-                self.connected_users.retain(|u| u.id != user_id);
+                // Mark user as offline in channel_userlist
+                if let Some(existing) = self.channel_userlist.iter_mut().find(|u| u.id == user_id) {
+                    existing.status = common::UserStatus::Offline;
+                }
             }
             ServerMessage::DirectMessage { from, content } => {
                 self.set_notification(
