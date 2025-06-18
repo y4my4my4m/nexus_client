@@ -217,8 +217,14 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
     }
     match app.mode {
         AppMode::Settings => match key.code {
-            KeyCode::Down => app.settings_list_state.select(Some(app.settings_list_state.selected().map_or(0, |s| (s + 1) % 3))),
-            KeyCode::Up => app.settings_list_state.select(Some(app.settings_list_state.selected().map_or(2, |s| (s + 2) % 3))),
+            KeyCode::Down => { 
+                app.sound_manager.play(SoundType::Scroll); 
+                app.settings_list_state.select(Some(app.settings_list_state.selected().map_or(0, |s| (s + 1) % 3)));
+            }
+            KeyCode::Up => { 
+                app.sound_manager.play(SoundType::Scroll); 
+                app.settings_list_state.select(Some(app.settings_list_state.selected().map_or(2, |s| (s + 2) % 3)));
+            }
             KeyCode::Enter => if let Some(s) = app.settings_list_state.selected() {
                 match s {
                     0 => app.enter_input_mode(InputMode::UpdatePassword),
