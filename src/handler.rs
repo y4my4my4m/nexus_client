@@ -327,6 +327,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         app.mode = AppMode::Chat;
                         app.current_input.clear();
                         app.send_to_server(ClientMessage::GetServers); // Ensure servers are requested after login
+                        app.send_to_server(ClientMessage::GetDMUserList); // Fetch DM user list when entering chat
                     },
                     2 => { app.mode = AppMode::Settings; app.settings_list_state.select(Some(0)); },
                     3 => { app.send_to_server(ClientMessage::Logout); app.current_user = None; app.mode = AppMode::Login; app.input_mode = Some(InputMode::LoginUsername); app.current_input.clear(); app.password_input.clear(); },
