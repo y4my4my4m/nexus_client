@@ -34,20 +34,18 @@ pub fn draw_thread_list(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(&block, area);
     let inner_area = block.inner(area);
 
-    // Column widths
-    let title_width = 40;
-    let author_width = 14;
-    let date_width = 18;
+    // Column constraints for dynamic width
+    let constraints = [
+        Constraint::Percentage(60), // Title
+        Constraint::Percentage(25), // Author
+        Constraint::Percentage(15), // Date
+    ];
     let row_height = 1;
 
     // Header row
     let header_layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Length(title_width),
-            Constraint::Length(author_width),
-            Constraint::Length(date_width),
-        ])
+        .constraints(constraints)
         .split(Rect {
             x: inner_area.x,
             y: inner_area.y,
@@ -78,11 +76,7 @@ pub fn draw_thread_list(f: &mut Frame, app: &mut App, area: Rect) {
         }
         let row_layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Length(title_width),
-                Constraint::Length(author_width),
-                Constraint::Length(date_width),
-            ])
+            .constraints(constraints)
             .split(Rect {
                 x: inner_area.x,
                 y,
@@ -91,41 +85,33 @@ pub fn draw_thread_list(f: &mut Frame, app: &mut App, area: Rect) {
             });
         let is_selected = app.thread_list_state.selected() == Some(i);
         let bg_style = if is_selected {
-            Style::default().fg(Color::Black).bg(Color::Cyan)
+            Style::default().bg(Color::Cyan)
         } else {
             Style::default()
         };
-        // Title
-        let title = if thread.title.len() > title_width as usize {
-            format!("{:.title_width$}", &thread.title[..title_width as usize - 1], title_width = title_width as usize - 1)
+        let (title_fg, author_fg, date_fg) = if is_selected {
+            (Color::Black, Color::Black, Color::Black)
         } else {
-            format!("{:<title_width$}", thread.title, title_width = title_width as usize)
+            (Color::Cyan, thread.author.color, Color::Gray)
         };
+        // Title
+        let title = thread.title.clone();
         f.render_widget(
-            Paragraph::new(Span::styled(title, Style::default().fg(Color::Cyan)).bg(bg_style.bg.unwrap_or(Color::Reset)))
+            Paragraph::new(Span::styled(title, Style::default().fg(title_fg)).bg(bg_style.bg.unwrap_or(Color::Reset)))
                 .alignment(ratatui::layout::Alignment::Left),
             row_layout[0],
         );
         // Author
-        let author = if thread.author.username.len() > author_width as usize {
-            format!("{:.author_width$}", &thread.author.username[..author_width as usize - 1], author_width = author_width as usize - 1)
-        } else {
-            format!("{:<author_width$}", thread.author.username, author_width = author_width as usize)
-        };
+        let author = thread.author.username.clone();
         f.render_widget(
-            Paragraph::new(Span::styled(author, Style::default().fg(thread.author.color)).bg(bg_style.bg.unwrap_or(Color::Reset)))
+            Paragraph::new(Span::styled(author, Style::default().fg(author_fg)).bg(bg_style.bg.unwrap_or(Color::Reset)))
                 .alignment(ratatui::layout::Alignment::Left),
             row_layout[1],
         );
         // Date
         let date_str = format_date_delimiter(thread.timestamp);
-        let date = if date_str.len() > date_width as usize {
-            format!("{:.date_width$}", &date_str[..date_width as usize - 1], date_width = date_width as usize - 1)
-        } else {
-            format!("{:<date_width$}", date_str, date_width = date_width as usize)
-        };
         f.render_widget(
-            Paragraph::new(Span::styled(date, Style::default().fg(Color::Gray)).bg(bg_style.bg.unwrap_or(Color::Reset)))
+            Paragraph::new(Span::styled(date_str, Style::default().fg(date_fg)).bg(bg_style.bg.unwrap_or(Color::Reset)))
                 .alignment(ratatui::layout::Alignment::Left),
             row_layout[2],
         );
