@@ -7,8 +7,8 @@ use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
 #[derive(Hash, Eq, PartialEq, Clone, Copy)]
 pub enum SoundType {
     ChangeChannel,
-    SendChatMessage,
-    ReceiveChatMessage,
+    SendChannelMessage,
+    ReceiveChannelMessage,
     DirectMessage,
     Error,
     Notify,
@@ -40,8 +40,8 @@ impl SoundManager {
         let send_chat_message_path = PathBuf::from(base_path).join("sounds/send_chat_message.mp3");
         let receive_chat_message_path = PathBuf::from(base_path).join("sounds/receive_chat_message.mp3");
         sounds.insert(SoundType::ChangeChannel, std::fs::read(change_channel_path).unwrap_or_default());
-        sounds.insert(SoundType::SendChatMessage, std::fs::read(send_chat_message_path).unwrap_or_default());
-        sounds.insert(SoundType::ReceiveChatMessage, std::fs::read(receive_chat_message_path).unwrap_or_default());
+        sounds.insert(SoundType::SendChannelMessage, std::fs::read(send_chat_message_path).unwrap_or_default());
+        sounds.insert(SoundType::ReceiveChannelMessage, std::fs::read(receive_chat_message_path).unwrap_or_default());
         sounds.insert(SoundType::LoginSuccess, std::fs::read(login_success_path).unwrap_or_default());
         sounds.insert(SoundType::LoginFailure, std::fs::read(login_failure_path).unwrap_or_default());
         sounds.insert(SoundType::DirectMessage, std::fs::read(received_direct_message_path).unwrap_or_default());

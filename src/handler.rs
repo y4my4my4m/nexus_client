@@ -546,7 +546,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                                             channel_id: channel.id,
                                             content,
                                         });
-                                        app.sound_manager.play(SoundType::SendChatMessage);
+                                        app.sound_manager.play(SoundType::SendChannelMessage);
                                     }
                                 }
                             }
