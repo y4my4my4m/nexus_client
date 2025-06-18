@@ -190,7 +190,7 @@ fn handle_input_mode(key: KeyEvent, app: &mut App) {
                             app.send_to_server(ClientMessage::CreateThread{ forum_id, title: title.clone(), content: content.clone() });
                             app.set_notification("Thread submitted!", Some(1500), false);
                         }
-                        app.mode = AppMode::ForumList;
+                        app.mode = AppMode::ThreadList;
                     },
                     InputMode::NewPostContent => {
                         app.sound_manager.play(SoundType::PopupOpen);
