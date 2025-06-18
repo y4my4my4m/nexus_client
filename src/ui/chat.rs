@@ -344,8 +344,13 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         });
         // Draw role header
         if current_y + row_height > inner_area.y + inner_area.height { break; }
-        let header = Line::from(vec![Span::styled(format!("[{:?}]", role), Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))]);
-        f.render_widget(Paragraph::new(header), Rect::new(inner_area.x, current_y, inner_area.width, row_height));
+        let header = Block::default()
+            .borders(Borders::TOP)
+            .title_alignment(ratatui::layout::Alignment::Center)
+            .title(format!("{:?}", role))
+            .border_style(Style::default().fg(Color::DarkGray)) // Set border color to gray
+            .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)); // Set text color to gray
+        f.render_widget(header, Rect::new(inner_area.x, current_y, inner_area.width, row_height));
         current_y += row_height;
         for user in users {
             if current_y + row_height > inner_area.y + inner_area.height { break; }
