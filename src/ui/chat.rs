@@ -190,9 +190,9 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
             }
             let mention = &content_str[start+1..end];
             // Try to find the mentioned user in connected_users (for color)
-            let mention_color = app.connected_users.iter().find(|u| u.username == mention).map(|u| u.color);
+            let mention_color = app.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color);
             if let Some(mcolor) = mention_color {
-                spans.push(Span::styled(format!("@{}", mention), Style::default().fg(mcolor).add_modifier(Modifier::BOLD)));
+                spans.push(Span::styled(format!("@{}", mention), Style::default().fg(Color::Black).bg(mcolor).add_modifier(Modifier::BOLD)));
             } else {
                 spans.push(Span::styled(format!("@{}", mention), Style::default().add_modifier(Modifier::BOLD)));
             }

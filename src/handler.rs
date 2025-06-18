@@ -615,11 +615,11 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         }
                     },
                     KeyCode::PageDown => {
-                        app.sound_manager.play(SoundType::Scroll);
                         // Scroll down chat history
                         let max_rows = app.last_chat_rows.unwrap_or(20);
                         if app.chat_scroll_offset >= max_rows {
                             app.chat_scroll_offset -= max_rows;
+                            app.sound_manager.play(SoundType::Scroll);
                         } else {
                             app.chat_scroll_offset = 0;
                         }
