@@ -325,14 +325,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     1 => {
                         app.mode = AppMode::Chat;
                         app.current_input.clear();
-                        // if we dont have that here it's not initially loading the proper user list, but i dont want to handle fetching in the handler!!!...
-                        // if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
-                        //     if let Some(server) = app.servers.get(s) {
-                        //         if let Some(channel) = server.channels.get(c) {
-                        //             app.send_to_server(ClientMessage::GetChannelUserList { channel_id: channel.id });
-                        //         }
-                        //     }
-                        // }
+                        app.send_to_server(ClientMessage::GetServers); // Ensure servers are requested after login
                     },
                     2 => { app.mode = AppMode::Settings; app.settings_list_state.select(Some(0)); },
                     3 => { app.send_to_server(ClientMessage::Logout); app.current_user = None; app.mode = AppMode::Login; app.input_mode = Some(InputMode::LoginUsername); app.current_input.clear(); app.password_input.clear(); },

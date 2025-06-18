@@ -285,15 +285,15 @@ impl<'a> App<'a> {
                 self.password_input.clear();
                 self.main_menu_state.select(Some(0));
                 self.sound_manager.play(SoundType::LoginSuccess);
-                self.send_to_server(ClientMessage::GetServers); // Ensure servers are requested after login
+                // self.send_to_server(ClientMessage::GetServers); // Ensure servers are requested after login
                 // --- FIX: Request channel user list for first channel if in chat mode ---
-                if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {
-                    if let Some(server) = self.servers.get(s) {
-                        if let Some(channel) = server.channels.get(c) {
-                            self.send_to_server(ClientMessage::GetChannelUserList { channel_id: channel.id });
-                        }
-                    }
-                }
+                // if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {
+                //     if let Some(server) = self.servers.get(s) {
+                //         if let Some(channel) = server.channels.get(c) {
+                //             self.send_to_server(ClientMessage::GetChannelUserList { channel_id: channel.id });
+                //         }
+                //     }
+                // }
             }
             ServerMessage::AuthFailure(reason) => {
                 self.set_notification(format!("Error: {}", reason), None, false);
@@ -433,8 +433,8 @@ impl<'a> App<'a> {
                 self.profile_requested_by_user = false;
             }
             ServerMessage::UserUpdated(user) => {
-                // Update the user in connected_users if present
-                if let Some(existing) = self.connected_users.iter_mut().find(|u| u.id == user.id) {
+                // Update the user in channel_userlist if present
+                if let Some(existing) = self.channel_userlist.iter_mut().find(|u| u.id == user.id) {
                     *existing = user.clone();
                 }
                 // Also update current_user if it's this user
@@ -456,27 +456,31 @@ impl<'a> App<'a> {
             ServerMessage::Servers(servers) => {
                 self.servers = servers;
                 // Default selection: first server and first channel
+                let mut should_fetch_channel = false;
                 if self.selected_server.is_none() && !self.servers.is_empty() {
                     self.selected_server = Some(0);
                     if !self.servers[0].channels.is_empty() {
                         self.selected_channel = Some(0);
-                        self.chat_messages = self.servers[0].channels[0]
-                            .messages
-                            .iter()
-                            .map(|m| {
-                                let author = self.connected_users.iter().find(|u| u.id == m.sent_by)
-                                    .map(|u| u.username.clone())
-                                    .unwrap_or_else(|| m.sent_by.to_string());
-                                let color = self.connected_users.iter().find(|u| u.id == m.sent_by)
-                                    .map(|u| u.color)
-                                    .unwrap_or(ratatui::style::Color::White);
-                                common::ChatMessage {
-                                    author,
-                                    content: m.content.clone(),
-                                    color,
-                                }
-                            })
-                            .collect();
+                        self.chat_messages.clear(); // Do not expect pre-populated messages
+                        // Only fetch if we're in Chat mode
+                        if self.mode == AppMode::Chat {
+                            should_fetch_channel = true;
+                        }
+                    }
+                } else if self.mode == AppMode::Chat && self.selected_server.is_some() && self.selected_channel.is_some() {
+                    // If already selected, but just entered chat mode, fetch
+                    should_fetch_channel = true;
+                }
+                // Always fetch userlist and messages for selected channel if needed
+                if should_fetch_channel {
+                    if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {
+                        let channel_id = self.servers.get(s)
+                            .and_then(|server| server.channels.get(c))
+                            .map(|channel| channel.id);
+                        if let Some(channel_id) = channel_id {
+                            self.send_to_server(ClientMessage::GetChannelUserList { channel_id });
+                            self.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: None });
+                        }
                     }
                 }
             }
