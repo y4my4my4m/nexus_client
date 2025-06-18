@@ -585,19 +585,9 @@ impl<'a> App<'a> {
                 }
             }
             ServerMessage::DirectMessages { user_id, messages, history_complete } => {
-                // If this is a new DM target, replace; else prepend for scrollback
+                // Always replace the DM messages with the latest from the server
                 if let Some(idx) = self.dm_user_list.iter().position(|u| u.id == user_id) {
-                    if self.selected_dm_user == Some(idx) && !self.dm_messages.is_empty() && !messages.is_empty() && self.dm_messages.first().unwrap().id != messages.first().unwrap().id {
-                        // Scrollback: prepend
-                        let mut new_msgs = messages.clone();
-                        let added = new_msgs.len();
-                        new_msgs.append(&mut self.dm_messages);
-                        self.dm_messages = new_msgs;
-                        // Optionally adjust scroll offset here if you implement DM scrolling
-                    } else {
-                        // Replace (new target or initial load)
-                        self.dm_messages = messages;
-                    }
+                    self.dm_messages = messages;
                     self.dm_history_complete = history_complete;
                 }
             }
