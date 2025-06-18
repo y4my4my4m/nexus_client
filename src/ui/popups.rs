@@ -128,17 +128,19 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
     // --- Rest of profile info below banner ---
     let mut lines = vec![];
     if let Some(bio) = &profile.bio {
-        let mut bio_lines: Vec<&str> = bio.lines().collect();
-        if bio_lines.len() > 10 {
-            bio_lines.truncate(9);
-            bio_lines.push("...");
-        }
-        lines.push(Line::from(vec![Span::styled("Bio: ", Style::default().fg(Color::Cyan))]));
-        for line in bio_lines {
-            lines.push(Line::from(Span::raw(line)));
+        if !bio.is_empty() {
+            let mut bio_lines: Vec<&str> = bio.lines().collect();
+            if bio_lines.len() > 10 {
+                bio_lines.truncate(9);
+                bio_lines.push("...");
+            }
+            lines.push(Line::from(vec![Span::styled("Bio: ", Style::default().fg(Color::Cyan))]));
+            for line in bio_lines {
+                lines.push(Line::from(Span::raw(line)));
+            }
         }
     }
-    if let Some(loc) = &profile.location { lines.push(Line::from(vec![Span::styled("Location: ", Style::default().fg(Color::Cyan)), Span::raw(loc)])); }
+    if let Some(loc) = &profile.location { if !loc.is_empty() { lines.push(Line::from(vec![Span::styled("Location: ", Style::default().fg(Color::Cyan)), Span::raw(loc)])); } }
     if let Some(url1) = &profile.url1 { if !url1.is_empty() { lines.push(Line::from(vec![Span::styled("URL1: ", Style::default().fg(Color::Cyan)), Span::raw(url1)])); } }
     if let Some(url2) = &profile.url2 { if !url2.is_empty() { lines.push(Line::from(vec![Span::styled("URL2: ", Style::default().fg(Color::Cyan)), Span::raw(url2)])); } }
     if let Some(url3) = &profile.url3 { if !url3.is_empty() { lines.push(Line::from(vec![Span::styled("URL3: ", Style::default().fg(Color::Cyan)), Span::raw(url3)])); } }
