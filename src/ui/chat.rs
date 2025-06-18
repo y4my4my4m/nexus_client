@@ -310,63 +310,90 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     let avatar_cell_height = (AVATAR_PIXEL_SIZE as f32 / font_h as f32).ceil() as u16;
     let row_height = avatar_cell_height.max(1);
 
+    let mut current_y = inner_area.y;
+    use std::collections::BTreeMap;
+    use common::UserRole;
+    // Group users by role
+    let mut role_map: BTreeMap<UserRole, Vec<_>> = BTreeMap::new();
+    for user in app.channel_userlist.iter() {
+        role_map.entry(user.role.clone()).or_default().push(user.clone());
+    }
+    // Collect roles and reverse
+    let mut roles: Vec<_> = role_map.keys().cloned().collect();
+    roles.sort();
+    roles.reverse();
+    // Status order: Connected, Busy, Away, Offline
+    fn status_order(status: &common::UserStatus) -> u8 {
+        match status {
+            common::UserStatus::Connected => 0,
+            common::UserStatus::Busy => 1,
+            common::UserStatus::Away => 2,
+            common::UserStatus::Offline => 3,
+        }
+    }
+    // For selection logic
     let list_state = app.user_list_state.clone();
     let selected_index = list_state.selected();
     let offset = list_state.offset();
-
-    let mut current_y = inner_area.y;
-    // Collect connected_users into a temporary vector before the loop
-    // Use per-channel user list if available
-    let users: Vec<_> = app.channel_userlist.iter().enumerate().skip(offset).map(|(i, user)| (i, user.clone())).collect();
-    for (i, user) in users {
+    let mut idx = 0;
+    for role in roles {
+        let mut users = role_map.get(&role).cloned().unwrap_or_default();
+        users.sort_by(|a, b| {
+            status_order(&a.status).cmp(&status_order(&b.status))
+                .then_with(|| a.username.to_lowercase().cmp(&b.username.to_lowercase()))
+        });
+        // Draw role header
         if current_y + row_height > inner_area.y + inner_area.height { break; }
-        let row_area = Rect::new(inner_area.x, current_y, inner_area.width, row_height);
-
-        let is_selected = focused && selected_index == Some(i);
-        let text_style = if is_selected {
-            Style::default().fg(Color::Black).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(user.color)
-        };
-        if is_selected {
-            f.render_widget(Block::default().style(Style::default().bg(Color::Cyan)), row_area);
-        }
-
-        // Status indicator
-        let status_symbol = match user.status {
-            common::UserStatus::Connected => "●",
-            common::UserStatus::Away => "◐",
-            common::UserStatus::Busy => "■",
-            common::UserStatus::Offline => "○",
-        };
-        let status_color = match user.status {
-            common::UserStatus::Connected => Color::Green,
-            common::UserStatus::Away => Color::Yellow,
-            common::UserStatus::Busy => Color::Red,
-            common::UserStatus::Offline => Color::DarkGray,
-        };
-
-        if let Some(state) = get_avatar_protocol(app, &user, AVATAR_PIXEL_SIZE) {
-            let row_chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([Constraint::Length(avatar_cell_width), Constraint::Min(0)])
-                .split(row_area);
-            let image_widget = StatefulImage::default();
-            f.render_stateful_widget(image_widget, row_chunks[0], state);
-            let text = Line::from(vec![
-                Span::styled(format!(" {} ", status_symbol), Style::default().fg(status_color)),
-                Span::styled(&user.username, text_style),
-                Span::styled(format!(" ({:?})", user.role), text_style.remove_modifier(Modifier::BOLD).add_modifier(Modifier::DIM)),
-            ]);
-            f.render_widget(Paragraph::new(text).alignment(ratatui::layout::Alignment::Left), row_chunks[1]);
-        } else {
-            let text = Line::from(vec![
-                Span::styled(format!(" {} ", status_symbol), Style::default().fg(status_color)),
-                Span::styled(&user.username, text_style),
-                Span::styled(format!(" ({:?})", user.role), text_style.remove_modifier(Modifier::BOLD).add_modifier(Modifier::DIM)),
-            ]);
-            f.render_widget(Paragraph::new(text).alignment(ratatui::layout::Alignment::Left), row_area);
-        }
+        let header = Line::from(vec![Span::styled(format!("[{:?}]", role), Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))]);
+        f.render_widget(Paragraph::new(header), Rect::new(inner_area.x, current_y, inner_area.width, row_height));
         current_y += row_height;
+        for user in users {
+            if current_y + row_height > inner_area.y + inner_area.height { break; }
+            let row_area = Rect::new(inner_area.x, current_y, inner_area.width, row_height);
+            let is_selected = focused && selected_index == Some(idx);
+            let text_style = if is_selected {
+                Style::default().fg(Color::Black).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(user.color)
+            };
+            if is_selected {
+                f.render_widget(Block::default().style(Style::default().bg(Color::Cyan)), row_area);
+            }
+            let status_symbol = match user.status {
+                common::UserStatus::Connected => "●",
+                common::UserStatus::Away => "◐",
+                common::UserStatus::Busy => "■",
+                common::UserStatus::Offline => "○",
+            };
+            let status_color = match user.status {
+                common::UserStatus::Connected => Color::Green,
+                common::UserStatus::Away => Color::Yellow,
+                common::UserStatus::Busy => Color::Red,
+                common::UserStatus::Offline => Color::DarkGray,
+            };
+            if let Some(state) = get_avatar_protocol(app, &user, AVATAR_PIXEL_SIZE) {
+                let row_chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([Constraint::Length(avatar_cell_width), Constraint::Min(0)])
+                    .split(row_area);
+                let image_widget = StatefulImage::default();
+                f.render_stateful_widget(image_widget, row_chunks[0], state);
+                let text = Line::from(vec![
+                    Span::styled(format!(" {} ", status_symbol), Style::default().fg(status_color)),
+                    Span::styled(&user.username, text_style),
+                    Span::styled(format!(" ({:?})", user.role), text_style.remove_modifier(Modifier::BOLD).add_modifier(Modifier::DIM)),
+                ]);
+                f.render_widget(Paragraph::new(text).alignment(ratatui::layout::Alignment::Left), row_chunks[1]);
+            } else {
+                let text = Line::from(vec![
+                    Span::styled(format!(" {} ", status_symbol), Style::default().fg(status_color)),
+                    Span::styled(&user.username, text_style),
+                    Span::styled(format!(" ({:?})", user.role), text_style.remove_modifier(Modifier::BOLD).add_modifier(Modifier::DIM)),
+                ]);
+                f.render_widget(Paragraph::new(text).alignment(ratatui::layout::Alignment::Left), row_area);
+            }
+            current_y += row_height;
+            idx += 1;
+        }
     }
 }
