@@ -172,6 +172,35 @@ pub fn draw_user_actions_popup(f: &mut Frame, app: &App) {
     f.render_widget(para, area);
 }
 
+pub fn draw_server_actions_popup(f: &mut Frame, app: &App) {
+    let area = draw_centered_rect(f.area(), 40, 20);
+    f.render_widget(Clear, area);
+    let server_name = app.selected_server.and_then(|s| app.servers.get(s)).map(|srv| srv.name.as_str()).unwrap_or("<server>");
+    let is_owner = app.selected_server
+        .and_then(|s| app.servers.get(s))
+        .and_then(|srv| app.current_user.as_ref().map(|u| u.id == srv.owner))
+        .unwrap_or(false);
+    let mut actions = vec!["View full user list", "Send invite code"];
+    if is_owner {
+        actions.push("Server settings");
+    }
+    let mut lines = vec![];
+    for (i, action) in actions.iter().enumerate() {
+        let style = if app.server_actions_selected == i {
+            Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        };
+        lines.push(Line::from(Span::styled(*action, style)));
+    }
+    let block = Block::default()
+        .title(Span::styled(server_name, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
+        .style(Style::default())
+        .borders(Borders::ALL);
+    let para = Paragraph::new(lines).block(block).alignment(Alignment::Left);
+    f.render_widget(para, area);
+}
+
 pub fn draw_quit_confirm_popup(f: &mut Frame, app: &App) {
     // Try to ensure the popup is tall enough for all content (message + buttons + paddings)
     let mut percent_y = 18u16;

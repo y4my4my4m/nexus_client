@@ -132,6 +132,10 @@ pub struct App<'a> {
 
     // --- Per-channel history complete flag ---
     pub channel_history_complete: HashMap<Uuid, bool>,
+
+    // --- Server actions fields ---
+    pub show_server_actions: bool, // Show server actions popup
+    pub server_actions_selected: usize, // Selected action in server actions popup
 }
 
 impl<'a> App<'a> {
@@ -202,6 +206,8 @@ impl<'a> App<'a> {
             last_chat_rows: None,
             channel_userlist: vec![],
             channel_history_complete: HashMap::new(),
+            show_server_actions: false,
+            server_actions_selected: 0,
         }
     }
 
