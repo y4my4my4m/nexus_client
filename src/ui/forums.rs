@@ -2,6 +2,8 @@
 
 use ratatui::{Frame, layout::Rect, style::{Style, Color, Modifier}, widgets::{Block, List, ListItem, Paragraph, Borders, Wrap}, text::{Line, Span}};
 use crate::app::App;
+use crate::ui::time_format::{format_message_timestamp, format_date_delimiter};
+use chrono::Local;
 
 pub fn draw_forum_list(f: &mut Frame, app: &mut App, area: Rect) {
     let items: Vec<ListItem> = app.forums.iter().map(|forum| {
@@ -23,10 +25,13 @@ pub fn draw_thread_list(f: &mut Frame, app: &mut App, area: Rect) {
         None => { f.render_widget(Paragraph::new("Forum not found..."), area); return; }
     };
     let items: Vec<ListItem> = forum.threads.iter().map(|thread| {
+        let date_str = format_date_delimiter(thread.timestamp);
         ListItem::new(Line::from(vec![
             Span::styled(format!("{:<40}", thread.title), Style::default().fg(Color::Cyan)),
-            Span::raw("by "),
-            Span::styled(format!("{}", thread.author.username), Style::default().fg(thread.author.color)),
+            Span::raw(" by "),
+            Span::styled(&thread.author.username, Style::default().fg(thread.author.color)),
+            Span::raw(" | "),
+            Span::styled(date_str, Style::default().fg(Color::Gray)),
         ]))
     }).collect();
     let list = List::new(items)
@@ -46,7 +51,11 @@ pub fn draw_post_view(f: &mut Frame, app: &mut App, area: Rect) {
         let title = format!("Reading: {} | [R]eply", thread.title);
         let mut text: Vec<Line> = Vec::new();
         for post in &thread.posts {
-            text.push(Line::from(vec![Span::styled(format!("From: {} ", post.author.username), Style::default().fg(post.author.color).add_modifier(Modifier::BOLD))]));
+            let ts_str = format_message_timestamp(post.timestamp, Local::now());
+            text.push(Line::from(vec![
+                Span::styled(format!("From: {} ", post.author.username), Style::default().fg(post.author.color).add_modifier(Modifier::BOLD)),
+                Span::raw(format!("({})", ts_str)),
+            ]));
             text.push(Line::from(Span::raw("---------------------------------")));
             text.push(Line::from(Span::raw(&post.content)));
             text.push(Line::from(Span::raw("")));
