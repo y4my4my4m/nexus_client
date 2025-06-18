@@ -136,6 +136,9 @@ pub struct App<'a> {
     // --- Server actions fields ---
     pub show_server_actions: bool, // Show server actions popup
     pub server_actions_selected: usize, // Selected action in server actions popup
+
+    // --- Pending new thread fields ---
+    pub pending_new_thread_title: Option<String>, // Title of the new thread pending selection
 }
 
 impl<'a> App<'a> {
@@ -208,6 +211,7 @@ impl<'a> App<'a> {
             channel_history_complete: HashMap::new(),
             show_server_actions: false,
             server_actions_selected: 0,
+            pending_new_thread_title: None,
         }
     }
 
@@ -305,7 +309,20 @@ impl<'a> App<'a> {
                 self.set_notification(format!("Error: {}", reason), None, false);
                 self.sound_manager.play(SoundType::LoginFailure);
             }
-            ServerMessage::Forums(forums) => self.forums = forums,
+            ServerMessage::Forums(forums) => {
+                self.forums = forums;
+                // --- UX: If a new thread was just created, select and enter it ---
+                if let (Some(forum_id), Some(ref title)) = (self.current_forum_id, &self.pending_new_thread_title) {
+                    if let Some(forum) = self.forums.iter().find(|f| f.id == forum_id) {
+                        if let Some((idx, thread)) = forum.threads.iter().enumerate().find(|(_, t)| t.title == *title) {
+                            self.thread_list_state.select(Some(idx));
+                            self.current_thread_id = Some(thread.id);
+                            self.mode = AppMode::PostView;
+                            self.pending_new_thread_title = None;
+                        }
+                    }
+                }
+            }
             ServerMessage::NewChatMessage(msg) => {
                 // Insert the message into the correct channel's message list
                 if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {

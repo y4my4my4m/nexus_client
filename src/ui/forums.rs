@@ -11,7 +11,7 @@ pub fn draw_forum_list(f: &mut Frame, app: &mut App, area: Rect) {
         ]))
     }).collect();
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Forums | [N]ew Thread"))
+        .block(Block::default().borders(Borders::ALL).title("Forums"))
         .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD))
         .highlight_symbol(">> ");
     f.render_stateful_widget(list, area, &mut app.forum_list_state);
@@ -30,7 +30,7 @@ pub fn draw_thread_list(f: &mut Frame, app: &mut App, area: Rect) {
         ]))
     }).collect();
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(format!("Threads in '{}'", forum.name)))
+        .block(Block::default().borders(Borders::ALL).title(format!("Threads in '{}' | [N]ew Thread", forum.name)))
         .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD))
         .highlight_symbol(">> ");
     f.render_stateful_widget(list, area, &mut app.thread_list_state);

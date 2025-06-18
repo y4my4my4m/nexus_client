@@ -186,6 +186,7 @@ fn handle_input_mode(key: KeyEvent, app: &mut App) {
                             return;
                         }
                         if let Some(forum_id) = app.current_forum_id {
+                            app.pending_new_thread_title = Some(title.clone());
                             app.send_to_server(ClientMessage::CreateThread{ forum_id, title: title.clone(), content: content.clone() });
                             app.set_notification("Thread submitted!", Some(1500), false);
                         }
@@ -350,10 +351,6 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     app.mode = AppMode::ThreadList;
                 }
             },
-            KeyCode::Char('n') | KeyCode::Char('N') => {
-                if app.forum_list_state.selected().is_some() { app.enter_input_mode(InputMode::NewThreadTitle) } 
-                else { app.set_notification("Select a forum first to create a thread in.", None, false); }
-            },
             KeyCode::Esc => app.mode = AppMode::MainMenu,
             _ => {}
         },
@@ -370,6 +367,9 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                 if let Some(forum) = app.current_forum_id.and_then(|id| app.forums.iter().find(|f| f.id == id)) {
                     if let Some(thread) = forum.threads.get(idx) { app.current_thread_id = Some(thread.id); app.mode = AppMode::PostView; }
                 }
+            },
+            KeyCode::Char('n') | KeyCode::Char('N') => {
+                app.enter_input_mode(InputMode::NewThreadTitle);
             },
             KeyCode::Esc => app.mode = AppMode::ForumList,
              _ => {}
