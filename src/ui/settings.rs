@@ -11,6 +11,7 @@ pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
         ListItem::new("Change Password"),
         ListItem::new("Change User Color"),
         ListItem::new("Edit Profile"),
+        ListItem::new("Preferences"),
     ];
     let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Settings"))
         .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black)).highlight_symbol(">> ");

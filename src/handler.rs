@@ -10,6 +10,12 @@ use ratatui::style::Color;
 pub fn handle_key_event(key: KeyEvent, app: &mut crate::app::App) {
     if key.kind != event::KeyEventKind::Press { return; }
 
+    // --- Allow F2 to open preferences from anywhere ---
+    if key.code == KeyCode::F(2) {
+        app.mode = AppMode::Parameters;
+        return;
+    }
+
     if app.show_quit_confirm {
         match key.code {
             KeyCode::Left | KeyCode::Tab => {
@@ -53,12 +59,8 @@ pub fn handle_key_event(key: KeyEvent, app: &mut crate::app::App) {
 
     match app.mode {
         AppMode::Login | AppMode::Register => {
-            match key.code {
-                KeyCode::F(2) => {
-                    app.mode = AppMode::Parameters;
-                },
-                _ => handle_auth_mode(key, app),
-            }
+            // REMOVE F2 HANDLING HERE, now global
+            handle_auth_mode(key, app)
         },
         AppMode::Input => handle_input_mode(key, app),
         _ => handle_main_app_mode(key, app),
@@ -227,11 +229,15 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
         AppMode::Settings => match key.code {
             KeyCode::Down => { 
                 app.sound_manager.play(SoundType::Scroll); 
-                app.settings_list_state.select(Some(app.settings_list_state.selected().map_or(0, |s| (s + 1) % 3)));
+                let max = if app.current_user.is_some() { 4 } else { 3 };
+                let cur = app.settings_list_state.selected().unwrap_or(0);
+                app.settings_list_state.select(Some((cur + 1) % max));
             }
             KeyCode::Up => { 
                 app.sound_manager.play(SoundType::Scroll); 
-                app.settings_list_state.select(Some(app.settings_list_state.selected().map_or(2, |s| (s + 2) % 3)));
+                let max = if app.current_user.is_some() { 4 } else { 3 };
+                let cur = app.settings_list_state.selected().unwrap_or(0);
+                app.settings_list_state.select(Some((cur + max - 1) % max));
             }
             KeyCode::Enter => if let Some(s) = app.settings_list_state.selected() {
                 match s {
@@ -256,6 +262,9 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                             app.profile_edit_focus = crate::app::ProfileEditFocus::Bio;
                             app.mode = AppMode::EditProfile;
                         }
+                    },
+                    3 => {
+                        app.mode = AppMode::Parameters;
                     },
                     _ => {}
                 }
