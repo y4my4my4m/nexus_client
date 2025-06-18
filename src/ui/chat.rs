@@ -121,9 +121,9 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         if let Some(server) = app.servers.get(s) {
             if let Some(channel) = server.channels.get(c) {
                 let total_msgs = channel.messages.len();
-                let offset = app.chat_scroll_offset.min(total_msgs.saturating_sub(max_rows));
-                let start_idx = total_msgs.saturating_sub(max_rows + offset);
-                let items: Vec<_> = channel.messages.iter().skip(start_idx).take(max_rows).map(|msg| {
+                let end_idx = total_msgs.saturating_sub(app.chat_scroll_offset);
+                let start_idx = end_idx.saturating_sub(max_rows);
+                let items: Vec<_> = channel.messages.iter().skip(start_idx).take(end_idx - start_idx).map(|msg| {
                     (Some(msg.author_username.clone()), msg.author_color, msg.content.clone(), msg.author_profile_pic.clone())
                 }).collect();
                 (items, true)
@@ -131,9 +131,9 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         } else { (vec![], true) }
     } else {
         let total_msgs = app.chat_messages.len();
-        let offset = app.chat_scroll_offset.min(total_msgs.saturating_sub(max_rows));
-        let start_idx = total_msgs.saturating_sub(max_rows + offset);
-        let items: Vec<_> = app.chat_messages.iter().skip(start_idx).take(max_rows).map(|msg| {
+        let end_idx = total_msgs.saturating_sub(app.chat_scroll_offset);
+        let start_idx = end_idx.saturating_sub(max_rows);
+        let items: Vec<_> = app.chat_messages.iter().skip(start_idx).take(end_idx - start_idx).map(|msg| {
             (Some(msg.author.clone()), msg.color, msg.content.clone(), None)
         }).collect();
         (items, false)
@@ -253,6 +253,38 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
             let block = Block::default().borders(Borders::ALL).title("Mentions");
             let para = Paragraph::new(lines).block(block).wrap(Wrap { trim: true });
             f.render_widget(para, popup_area);
+        }
+    }
+
+    // Draw scrollbar if there are more messages than fit
+    if is_channel_chat {
+        if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
+            if let Some(server) = app.servers.get(s) {
+                if let Some(channel) = server.channels.get(c) {
+                    let total_msgs = channel.messages.len();
+                    if total_msgs > max_rows && inner_area.width > 2 {
+                        let bar_x = inner_area.x + inner_area.width - 1;
+                        let bar_y = inner_area.y;
+                        let bar_height = inner_area.height;
+                        let thumb_height = ((max_rows as f32 / total_msgs as f32) * bar_height as f32).ceil().max(1.0) as u16;
+                        let max_offset = total_msgs.saturating_sub(max_rows);
+                        let offset = app.chat_scroll_offset.min(max_offset);
+                        // Invert thumb position: offset=0 => bottom, max_offset => top
+                        let thumb_pos = if max_offset > 0 {
+                            ((1.0 - (offset as f32 / max_offset as f32)) * (bar_height - thumb_height) as f32).round() as u16
+                        } else { bar_height.saturating_sub(thumb_height) };
+                        for i in 0..bar_height {
+                            let y = bar_y + i;
+                            let symbol = if i >= thumb_pos && i < thumb_pos + thumb_height {
+                                "█"
+                            } else {
+                                "│"
+                            };
+                            f.render_widget(Paragraph::new(symbol), Rect::new(bar_x, y, 1, 1));
+                        }
+                    }
+                }
+            }
         }
     }
 }
