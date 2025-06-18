@@ -24,7 +24,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     let size = f.area();
     let chunks = ratatui::layout::Layout::default()
         .constraints([
-            ratatui::layout::Constraint::Length(8), // Banner height
+            ratatui::layout::Constraint::Length(9), // Banner height
             ratatui::layout::Constraint::Min(0),    // Main Content
             ratatui::layout::Constraint::Length(3), // Footer
         ])

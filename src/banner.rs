@@ -4,6 +4,7 @@ use figlet_rs::FIGfont;
 use rand::prelude::*;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
+use std::path::PathBuf;
 
 #[derive(Clone)]
 struct BufferChar {
@@ -11,11 +12,18 @@ struct BufferChar {
     style: Style,
 }
 
-pub fn get_styled_banner_lines(width: u16, tick_count: u64) -> Vec<Line<'static>> {
-    let standard_font = FIGfont::standard().unwrap();
-    let figlet_text = standard_font.convert("NEXUS").unwrap();
+const BASE_PATH: &str = env!("CARGO_MANIFEST_DIR");
 
-    // *** THE FIX IS HERE ***
+pub fn get_styled_banner_lines(width: u16, tick_count: u64) -> Vec<Line<'static>> {
+    // let standard_font = FIGfont::standard().unwrap();
+    // let figlet_text = standard_font.convert("NEXUS").unwrap();
+
+    // let custom_font = FIGfont::from_file(PathBuf::from(BASE_PATH).join("fig/cosmike.flf").to_str().unwrap()).unwrap();
+    // let figlet_text = custom_font.convert("NEXUS").unwrap();
+
+    let custom_font = FIGfont::from_file(PathBuf::from(BASE_PATH).join("fig/alligator2.flf").to_str().unwrap()).unwrap();
+    let figlet_text = custom_font.convert("NEXUS").unwrap();
+    
     // 1. Create a String that will live for the whole function scope.
     let figlet_string = figlet_text.to_string();
     // 2. Now, borrow from `figlet_string` to create the slices.
@@ -24,7 +32,7 @@ pub fn get_styled_banner_lines(width: u16, tick_count: u64) -> Vec<Line<'static>
     let figlet_height = figlet_lines.len();
     let figlet_width = figlet_lines.get(0).map_or(0, |l| l.chars().count());
 
-    let banner_height = 7;
+    let banner_height = figlet_height + 2; // Height of the banner in lines (1 line padding at top and bottom)
     let mut buffer: Vec<Vec<BufferChar>> = vec![
         vec![
             BufferChar {
@@ -36,7 +44,7 @@ pub fn get_styled_banner_lines(width: u16, tick_count: u64) -> Vec<Line<'static>
         banner_height
     ];
 
-    let start_y = (banner_height - figlet_height) / 2;
+    let start_y = 1; // Start drawing after the top padding
     let start_x = (width as usize - figlet_width) / 2;
 
     for (y, line) in figlet_lines.iter().enumerate() {
