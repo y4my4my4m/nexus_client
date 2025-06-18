@@ -325,14 +325,14 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     1 => {
                         app.mode = AppMode::Chat;
                         app.current_input.clear();
-                        // FIX: Request channel user list for selected channel when entering chat
-                        if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
-                            if let Some(server) = app.servers.get(s) {
-                                if let Some(channel) = server.channels.get(c) {
-                                    app.send_to_server(ClientMessage::GetChannelUserList { channel_id: channel.id });
-                                }
-                            }
-                        }
+                        // if we dont have that here it's not initially loading the proper user list, but i dont want to handle fetching in the handler!!!...
+                        // if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
+                        //     if let Some(server) = app.servers.get(s) {
+                        //         if let Some(channel) = server.channels.get(c) {
+                        //             app.send_to_server(ClientMessage::GetChannelUserList { channel_id: channel.id });
+                        //         }
+                        //     }
+                        // }
                     },
                     2 => { app.mode = AppMode::Settings; app.settings_list_state.select(Some(0)); },
                     3 => { app.send_to_server(ClientMessage::Logout); app.current_user = None; app.mode = AppMode::Login; app.input_mode = Some(InputMode::LoginUsername); app.current_input.clear(); app.password_input.clear(); },
@@ -504,7 +504,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     KeyCode::Enter => {
                         if let Some(idx) = app.user_actions_target {
                             app.sound_manager.play(SoundType::PopupOpen);
-                            let user = app.connected_users.get(idx);
+                            let user = app.channel_userlist.get(idx);
                             match app.user_actions_selected {
                                 0 => { // View Profile
                                     if let Some(user) = user {
@@ -642,9 +642,9 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         if !app.mention_suggestions.is_empty() {
                             // Insert selected mention
                             if let Some(prefix) = &app.mention_prefix {
-                                if let Some(suggestion) = app.mention_suggestions.get(app.mention_selected) {
-                                    // Replace the last @mention prefix in input
-                                    if let Some(idx) = app.current_input.rfind(&format!("@{}", prefix)) {
+                                if let Some(&user_idx) = app.mention_suggestions.get(app.mention_selected) {
+                                    let suggestion = &app.channel_userlist[user_idx].username;
+                                    if let Some(idx) = app.current_input.rfind(&format!("@{prefix}")) {
                                         app.current_input.replace_range(idx..(idx + 1 + prefix.len()), &format!("@{} ", suggestion));
                                         app.mention_suggestions.clear();
                                         app.mention_prefix = None;
@@ -686,11 +686,11 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                             let after_at = &upto[(idx+1)..];
                             if after_at.chars().all(|ch| ch.is_alphanumeric() || ch == '_' ) && !after_at.is_empty() {
                                 let prefix = after_at;
-                                let mut suggestions: Vec<String> = app.connected_users.iter()
-                                    .map(|u| u.username.clone())
-                                    .filter(|u| u.to_lowercase().starts_with(&prefix.to_lowercase()))
+                                let mut suggestions: Vec<usize> = app.channel_userlist.iter().enumerate()
+                                    .filter(|(_, u)| u.username.to_lowercase().starts_with(&prefix.to_lowercase()))
+                                    .map(|(i, _)| i)
                                     .collect();
-                                suggestions.sort();
+                                suggestions.sort_by_key(|&i| app.channel_userlist[i].username.to_lowercase());
                                 if !suggestions.is_empty() {
                                     app.mention_suggestions = suggestions;
                                     app.mention_selected = 0;
@@ -717,11 +717,11 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                             let after_at = &upto[(idx+1)..];
                             if after_at.chars().all(|ch| ch.is_alphanumeric() || ch == '_' ) && !after_at.is_empty() {
                                 let prefix = after_at;
-                                let mut suggestions: Vec<String> = app.connected_users.iter()
-                                    .map(|u| u.username.clone())
-                                    .filter(|u| u.to_lowercase().starts_with(&prefix.to_lowercase()))
+                                let mut suggestions: Vec<usize> = app.channel_userlist.iter().enumerate()
+                                    .filter(|(_, u)| u.username.to_lowercase().starts_with(&prefix.to_lowercase()))
+                                    .map(|(i, _)| i)
                                     .collect();
-                                suggestions.sort();
+                                suggestions.sort_by_key(|&i| app.channel_userlist[i].username.to_lowercase());
                                 if !suggestions.is_empty() {
                                     app.mention_suggestions = suggestions;
                                     app.mention_selected = 0;
@@ -758,24 +758,23 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         };
                     },
                     KeyCode::Down => {
-                        let len = app.connected_users.len();
+                        let len = app.channel_userlist.len();
                         if len > 0 {
                             app.sound_manager.play(SoundType::Scroll);
-                            let sel = app.forum_list_state.selected().unwrap_or(0);
-                            app.forum_list_state.select(Some((sel + 1) % len));
+                            let sel = app.user_list_state.selected().unwrap_or(0);
+                            app.user_list_state.select(Some((sel + 1) % len));
                         }
                     },
                     KeyCode::Up => {
-                        let len = app.connected_users.len();
+                        let len = app.channel_userlist.len();
                         if len > 0 {
                             app.sound_manager.play(SoundType::Scroll);
-                            let sel = app.forum_list_state.selected().unwrap_or(0);
-                            app.forum_list_state.select(Some((sel + len - 1) % len));
+                            let sel = app.user_list_state.selected().unwrap_or(0);
+                            app.user_list_state.select(Some((sel + len - 1) % len));
                         }
                     },
                     KeyCode::Enter => {
-                        // TODO: forum list state??? why??
-                        if let Some(idx) = app.forum_list_state.selected() {
+                        if let Some(idx) = app.user_list_state.selected() {
                             app.sound_manager.play(SoundType::PopupOpen);
                             app.show_user_actions = true;
                             app.user_actions_selected = 0;
@@ -890,6 +889,7 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
                     let channel_id = server.channels[0].id;
                     app.send_to_server(ClientMessage::GetChannelMessages { channel_id });
                     app.send_to_server(ClientMessage::GetChannelUserList { channel_id });
+                    app.user_list_state.select(Some(0)); // Reset user list selection
                 }
             }
         }

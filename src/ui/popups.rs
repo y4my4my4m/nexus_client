@@ -18,7 +18,7 @@ pub fn draw_centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
 }
 
 pub fn draw_dm_input_popup(f: &mut Frame, app: &App) {
-    let username = app.dm_target.and_then(|uid| app.connected_users.iter().find(|u| u.id == uid)).map(|u| u.username.as_str()).unwrap_or("");
+    let username = app.dm_target.and_then(|uid| app.channel_userlist.iter().find(|u| u.id == uid)).map(|u| u.username.as_str()).unwrap_or("");
     let area = draw_centered_rect(f.area(), 50, 20);
     let block = Block::default().title(Line::from(vec![
         Span::raw("Send Direct Message to "),
@@ -152,13 +152,9 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
 pub fn draw_user_actions_popup(f: &mut Frame, app: &App) {
     let area = draw_centered_rect(f.area(), 40, 20);
     f.render_widget(Clear, area);
-    let user = app.user_actions_target.and_then(|idx| app.connected_users.get(idx));
+    let user = app.user_actions_target.and_then(|idx| app.channel_userlist.get(idx));
     let username = user.map(|u| u.username.as_str()).unwrap_or("<unknown>");
     let actions = ["Show Profile", "Send DM"];
-    // let mut lines = vec![Line::from(Span::styled(
-    //     format!("User: {}", username),
-    //     Style::default().fg(Color::Yellow).add_modifier(ratatui::style::Modifier::BOLD),
-    // ))];
     let mut lines = vec![];
     for (i, action) in actions.iter().enumerate() {
         let style = if app.user_actions_selected == i {

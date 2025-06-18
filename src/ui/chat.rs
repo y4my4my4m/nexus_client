@@ -220,16 +220,17 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     // Draw mention suggestions popup if present
     if focused {
         if !app.mention_suggestions.is_empty() {
-            let max_name_len = app.mention_suggestions.iter().map(|n| n.len()).chain(app.connected_users.iter().map(|u| u.username.len())).max().unwrap_or(8).max(8);
+            let max_name_len = app.mention_suggestions.iter().map(|&i| app.channel_userlist[i].username.len()).max().unwrap_or(8).max(8);
             let popup_width = (max_name_len + 12).min(input_area.width as usize) as u16;
             let mut lines = vec![];
-            for (i, name) in app.mention_suggestions.iter().enumerate() {
+            for (i, &user_idx) in app.mention_suggestions.iter().enumerate() {
+                let user = &app.channel_userlist[user_idx];
                 let style = if i == app.mention_selected {
                     Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().fg(Color::White).bg(Color::Black)
+                    Style::default().fg(user.color).bg(Color::Black)
                 };
-                lines.push(Line::from(Span::styled(format!("{}", name), style)));
+                lines.push(Line::from(Span::styled(format!("{}", user.username), style)));
             }
             // Height: lines + 2 (for borders/title)
             let popup_height = (lines.len() as u16).saturating_add(2);
@@ -309,7 +310,7 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     let avatar_cell_height = (AVATAR_PIXEL_SIZE as f32 / font_h as f32).ceil() as u16;
     let row_height = avatar_cell_height.max(1);
 
-    let list_state = app.forum_list_state.clone();
+    let list_state = app.user_list_state.clone();
     let selected_index = list_state.selected();
     let offset = list_state.offset();
 

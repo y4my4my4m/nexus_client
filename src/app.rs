@@ -68,6 +68,7 @@ pub struct App<'a> {
     pub forum_list_state: ListState,
     pub thread_list_state: ListState,
     pub settings_list_state: ListState,
+    pub user_list_state: ListState,
     pub forums: Vec<Forum>,
     pub current_forum_id: Option<Uuid>,
     pub current_thread_id: Option<Uuid>,
@@ -104,7 +105,7 @@ pub struct App<'a> {
     pub avatar_protocol_cache: HashMap<(uuid::Uuid, u32), StatefulProtocol>,
 
     // --- Mention fields ---
-    pub mention_suggestions: Vec<String>,
+    pub mention_suggestions: Vec<usize>, // store indices into channel_userlist
     pub mention_selected: usize,
     pub mention_prefix: Option<String>,
 
@@ -152,6 +153,7 @@ impl<'a> App<'a> {
             forum_list_state: ListState::default(),
             thread_list_state: ListState::default(),
             settings_list_state: ListState::default(),
+            user_list_state: ListState::default(),
             forums: vec![],
             current_forum_id: None,
             current_thread_id: None,
@@ -279,7 +281,6 @@ impl<'a> App<'a> {
                 self.password_input.clear();
                 self.main_menu_state.select(Some(0));
                 self.sound_manager.play(SoundType::LoginSuccess);
-                self.send_to_server(ClientMessage::GetUserList);
                 self.send_to_server(ClientMessage::GetServers); // Ensure servers are requested after login
                 // --- FIX: Request channel user list for first channel if in chat mode ---
                 if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {
@@ -452,6 +453,12 @@ impl<'a> App<'a> {
             }
             ServerMessage::ChannelUserList { channel_id, users } => {
                 self.channel_userlist = users;
+                // Reset user list selection to first user if list is not empty
+                if !self.channel_userlist.is_empty() {
+                    self.user_list_state.select(Some(0));
+                } else {
+                    self.user_list_state.select(None);
+                }
             }
         }
     }
