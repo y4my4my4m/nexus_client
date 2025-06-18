@@ -17,6 +17,8 @@ pub enum SoundType {
     MessageSent,
     Mention,
     PopupOpen,
+    Scroll,
+    Save,
 }
 
 pub struct SoundManager {
@@ -41,6 +43,10 @@ impl SoundManager {
         let send_chat_message_path = PathBuf::from(base_path).join("sounds/send_chat_message.mp3");
         let receive_chat_message_path = PathBuf::from(base_path).join("sounds/receive_chat_message.mp3");
         let popup_open_path = PathBuf::from(base_path).join("sounds/popup_open.mp3");
+        let scroll_path = PathBuf::from(base_path).join("sounds/load_down.mp3");
+        let save_path = PathBuf::from(base_path).join("sounds/save_2.mp3");
+        sounds.insert(SoundType::Save, std::fs::read(save_path).unwrap_or_default());
+        sounds.insert(SoundType::Scroll, std::fs::read(scroll_path).unwrap_or_default());
         sounds.insert(SoundType::ChangeChannel, std::fs::read(change_channel_path).unwrap_or_default());
         sounds.insert(SoundType::SendChannelMessage, std::fs::read(send_chat_message_path).unwrap_or_default());
         sounds.insert(SoundType::ReceiveChannelMessage, std::fs::read(receive_chat_message_path).unwrap_or_default());

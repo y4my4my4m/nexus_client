@@ -279,8 +279,14 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
             _ => {}
         },
         AppMode::MainMenu => match key.code {
-            KeyCode::Down => app.main_menu_state.select(Some(app.main_menu_state.selected().map_or(0, |s| (s + 1) % 4))),
-            KeyCode::Up => app.main_menu_state.select(Some(app.main_menu_state.selected().map_or(3, |s| (s + 3) % 4))),
+            KeyCode::Down => {
+                app.sound_manager.play(SoundType::Scroll);
+                app.main_menu_state.select(Some(app.main_menu_state.selected().map_or(0, |s| (s + 1) % 4)));
+            }
+            KeyCode::Up => {
+                app.sound_manager.play(SoundType::Scroll);
+                app.main_menu_state.select(Some(app.main_menu_state.selected().map_or(3, |s| (s + 3) % 4)));
+            },
             KeyCode::Enter => if let Some(s) = app.main_menu_state.selected() {
                 match s {
                     0 => { app.send_to_server(ClientMessage::GetForums); app.mode = AppMode::ForumList; app.forum_list_state.select(Some(0)); },
@@ -293,8 +299,14 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
             _ => {}
         },
         AppMode::ForumList => match key.code {
-            KeyCode::Down => if !app.forums.is_empty() { app.forum_list_state.select(Some(app.forum_list_state.selected().map_or(0, |s| (s + 1) % app.forums.len()))) },
-            KeyCode::Up => if !app.forums.is_empty() { app.forum_list_state.select(Some(app.forum_list_state.selected().map_or(app.forums.len() - 1, |s| (s + app.forums.len() - 1) % app.forums.len()))) },
+            KeyCode::Down => if !app.forums.is_empty() { 
+                app.sound_manager.play(SoundType::Scroll);
+                app.forum_list_state.select(Some(app.forum_list_state.selected().map_or(0, |s| (s + 1) % app.forums.len())));
+            },
+            KeyCode::Up => if !app.forums.is_empty() { 
+                app.sound_manager.play(SoundType::Scroll);
+                app.forum_list_state.select(Some(app.forum_list_state.selected().map_or(app.forums.len() - 1, |s| (s + app.forums.len() - 1) % app.forums.len())));
+            },
             KeyCode::Enter => if let Some(idx) = app.forum_list_state.selected() {
                 if let Some(forum) = app.forums.get(idx) {
                     app.current_forum_id = Some(forum.id);
@@ -311,9 +323,11 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
         },
         AppMode::ThreadList => match key.code {
             KeyCode::Down => if let Some(forum) = app.current_forum_id.and_then(|id| app.forums.iter().find(|f| f.id == id)) {
+                app.sound_manager.play(SoundType::Scroll);
                 if !forum.threads.is_empty() { app.thread_list_state.select(Some(app.thread_list_state.selected().map_or(0, |s| (s + 1) % forum.threads.len()))); }
             },
             KeyCode::Up => if let Some(forum) = app.current_forum_id.and_then(|id| app.forums.iter().find(|f| f.id == id)) {
+                app.sound_manager.play(SoundType::Scroll);
                 if !forum.threads.is_empty() { app.thread_list_state.select(Some(app.thread_list_state.selected().map_or(forum.threads.len() - 1, |s| (s + forum.threads.len() - 1) % forum.threads.len()))); }
             },
             KeyCode::Enter => if let Some(idx) = app.thread_list_state.selected() {
@@ -367,6 +381,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                 match app.profile_edit_focus {
                     Save => {
                         // On save, process profile_pic and cover_banner
+                        app.sound_manager.play(SoundType::Save);
                         let profile_pic = Some(App::file_or_url_to_base64(&app.edit_profile_pic).unwrap_or_default());
                         let cover_banner = Some(App::file_or_url_to_base64(&app.edit_cover_banner).unwrap_or_default());
                         app.send_to_server(ClientMessage::UpdateProfile {
@@ -432,11 +447,13 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
             if app.show_user_actions {
                 match key.code {
                     KeyCode::Up => {
+                        app.sound_manager.play(SoundType::Scroll);
                         if app.user_actions_selected > 0 {
                             app.user_actions_selected -= 1;
                         }
                     },
                     KeyCode::Down => {
+                        app.sound_manager.play(SoundType::Scroll);
                         if app.user_actions_selected < 1 {
                             app.user_actions_selected += 1;
                         }
@@ -497,9 +514,11 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         app.show_user_list = !app.show_user_list;
                     },
                     KeyCode::Down => {
+                        app.sound_manager.play(SoundType::Scroll);
                         move_sidebar_selection(app, 1);
                     },
                     KeyCode::Up => {
+                        app.sound_manager.play(SoundType::Scroll);
                         move_sidebar_selection(app, -1);
                     },
                     KeyCode::Enter => {
@@ -527,6 +546,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     },
                     KeyCode::PageUp => {
                         // Scroll up chat history
+                        app.sound_manager.play(SoundType::Scroll);
                         let (max_rows, total_msgs) = if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
                             if let Some(server) = app.servers.get(s) {
                                 if let Some(channel) = server.channels.get(c) {
@@ -554,6 +574,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         }
                     },
                     KeyCode::PageDown => {
+                        app.sound_manager.play(SoundType::Scroll);
                         // Scroll down chat history
                         let max_rows = app.last_chat_rows.unwrap_or(20);
                         if app.chat_scroll_offset >= max_rows {
@@ -698,6 +719,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     KeyCode::Down => {
                         let len = app.connected_users.len();
                         if len > 0 {
+                            app.sound_manager.play(SoundType::Scroll);
                             let sel = app.forum_list_state.selected().unwrap_or(0);
                             app.forum_list_state.select(Some((sel + 1) % len));
                         }
@@ -705,6 +727,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     KeyCode::Up => {
                         let len = app.connected_users.len();
                         if len > 0 {
+                            app.sound_manager.play(SoundType::Scroll);
                             let sel = app.forum_list_state.selected().unwrap_or(0);
                             app.forum_list_state.select(Some((sel + len - 1) % len));
                         }
