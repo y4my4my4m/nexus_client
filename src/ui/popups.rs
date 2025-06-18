@@ -19,13 +19,11 @@ pub fn draw_centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
 
 pub fn draw_dm_input_popup(f: &mut Frame, app: &App) {
     let username = app.dm_target.and_then(|uid| app.connected_users.iter().find(|u| u.id == uid)).map(|u| u.username.as_str()).unwrap_or("");
-    let title = if !username.is_empty() {
-        format!("Send Direct Message to {}", username)
-    } else {
-        "Send Direct Message".to_string()
-    };
     let area = draw_centered_rect(f.area(), 50, 20);
-    let block = Block::default().title(title).borders(Borders::ALL).border_type(BorderType::Double);
+    let block = Block::default().title(Line::from(vec![
+        Span::raw("Send Direct Message to "),
+        Span::styled(username, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+    ])).borders(Borders::ALL).border_type(BorderType::Double);
     let input_field = Paragraph::new(app.dm_input.as_str()).wrap(Wrap { trim: true }).block(block);
     f.render_widget(Clear, area);
     f.render_widget(input_field, area);
@@ -155,10 +153,11 @@ pub fn draw_user_actions_popup(f: &mut Frame, app: &App) {
     let user = app.user_actions_target.and_then(|idx| app.connected_users.get(idx));
     let username = user.map(|u| u.username.as_str()).unwrap_or("<unknown>");
     let actions = ["Show Profile", "Send DM"];
-    let mut lines = vec![Line::from(Span::styled(
-        format!("User: {}", username),
-        Style::default().fg(Color::Yellow).add_modifier(ratatui::style::Modifier::BOLD),
-    ))];
+    // let mut lines = vec![Line::from(Span::styled(
+    //     format!("User: {}", username),
+    //     Style::default().fg(Color::Yellow).add_modifier(ratatui::style::Modifier::BOLD),
+    // ))];
+    let mut lines = vec![];
     for (i, action) in actions.iter().enumerate() {
         let style = if app.user_actions_selected == i {
             Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(ratatui::style::Modifier::BOLD)
@@ -167,7 +166,10 @@ pub fn draw_user_actions_popup(f: &mut Frame, app: &App) {
         };
         lines.push(Line::from(Span::styled(*action, style)));
     }
-    let block = Block::default().title("User Actions").borders(Borders::ALL);
+    let block = Block::default()
+        .title(Span::styled(username, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
+        .style(Style::default())
+        .borders(Borders::ALL);
     let para = Paragraph::new(lines).block(block).alignment(Alignment::Left);
     f.render_widget(para, area);
 }
