@@ -177,18 +177,25 @@ pub fn draw_user_actions_popup(f: &mut Frame, app: &App) {
 }
 
 pub fn draw_quit_confirm_popup(f: &mut Frame, app: &App) {
-    let area = draw_centered_rect(f.area(), 40, 18);
+    // Try to ensure the popup is tall enough for all content (message + buttons + paddings)
+    let mut percent_y = 18u16;
+    let percent_x = 40u16;
+    let pad_above_msg = 1;
+    let pad_between_msg_btn = 1;
+    let pad_below_btn = 1;
+    let content_lines = pad_above_msg + 1 + pad_between_msg_btn + 1 + pad_below_btn;
+    let mut area = draw_centered_rect(f.area(), percent_x, percent_y);
+    let mut popup_height = area.height.saturating_sub(2); // minus borders
+    // If not enough height, increase percent_y up to 60%
+    while popup_height < content_lines && percent_y < 60 {
+        percent_y += 5;
+        area = draw_centered_rect(f.area(), percent_x, percent_y);
+        popup_height = area.height.saturating_sub(2);
+    }
     let block = Block::default()
         .title("Are you sure?")
         .borders(Borders::ALL)
         .border_type(BorderType::Double);
-    // Fixed paddings
-    let pad_above_msg = 1;
-    let pad_between_msg_btn = 1;
-    let pad_below_btn = 1;
-    // Content lines: message + buttons
-    let content_lines = pad_above_msg + 1 + pad_between_msg_btn + 1 + pad_below_btn;
-    let popup_height = area.height.saturating_sub(2); // minus borders
     let extra = popup_height.saturating_sub(content_lines);
     let pad_top = extra / 2;
     let pad_bottom = extra - pad_top;
