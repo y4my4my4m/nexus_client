@@ -18,6 +18,8 @@ pub enum SoundType {
     MessageSent,
     Mention,
     PopupOpen,
+    PopupClose,
+    Select,
     Scroll,
     Save,
 }
@@ -35,7 +37,7 @@ impl SoundManager {
         let base_path = env!("CARGO_MANIFEST_DIR");
         let error_path = PathBuf::from(base_path).join("sounds/error.mp3");
         let notify_path = PathBuf::from(base_path).join("sounds/notify.mp3");
-        let login_success_path = PathBuf::from(base_path).join("sounds/login_success_24.mp3");
+        let login_success_path = PathBuf::from(base_path).join("sounds/login_success_10.mp3");
         let login_failure_path = PathBuf::from(base_path).join("sounds/login_error_3.mp3");
         let received_direct_message_path = PathBuf::from(base_path).join("sounds/dm_5.mp3");
         let sent_direct_message_path = PathBuf::from(base_path).join("sounds/dm.mp3");
@@ -44,8 +46,11 @@ impl SoundManager {
         let send_chat_message_path = PathBuf::from(base_path).join("sounds/send_chat_message.mp3");
         let receive_chat_message_path = PathBuf::from(base_path).join("sounds/receive_chat_message.mp3");
         let popup_open_path = PathBuf::from(base_path).join("sounds/popup_open.mp3");
+        let popup_close_path = PathBuf::from(base_path).join("sounds/close_1.mp3");
         let scroll_path = PathBuf::from(base_path).join("sounds/load_down.mp3");
         let save_path = PathBuf::from(base_path).join("sounds/save_2.mp3");
+        let select_path = PathBuf::from(base_path).join("sounds/select.mp3");
+        sounds.insert(SoundType::Select, std::fs::read(select_path).unwrap_or_default());
         sounds.insert(SoundType::Save, std::fs::read(save_path).unwrap_or_default());
         sounds.insert(SoundType::Scroll, std::fs::read(scroll_path).unwrap_or_default());
         sounds.insert(SoundType::ChangeChannel, std::fs::read(change_channel_path).unwrap_or_default());
@@ -57,6 +62,7 @@ impl SoundManager {
         sounds.insert(SoundType::DirectMessage, std::fs::read(received_direct_message_path).unwrap_or_default());
         sounds.insert(SoundType::MessageSent, std::fs::read(sent_direct_message_path).unwrap_or_default());
         sounds.insert(SoundType::Error, std::fs::read(error_path).unwrap_or_default());
+        sounds.insert(SoundType::PopupClose, std::fs::read(popup_close_path).unwrap_or_default());
         sounds.insert(SoundType::Notify, std::fs::read(notify_path).unwrap_or_default());
         sounds.insert(SoundType::Mention, std::fs::read(mention_path).unwrap_or_default());
         Self { _stream, stream_handle, sounds }

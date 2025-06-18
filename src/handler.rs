@@ -20,18 +20,23 @@ pub fn handle_key_event(key: KeyEvent, app: &mut crate::app::App) {
         match key.code {
             KeyCode::Left | KeyCode::Tab => {
                 app.quit_confirm_selected = (app.quit_confirm_selected + 1) % 2;
+                app.sound_manager.play(SoundType::Scroll);
             },
             KeyCode::Right => {
                 app.quit_confirm_selected = (app.quit_confirm_selected + 1) % 2;
+                app.sound_manager.play(SoundType::Scroll);
             },
             KeyCode::Enter => {
                 if app.quit_confirm_selected == 0 {
+                    app.sound_manager.play(SoundType::Select);
                     app.should_quit = true;
                 }
+                app.sound_manager.play(SoundType::PopupClose);
                 app.show_quit_confirm = false;
             },
             KeyCode::Esc => {
                 app.show_quit_confirm = false;
+                app.sound_manager.play(SoundType::PopupClose);
             },
             _ => {}
         }
@@ -221,6 +226,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
         AppMode::Input | AppMode::EditProfile | AppMode::Chat
     );
     if key.code == KeyCode::Char('q') && !in_input {
+        app.sound_manager.play(SoundType::PopupOpen);
         app.show_quit_confirm = true;
         app.quit_confirm_selected = 1; // Default to No
         return;
