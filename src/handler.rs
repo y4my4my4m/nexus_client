@@ -470,6 +470,9 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     KeyCode::Tab => {
                         if app.show_user_list {
                             app.chat_focus = crate::app::ChatFocus::Messages;
+                            if !app.connected_users.is_empty() && app.forum_list_state.selected().is_none() {
+                                app.forum_list_state.select(Some(0));
+                            }
                         } else {
                             app.chat_focus = crate::app::ChatFocus::Messages;
                         }
@@ -477,6 +480,9 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     KeyCode::BackTab => {
                         if app.show_user_list {
                             app.chat_focus = crate::app::ChatFocus::Users;
+                            if !app.connected_users.is_empty() && app.forum_list_state.selected().is_none() {
+                                app.forum_list_state.select(Some(0));
+                            }
                         } else {
                             app.chat_focus = crate::app::ChatFocus::Messages;
                         }
@@ -500,6 +506,9 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     KeyCode::Tab => {
                         if app.show_user_list {
                             app.chat_focus = crate::app::ChatFocus::Users;
+                            if !app.connected_users.is_empty() {
+                                app.forum_list_state.select(Some(0));
+                            }
                         } else {
                             app.chat_focus = crate::app::ChatFocus::Sidebar;
                         }
