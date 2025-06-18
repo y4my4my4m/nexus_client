@@ -147,21 +147,25 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     let mut current_y = inner_area.y;
     for (author_opt, color, content, profile_pic, timestamp_opt) in display_items.into_iter() {
         if current_y + row_height > inner_area.y + inner_area.height { break; }
-        // Insert date delimiter if date changes
+        // Insert date delimiter only when the date changes (not for the first message)
         if let Some(ts) = timestamp_opt {
             let dt = chrono::Local.timestamp_opt(ts, 0).single();
             if let Some(dt) = dt {
                 let msg_date = dt.date_naive();
-                if last_date.map_or(true, |d| d != msg_date) {
-                    let delim = format!("------- {} -------", format_date_delimiter(ts));
-                    let delim_line = ratatui::text::Line::from(ratatui::text::Span::styled(
-                        delim,
-                        ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray).add_modifier(ratatui::style::Modifier::ITALIC)
-                    ));
-                    f.render_widget(ratatui::widgets::Paragraph::new(delim_line.clone()), Rect::new(inner_area.x, current_y, inner_area.width, 1));
-                    current_y += 1;
-                    last_date = Some(msg_date);
+                if let Some(last) = last_date {
+                    if last != msg_date {
+                        // Draw a Block with Borders::TOP and the date as the title
+                        let header = Block::default()
+                            .borders(Borders::TOP)
+                            .title_alignment(ratatui::layout::Alignment::Center)
+                            .title(format_date_delimiter(ts))
+                            .border_style(Style::default().fg(Color::DarkGray))
+                            .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC));
+                        f.render_widget(header, Rect::new(inner_area.x, current_y, inner_area.width, row_height));
+                        current_y += row_height;
+                    }
                 }
+                last_date = Some(msg_date);
             }
         }
         let row_area = Rect::new(inner_area.x, current_y, inner_area.width, row_height);
