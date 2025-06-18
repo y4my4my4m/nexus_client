@@ -18,10 +18,10 @@ pub fn get_styled_banner_lines(width: u16, tick_count: u64) -> Vec<Line<'static>
     // let standard_font = FIGfont::standard().unwrap();
     // let figlet_text = standard_font.convert("NEXUS").unwrap();
 
-    // let custom_font = FIGfont::from_file(PathBuf::from(BASE_PATH).join("fig/cosmike.flf").to_str().unwrap()).unwrap();
+    // let custom_font = FIGfont::from_file(PathBuf::from(BASE_PATH).join("assets/fig/cosmike.flf").to_str().unwrap()).unwrap();
     // let figlet_text = custom_font.convert("NEXUS").unwrap();
 
-    let custom_font = FIGfont::from_file(PathBuf::from(BASE_PATH).join("fig/alligator2.flf").to_str().unwrap()).unwrap();
+    let custom_font = FIGfont::from_file(PathBuf::from(BASE_PATH).join("assets/fig/alligator2.flf").to_str().unwrap()).unwrap();
     let figlet_text = custom_font.convert("NEXUS").unwrap();
     
     // 1. Create a String that will live for the whole function scope.
