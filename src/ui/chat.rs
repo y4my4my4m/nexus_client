@@ -3,8 +3,10 @@
 use ratatui::{Frame, layout::{Rect, Layout, Constraint, Direction}, style::{Style, Color, Modifier}, widgets::{Block, Paragraph, Borders, List, ListItem, Wrap}, text::{Line, Span}};
 use crate::app::{App, ChatFocus};
 use crate::ui::avatar::get_avatar_protocol;
+use crate::ui::time_format::{format_message_timestamp, format_date_delimiter};
 use ratatui_image::StatefulImage;
 use ratatui::widgets::ListState;
+use chrono::TimeZone;
 
 pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
     // Sidebar: servers/channels | Main: chat | Optional: user list
@@ -124,7 +126,8 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
                 let end_idx = total_msgs.saturating_sub(app.chat_scroll_offset);
                 let start_idx = end_idx.saturating_sub(max_rows);
                 let items: Vec<_> = channel.messages.iter().skip(start_idx).take(end_idx - start_idx).map(|msg| {
-                    (Some(msg.author_username.clone()), msg.author_color, msg.content.clone(), msg.author_profile_pic.clone())
+                    // Add timestamp to tuple
+                    (Some(msg.author_username.clone()), msg.author_color, msg.content.clone(), msg.author_profile_pic.clone(), Some(msg.timestamp))
                 }).collect();
                 (items, true)
             } else { (vec![], true) }
@@ -134,14 +137,33 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         let end_idx = total_msgs.saturating_sub(app.chat_scroll_offset);
         let start_idx = end_idx.saturating_sub(max_rows);
         let items: Vec<_> = app.chat_messages.iter().skip(start_idx).take(end_idx - start_idx).map(|msg| {
-            (Some(msg.author.clone()), msg.color, msg.content.clone(), None)
+            (Some(msg.author.clone()), msg.color, msg.content.clone(), None, None)
         }).collect();
         (items, false)
     };
 
+    let now = chrono::Local::now();
+    let mut last_date: Option<chrono::NaiveDate> = None;
     let mut current_y = inner_area.y;
-    for (author_opt, color, content, profile_pic) in display_items.into_iter() {
+    for (author_opt, color, content, profile_pic, timestamp_opt) in display_items.into_iter() {
         if current_y + row_height > inner_area.y + inner_area.height { break; }
+        // Insert date delimiter if date changes
+        if let Some(ts) = timestamp_opt {
+            let dt = chrono::Local.timestamp_opt(ts, 0).single();
+            if let Some(dt) = dt {
+                let msg_date = dt.date_naive();
+                if last_date.map_or(true, |d| d != msg_date) {
+                    let delim = format!("------- {} -------", format_date_delimiter(ts));
+                    let delim_line = ratatui::text::Line::from(ratatui::text::Span::styled(
+                        delim,
+                        ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray).add_modifier(ratatui::style::Modifier::ITALIC)
+                    ));
+                    f.render_widget(ratatui::widgets::Paragraph::new(delim_line.clone()), Rect::new(inner_area.x, current_y, inner_area.width, 1));
+                    current_y += 1;
+                    last_date = Some(msg_date);
+                }
+            }
+        }
         let row_area = Rect::new(inner_area.x, current_y, inner_area.width, row_height);
         // Avatar/profile pic rendering
         let avatar_area = Rect::new(row_area.x, row_area.y, avatar_cell_width, avatar_cell_height);
@@ -202,10 +224,27 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
             spans.push(Span::raw(&content_str[last..]));
         }
         let author = author_opt.unwrap_or_else(|| "?".to_string());
-        let text = vec![
-            Line::from(Span::styled(format!("<{}>", author), Style::default().fg(color).add_modifier(Modifier::BOLD))),
-            Line::from(spans),
-        ];
+        // Format timestamp if present
+        let timestamp_str = if let Some(ts) = timestamp_opt {
+            format_message_timestamp(ts, now.clone())
+        } else {
+            "".to_string()
+        };
+        let text = if !timestamp_str.is_empty() {
+            vec![
+                Line::from(vec![
+                    Span::styled(format!("<{}>", author), Style::default().fg(color).add_modifier(Modifier::BOLD)),
+                    Span::raw(" "),
+                    Span::styled(format!("{}", timestamp_str), Style::default().fg(Color::DarkGray)),
+                ]),
+                Line::from(spans),
+            ]
+        } else {
+            vec![
+                Line::from(Span::styled(format!("<{}>", author), Style::default().fg(color).add_modifier(Modifier::BOLD))),
+                Line::from(spans),
+            ]
+        };
         f.render_widget(Paragraph::new(text).wrap(Wrap { trim: true }), text_area);
         current_y += row_height + 1;
     }

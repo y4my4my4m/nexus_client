@@ -8,6 +8,7 @@ pub mod settings;
 pub mod chat;
 pub mod popups;
 pub mod avatar;
+pub mod time_format;
 
 use ratatui::Frame;
 use crate::app::{App, AppMode, InputMode};
