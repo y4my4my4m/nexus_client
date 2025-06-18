@@ -175,7 +175,7 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         if is_channel_chat {
             if let Some(ref author) = author_opt {
                 // Find the user first, then drop the borrow before calling get_avatar_protocol
-                let user_opt = app.connected_users.iter().find(|u| u.username == *author).cloned();
+                let user_opt = app.channel_userlist.iter().find(|u| u.username == *author).cloned();
                 if let Some(user) = user_opt {
                     if let Some(state) = get_avatar_protocol(app, &user, AVATAR_PIXEL_SIZE) {
                         let image_widget = StatefulImage::default();
