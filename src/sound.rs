@@ -16,6 +16,7 @@ pub enum SoundType {
     LoginFailure,
     MessageSent,
     Mention,
+    PopupOpen,
 }
 
 pub struct SoundManager {
@@ -33,15 +34,17 @@ impl SoundManager {
         let notify_path = PathBuf::from(base_path).join("sounds/notify.mp3");
         let login_success_path = PathBuf::from(base_path).join("sounds/login_success_24.mp3");
         let login_failure_path = PathBuf::from(base_path).join("sounds/login_error_3.mp3");
-        let received_direct_message_path = PathBuf::from(base_path).join("sounds/voice/new_msg.mp3");
+        let received_direct_message_path = PathBuf::from(base_path).join("sounds/dm_5.mp3");
         let sent_direct_message_path = PathBuf::from(base_path).join("sounds/dm.mp3");
         let mention_path = PathBuf::from(base_path).join("sounds/mention.mp3");
-        let change_channel_path = PathBuf::from(base_path).join("sounds/change_channel.mp3");
+        let change_channel_path = PathBuf::from(base_path).join("sounds/change_channel_7.mp3");
         let send_chat_message_path = PathBuf::from(base_path).join("sounds/send_chat_message.mp3");
         let receive_chat_message_path = PathBuf::from(base_path).join("sounds/receive_chat_message.mp3");
+        let popup_open_path = PathBuf::from(base_path).join("sounds/popup_open.mp3");
         sounds.insert(SoundType::ChangeChannel, std::fs::read(change_channel_path).unwrap_or_default());
         sounds.insert(SoundType::SendChannelMessage, std::fs::read(send_chat_message_path).unwrap_or_default());
         sounds.insert(SoundType::ReceiveChannelMessage, std::fs::read(receive_chat_message_path).unwrap_or_default());
+        sounds.insert(SoundType::PopupOpen, std::fs::read(popup_open_path).unwrap_or_default());
         sounds.insert(SoundType::LoginSuccess, std::fs::read(login_success_path).unwrap_or_default());
         sounds.insert(SoundType::LoginFailure, std::fs::read(login_failure_path).unwrap_or_default());
         sounds.insert(SoundType::DirectMessage, std::fs::read(received_direct_message_path).unwrap_or_default());

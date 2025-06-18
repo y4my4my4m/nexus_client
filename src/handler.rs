@@ -110,6 +110,7 @@ fn handle_auth_mode(key: KeyEvent, app: &mut App) {
                     let password = app.password_input.clone();
                     if username.is_empty() || password.is_empty() {
                         app.set_notification("Fields cannot be empty.", None, false);
+                        app.sound_manager.play(SoundType::LoginFailure);
                         return;
                     }
                     if app.mode == AppMode::Login {
@@ -150,6 +151,7 @@ fn handle_input_mode(key: KeyEvent, app: &mut App) {
             if let Some(im) = app.input_mode.take() {
                 match im {
                     InputMode::NewThreadTitle => {
+                        app.sound_manager.play(SoundType::PopupOpen);
                         if input.trim().is_empty() {
                             app.set_notification("Thread title cannot be empty.", None, false);
                             app.input_mode = Some(InputMode::NewThreadTitle);
@@ -161,6 +163,7 @@ fn handle_input_mode(key: KeyEvent, app: &mut App) {
                     InputMode::NewThreadContent => {
                         let title = prev_input;
                         let content = input;
+                        app.sound_manager.play(SoundType::PopupOpen);
                         if title.trim().is_empty() || content.trim().is_empty() {
                             app.set_notification("Thread title and content cannot be empty.", None, false);
                             app.input_mode = Some(InputMode::NewThreadContent);
@@ -174,6 +177,7 @@ fn handle_input_mode(key: KeyEvent, app: &mut App) {
                         app.mode = AppMode::ForumList;
                     },
                     InputMode::NewPostContent => {
+                        app.sound_manager.play(SoundType::PopupOpen);
                         if input.trim().is_empty() {
                             app.set_notification("Post content cannot be empty.", None, false);
                             app.input_mode = Some(InputMode::NewPostContent);
@@ -186,6 +190,7 @@ fn handle_input_mode(key: KeyEvent, app: &mut App) {
                         app.mode = AppMode::PostView;
                     }
                     InputMode::UpdatePassword => {
+                        app.sound_manager.play(SoundType::PopupOpen);
                         app.send_to_server(ClientMessage::UpdatePassword(input));
                         app.mode = AppMode::Settings;
                     }
@@ -438,6 +443,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     },
                     KeyCode::Enter => {
                         if let Some(idx) = app.user_actions_target {
+                            app.sound_manager.play(SoundType::PopupOpen);
                             let user = app.connected_users.get(idx);
                             match app.user_actions_selected {
                                 0 => { // View Profile
@@ -704,7 +710,9 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         }
                     },
                     KeyCode::Enter => {
+                        // TODO: forum list state??? why??
                         if let Some(idx) = app.forum_list_state.selected() {
+                            app.sound_manager.play(SoundType::PopupOpen);
                             app.show_user_actions = true;
                             app.user_actions_selected = 0;
                             app.user_actions_target = Some(idx);
