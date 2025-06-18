@@ -558,9 +558,6 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     KeyCode::Tab => {
                         if app.show_user_list {
                             app.chat_focus = crate::app::ChatFocus::Messages;
-                            if !app.connected_users.is_empty() && app.forum_list_state.selected().is_none() {
-                                app.forum_list_state.select(Some(0));
-                            }
                         } else {
                             app.chat_focus = crate::app::ChatFocus::Messages;
                         }
@@ -568,15 +565,26 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     KeyCode::BackTab => {
                         if app.show_user_list {
                             app.chat_focus = crate::app::ChatFocus::Users;
-                            if !app.connected_users.is_empty() && app.forum_list_state.selected().is_none() {
-                                app.forum_list_state.select(Some(0));
-                            }
                         } else {
                             app.chat_focus = crate::app::ChatFocus::Messages;
                         }
                     },
                     KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
                         app.show_user_list = !app.show_user_list;
+                    },
+                    KeyCode::Left => {
+                        app.sidebar_tab = match app.sidebar_tab {
+                            crate::app::SidebarTab::Servers => crate::app::SidebarTab::DMs,
+                            crate::app::SidebarTab::DMs => crate::app::SidebarTab::Servers,
+                        };
+                        app.sound_manager.play(SoundType::ChangeChannel);
+                    },
+                    KeyCode::Right => {
+                        app.sidebar_tab = match app.sidebar_tab {
+                            crate::app::SidebarTab::Servers => crate::app::SidebarTab::DMs,
+                            crate::app::SidebarTab::DMs => crate::app::SidebarTab::Servers,
+                        };
+                        app.sound_manager.play(SoundType::ChangeChannel);
                     },
                     KeyCode::Down => {
                         move_sidebar_selection(app, 1);
@@ -600,18 +608,12 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     KeyCode::Tab => {
                         if app.show_user_list {
                             app.chat_focus = crate::app::ChatFocus::Users;
-                            if !app.connected_users.is_empty() {
-                                app.forum_list_state.select(Some(0));
-                            }
                         } else {
                             app.chat_focus = crate::app::ChatFocus::Sidebar;
                         }
                     },
                     KeyCode::BackTab => {
                         app.chat_focus = crate::app::ChatFocus::Sidebar;
-                    },
-                    KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
-                        app.show_user_list = !app.show_user_list;
                     },
                     KeyCode::PageUp => {
                         app.sound_manager.play(SoundType::Scroll);
@@ -836,18 +838,8 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     app.sound_manager.play(SoundType::PopupOpen);
                 },
                 KeyCode::F(6) => {
-                    app.set_notification("Called", Some(500), true);
-                    if let Some(current_user) = app.current_user.as_ref() {
-                        app.send_to_server(ClientMessage::GetDirectMessages { user_id: current_user.id, before: None });
-                    }
-                    // if app.show_dm_list && app.selected_dm_user.is_some() {
-                    // if let Some(dm_idx) = app.selected_dm_user {
-                    //     if let Some(user) = app.dm_user_list.get(dm_idx) {
-                    //         app.dm_target = Some(user.id);
-                    //         app.send_to_server(ClientMessage::GetDirectMessages { user_id: user.id, before: None });
-                    //         app.chat_focus = crate::app::ChatFocus::Messages;
-                    //     }
-                    // }
+                    app.set_notification("Refreshing notifications...", Some(500), true);
+                    app.send_to_server(ClientMessage::GetNotifications { before: None });
                 },
                 _ => {}
             }
@@ -873,19 +865,19 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
 
 }
 
-    // If DM list is open and a DM user is selected, move within DM users
-    // if app.show_dm_list && app.selected_dm_user.is_some() {
-    //     let len = app.dm_user_list.len();
-    //     if len > 0 {
-    //         let idx = app.selected_dm_user.unwrap();
-    //         let new_idx = if direction == 1 {
-    //             (idx + 1) % len
-    //         } else {
-    //             (idx + len - 1) % len
-    //         };
-    //         app.selected_dm_user = Some(new_idx);
-    //     }
-    // } else {
+// If DM list is open and a DM user is selected, move within DM users
+// if app.show_dm_list && app.selected_dm_user.is_some() {
+//     let len = app.dm_user_list.len();
+//     if len > 0 {
+//         let idx = app.selected_dm_user.unwrap();
+//         let new_idx = if direction == 1 {
+//             (idx + 1) % len
+//         } else {
+//             (idx + len - 1) % len
+//         };
+//         app.selected_dm_user = Some(new_idx);
+//     }
+// } else {
 
 fn move_sidebar_selection(app: &mut App, direction: i32) {
     // direction: 1 for down, -1 for up
@@ -939,6 +931,10 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
                 app.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: None });
                 app.send_to_server(ClientMessage::GetChannelUserList { channel_id });
             }
+        } else {
+            // If server is not found, reset selection
+            app.selected_server = None;
+            app.selected_channel = None;
         }
     } else if app.selected_server.is_some() {
         // If only server is selected, select first channel if exists
@@ -956,4 +952,16 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
     }
     // play sound
     app.sound_manager.play(SoundType::ChangeChannel);
+}
+
+fn move_dm_selection(app: &mut App, direction: i32) {
+    let len = app.dm_user_list.len();
+    if len == 0 { app.selected_dm_user = None; return; }
+    let idx = app.selected_dm_user.unwrap_or(0);
+    let new_idx = if direction == 1 {
+        (idx + 1) % len
+    } else {
+        (idx + len - 1) % len
+    };
+    app.selected_dm_user = Some(new_idx);
 }

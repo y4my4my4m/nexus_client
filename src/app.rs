@@ -9,7 +9,7 @@ use std::fs;
 use std::io::Cursor;
 use std::path::Path;
 use base64::engine::Engine as _;
-use std::collections::HashMap;
+use std::collections::{HashSet, HashMap};
 use crate::global_prefs::GlobalPrefs;
 use std::sync::Arc;
 
@@ -59,6 +59,12 @@ pub enum ProfileEditFocus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SidebarSection {
+    Servers,
+    DMs,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SidebarTab {
     Servers,
     DMs,
 }
@@ -156,8 +162,10 @@ pub struct App<'a> {
     pub notifications: Vec<common::Notification>,
     pub notification_history_complete: bool,
 
-    // --- DM UI state ---
-    pub show_dm_list: bool, // Is the DM list expanded?
+    // --- New fields for tabbed sidebar and unread logic ---
+    pub sidebar_tab: SidebarTab,
+    pub unread_channels: HashSet<uuid::Uuid>, // channel_id
+    pub unread_dm_conversations: HashSet<uuid::Uuid>, // user_id
 }
 
 impl<'a> App<'a> {
@@ -237,7 +245,9 @@ impl<'a> App<'a> {
             dm_history_complete: false,
             notifications: vec![],
             notification_history_complete: false,
-            show_dm_list: false,
+            sidebar_tab: SidebarTab::Servers,
+            unread_channels: HashSet::new(),
+            unread_dm_conversations: HashSet::new(),
         }
     }
 
@@ -366,6 +376,19 @@ impl<'a> App<'a> {
                 }
             },
             ServerMessage::NewChannelMessage(msg) => {
+                let mut is_current = false;
+                if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {
+                    if let Some(server) = self.servers.get(s) {
+                        if let Some(channel) = server.channels.get(c) {
+                            if channel.id == msg.channel_id {
+                                is_current = true;
+                            }
+                        }
+                    }
+                }
+                if !is_current {
+                    self.unread_channels.insert(msg.channel_id);
+                }
                 for (si, server) in self.servers.iter_mut().enumerate() {
                     // Compute selected channel id for this server index
                     let is_selected = if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {
@@ -386,6 +409,7 @@ impl<'a> App<'a> {
                 }
             }
             ServerMessage::ChannelMessages { channel_id, messages, history_complete } => {
+                self.unread_channels.remove(&channel_id);
                 self.channel_history_complete.insert(channel_id, history_complete);
                 for (si, server) in self.servers.iter_mut().enumerate() {
                     let is_selected = if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {
@@ -452,6 +476,12 @@ impl<'a> App<'a> {
                 }
             }
             ServerMessage::DirectMessage { from, content } => {
+                let is_current = if let Some(target) = self.dm_target {
+                    target == from.id && self.sidebar_tab == SidebarTab::DMs
+                } else { false };
+                if !is_current {
+                    self.unread_dm_conversations.insert(from.id);
+                }
                 self.set_notification(
                     format!("DM from {}: {}", from.username, content),
                     Some(4000),

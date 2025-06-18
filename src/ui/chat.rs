@@ -7,15 +7,10 @@ use crate::ui::time_format::{format_message_timestamp, format_date_delimiter};
 use ratatui_image::StatefulImage;
 use ratatui::widgets::ListState;
 use chrono::TimeZone;
+use ratatui::widgets::{Tabs};
 
 pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
-    // Layout: DM block (top), then sidebar, then main/chat, then (optional) user list
-    let dm_block_height = if app.show_dm_list {
-        // 1 for button + N for users (up to 8 or area.height/2)
-        1 + app.dm_user_list.len().min(16) as u16
-    } else {
-        1
-    };
+    // Sidebar with Tabs: [ Servers ] [ DMs ]
     let sidebar_width = 28;
     let show_users = app.show_user_list;
     let focus = app.chat_focus;
@@ -37,16 +32,50 @@ pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
             ])
             .split(area)
     };
-    // Split sidebar area into DM block (top) and sidebar (bottom)
+    // Tabs at the top of the sidebar
+    let tab_titles = vec![
+        if app.unread_channels.is_empty() {
+            Line::from("Servers")
+        } else {
+            Line::from(vec![Span::raw("Servers "), Span::styled("○", Style::default().fg(Color::Red))])
+        },
+        if app.unread_dm_conversations.is_empty() {
+            Line::from("DMs")
+        } else {
+            Line::from(vec![Span::raw("DMs "), Span::styled("○", Style::default().fg(Color::Red))])
+        },
+    ];
+    let tab_idx = match app.sidebar_tab {
+        crate::app::SidebarTab::Servers => 0,
+        crate::app::SidebarTab::DMs => 1,
+    };
+    let tabs_border_style = if focus == ChatFocus::Sidebar {
+        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+    let tabs = Tabs::new(tab_titles)
+        .select(tab_idx)
+        .block(Block::default().borders(Borders::ALL).border_style(tabs_border_style))
+        .highlight_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(Style::default().fg(Color::Gray));
+    // Layout: Tabs (1 row), then content
     let sidebar_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(dm_block_height),
+            Constraint::Length(3),
             Constraint::Min(0),
         ])
         .split(chunks[0]);
-    draw_dm_block(f, app, sidebar_chunks[0], focus == ChatFocus::Sidebar && app.selected_dm_user.is_some());
-    draw_sidebar(f, app, sidebar_chunks[1], focus == ChatFocus::Sidebar && app.selected_dm_user.is_none());
+    f.render_widget(tabs, sidebar_chunks[0]);
+    match app.sidebar_tab {
+        crate::app::SidebarTab::Servers => {
+            draw_sidebar_servers(f, app, sidebar_chunks[1], focus == ChatFocus::Sidebar);
+        }
+        crate::app::SidebarTab::DMs => {
+            draw_sidebar_dms(f, app, sidebar_chunks[1], focus == ChatFocus::Sidebar);
+        }
+    }
     draw_chat_main(f, app, chunks[1], focus == ChatFocus::Messages);
     if show_users && chunks.len() > 2 {
         draw_user_list(f, app, chunks[2], focus == ChatFocus::Users);
@@ -56,49 +85,8 @@ pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
     }
 }
 
-pub fn draw_dm_block(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
-    use ratatui::widgets::{Block, Borders, Paragraph, List, ListItem};
-    use ratatui::style::{Style, Color, Modifier};
-    use ratatui::text::{Span, Line};
-    let block = Block::default().borders(Borders::ALL).title("Direct Messages");
-    f.render_widget(block.clone(), area);
-    let inner = block.inner(area);
-    if inner.width == 0 || inner.height == 0 { return; }
-    // Draw DM button
-    let button_style = if focused && app.selected_dm_user.is_none() {
-        Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(Color::Magenta)
-    };
-    let button = Paragraph::new(Span::styled("[ Direct Messages ]", button_style))
-        .alignment(ratatui::layout::Alignment::Center);
-    f.render_widget(button, Rect { x: inner.x, y: inner.y, width: inner.width, height: 1 });
-    // Draw DM user list if expanded
-    if app.show_dm_list {
-        let user_area = Rect { x: inner.x, y: inner.y + 1, width: inner.width, height: inner.height.saturating_sub(1) };
-        let items: Vec<ListItem> = app.dm_user_list.iter().enumerate().map(|(i, u)| {
-            let selected = app.selected_dm_user == Some(i);
-            let style = if selected && focused {
-                Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(u.color)
-            };
-            let status = match u.status {
-                common::UserStatus::Connected => "●",
-                _ => "○",
-            };
-            ListItem::new(Line::from(vec![Span::styled(format!("{} {}", status, u.username), style)]))
-        }).collect();
-        let mut list_state = ListState::default();
-        list_state.select(app.selected_dm_user);
-        let list = List::new(items)
-            .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD))
-            .highlight_symbol(">> ");
-        f.render_stateful_widget(list, user_area, &mut list_state);
-    }
-}
-
-pub fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
+// Draw server/channel list with unread indicators
+pub fn draw_sidebar_servers(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     let border_style = if focused {
         Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
     } else {
@@ -108,21 +96,30 @@ pub fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     f.render_widget(block.clone(), area);
     let inner = block.inner(area);
     if inner.width == 0 || inner.height == 0 { return; }
-    // List servers and channels
     let mut items = Vec::new();
     for (si, server) in app.servers.iter().enumerate() {
         let selected_server = app.selected_server == Some(si);
-        let server_style = if selected_server {
+        // Unread indicator for server: any channel in this server is unread
+        let has_unread = server.channels.iter().any(|c| app.unread_channels.contains(&c.id));
+        let mut server_spans = vec![Span::styled(format!("● {}", server.name), if selected_server {
             Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-        } else { Style::default().fg(Color::Gray) };
-        items.push(ListItem::new(Line::from(vec![Span::styled(format!("● {}", server.name), server_style)])));
+        } else { Style::default().fg(Color::Gray) })];
+        if has_unread {
+            server_spans.push(Span::raw(" "));
+            server_spans.push(Span::styled("○", Style::default().fg(Color::Red)));
+        }
+        items.push(ListItem::new(Line::from(server_spans)));
         if selected_server {
             for (ci, channel) in server.channels.iter().enumerate() {
                 let selected_channel = app.selected_channel == Some(ci);
-                let channel_style = if selected_channel {
+                let mut channel_spans = vec![Span::styled(format!("  # {}", channel.name), if selected_channel {
                     Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
-                } else { Style::default() };
-                items.push(ListItem::new(Line::from(vec![Span::styled(format!("  # {}", channel.name), channel_style)])));
+                } else { Style::default() })];
+                if app.unread_channels.contains(&channel.id) {
+                    channel_spans.push(Span::raw(" "));
+                    channel_spans.push(Span::styled("○", Style::default().fg(Color::Red)));
+                }
+                items.push(ListItem::new(Line::from(channel_spans)));
             }
         }
     }
@@ -137,6 +134,43 @@ pub fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         idx += 1;
     }
     list_state.select(Some(idx));
+    let list = List::new(items)
+        .block(Block::default())
+        .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD))
+        .highlight_symbol(">> ");
+    f.render_stateful_widget(list, inner, &mut list_state);
+}
+
+// Draw DM conversation list, ordered by most recent, with unread indicators
+pub fn draw_sidebar_dms(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
+    let border_style = if focused {
+        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+    let block = Block::default().borders(Borders::ALL).title("Direct Messages").border_style(border_style);
+    f.render_widget(block.clone(), area);
+    let inner = block.inner(area);
+    if inner.width == 0 || inner.height == 0 { return; }
+    // Sort DM user list by most recent (TODO: use last message timestamp if available)
+    let mut users = app.dm_user_list.clone();
+    // Optionally, sort by unread first
+    users.sort_by_key(|u| (!app.unread_dm_conversations.contains(&u.id), u.username.clone()));
+    let items: Vec<ListItem> = users.iter().enumerate().map(|(i, u)| {
+        let selected = app.selected_dm_user == Some(i);
+        let mut spans = vec![Span::styled(format!("{} {}", if u.status == common::UserStatus::Connected { "●" } else { "○" }, u.username), if selected {
+            Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(u.color)
+        })];
+        if app.unread_dm_conversations.contains(&u.id) {
+            spans.push(Span::raw(" "));
+            spans.push(Span::styled("○", Style::default().fg(Color::Red)));
+        }
+        ListItem::new(Line::from(spans))
+    }).collect();
+    let mut list_state = ListState::default();
+    list_state.select(app.selected_dm_user);
     let list = List::new(items)
         .block(Block::default())
         .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD))
