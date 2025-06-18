@@ -71,12 +71,13 @@ pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
     match app.sidebar_tab {
         crate::app::SidebarTab::Servers => {
             draw_sidebar_servers(f, app, sidebar_chunks[1], focus == ChatFocus::Sidebar);
+            draw_chat_main(f, app, chunks[1], focus == ChatFocus::Messages);
         }
         crate::app::SidebarTab::DMs => {
             draw_sidebar_dms(f, app, sidebar_chunks[1], focus == ChatFocus::Sidebar);
+            App::draw_dm_conversation(f, app, chunks[1]);
         }
     }
-    draw_chat_main(f, app, chunks[1], focus == ChatFocus::Messages);
     if show_users && chunks.len() > 2 {
         draw_user_list(f, app, chunks[2], focus == ChatFocus::Users);
     }
