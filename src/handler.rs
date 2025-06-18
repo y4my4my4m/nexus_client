@@ -586,43 +586,40 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         app.show_user_list = !app.show_user_list;
                     },
                     KeyCode::PageUp => {
-                        // Scroll up chat history
                         app.sound_manager.play(SoundType::Scroll);
-                        let (max_rows, total_msgs) = if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
+                        let (max_rows, total_msgs, channel_id, history_complete, oldest_msg_id) = if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
                             if let Some(server) = app.servers.get(s) {
                                 if let Some(channel) = server.channels.get(c) {
-                                    // Estimate max_rows from last render (fallback to 20)
                                     let max_rows = app.last_chat_rows.unwrap_or(20);
-                                    (max_rows, channel.messages.len())
-                                } else { (20, 0) }
-                            } else { (20, 0) }
+                                    let channel_id = channel.id;
+                                    let history_complete = *app.channel_history_complete.get(&channel_id).unwrap_or(&false);
+                                    let oldest_msg_id = channel.messages.first().map(|m| m.id);
+                                    (max_rows, channel.messages.len(), Some(channel_id), history_complete, oldest_msg_id)
+                                } else { (20, 0, None, false, None) }
+                            } else { (20, 0, None, false, None) }
                         } else {
                             let max_rows = app.last_chat_rows.unwrap_or(20);
-                            (max_rows, app.chat_messages.len())
+                            (max_rows, app.chat_messages.len(), None, false, None)
                         };
-                        let prev_offset = app.chat_scroll_offset;
-                        app.chat_scroll_offset = app.chat_scroll_offset.saturating_add(max_rows);
-                        if app.chat_scroll_offset > total_msgs.saturating_sub(max_rows) {
-                            app.chat_scroll_offset = total_msgs.saturating_sub(max_rows);
-                            // If at the top, request more from server
-                            if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
-                                if let Some(server) = app.servers.get(s) {
-                                    if let Some(channel) = server.channels.get(c) {
-                                        app.send_to_server(ClientMessage::GetChannelMessages { channel_id: channel.id });
-                                    }
-                                }
+                        let max_scroll_offset = total_msgs.saturating_sub(max_rows);
+                        // Clamp scroll offset
+                        app.chat_scroll_offset = (app.chat_scroll_offset + max_rows).min(max_scroll_offset);
+                        // If we've scrolled to the top and history isn't complete, fetch more
+                        if app.chat_scroll_offset == max_scroll_offset && !history_complete {
+                            if let (Some(channel_id), Some(before_id)) = (channel_id, oldest_msg_id) {
+                                app.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: Some(before_id) });
                             }
                         }
                     },
                     KeyCode::PageDown => {
-                        // Scroll down chat history
                         let max_rows = app.last_chat_rows.unwrap_or(20);
+                        // Clamp scroll offset
                         if app.chat_scroll_offset >= max_rows {
                             app.chat_scroll_offset -= max_rows;
-                            app.sound_manager.play(SoundType::Scroll);
                         } else {
                             app.chat_scroll_offset = 0;
                         }
+                        app.sound_manager.play(SoundType::Scroll);
                     },
                     KeyCode::Down => {
                         if !app.mention_suggestions.is_empty() {
@@ -876,7 +873,7 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
         if let Some(server) = app.servers.get(s) {
             if let Some(channel) = server.channels.get(c) {
                 let channel_id = channel.id;
-                app.send_to_server(ClientMessage::GetChannelMessages { channel_id });
+                app.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: None });
                 app.send_to_server(ClientMessage::GetChannelUserList { channel_id });
             }
         }
@@ -887,7 +884,7 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
                 if !server.channels.is_empty() {
                     app.selected_channel = Some(0);
                     let channel_id = server.channels[0].id;
-                    app.send_to_server(ClientMessage::GetChannelMessages { channel_id });
+                    app.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: None });
                     app.send_to_server(ClientMessage::GetChannelUserList { channel_id });
                     app.user_list_state.select(Some(0)); // Reset user list selection
                 }

@@ -129,6 +129,9 @@ pub struct App<'a> {
 
     // --- Per-channel user list ---
     pub channel_userlist: Vec<User>,
+
+    // --- Per-channel history complete flag ---
+    pub channel_history_complete: HashMap<Uuid, bool>,
 }
 
 impl<'a> App<'a> {
@@ -198,6 +201,7 @@ impl<'a> App<'a> {
             chat_scroll_offset: 0,
             last_chat_rows: None,
             channel_userlist: vec![],
+            channel_history_complete: HashMap::new(),
         }
     }
 
@@ -332,7 +336,8 @@ impl<'a> App<'a> {
                     }
                 }
             }
-            ServerMessage::ChannelMessages { channel_id, messages } => {
+            ServerMessage::ChannelMessages { channel_id, messages, history_complete } => {
+                self.channel_history_complete.insert(channel_id, history_complete);
                 for (si, server) in self.servers.iter_mut().enumerate() {
                     let is_selected = if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {
                         if si == s {
@@ -340,13 +345,37 @@ impl<'a> App<'a> {
                         } else { None }
                     } else { None };
                     if let Some(channel) = server.channels.iter_mut().find(|c| c.id == channel_id) {
-                        channel.messages = messages.clone();
-                        if is_selected == Some(channel_id) {
-                            self.chat_messages = messages.iter().map(|m| common::ChatMessage {
-                                author: m.author_username.clone(),
-                                content: m.content.clone(),
-                                color: m.author_color,
-                            }).collect();
+                        if channel.messages.is_empty() {
+                            // Initial load: just set messages and scroll to bottom
+                            channel.messages = messages.clone();
+                            if is_selected == Some(channel_id) {
+                                self.chat_messages = messages.iter().map(|m| common::ChatMessage {
+                                    author: m.author_username.clone(),
+                                    content: m.content.clone(),
+                                    color: m.author_color,
+                                }).collect();
+                                self.chat_scroll_offset = 0; // Always start at the bottom
+                            }
+                        } else if !messages.is_empty() && channel.messages.first().unwrap().id != messages.first().unwrap().id {
+                            // Scrollback: prepend older messages
+                            let mut new_msgs = messages.clone();
+                            let added = new_msgs.len();
+                            new_msgs.append(&mut channel.messages);
+                            channel.messages = new_msgs;
+                            if is_selected == Some(channel_id) {
+                                self.chat_scroll_offset += added;
+                            }
+                        } else {
+                            // Replace (e.g. channel switch)
+                            channel.messages = messages.clone();
+                            if is_selected == Some(channel_id) {
+                                self.chat_messages = messages.iter().map(|m| common::ChatMessage {
+                                    author: m.author_username.clone(),
+                                    content: m.content.clone(),
+                                    color: m.author_color,
+                                }).collect();
+                                self.chat_scroll_offset = 0;
+                            }
                         }
                         break;
                     }
