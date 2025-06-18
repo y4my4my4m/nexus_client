@@ -540,11 +540,9 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         app.show_user_list = !app.show_user_list;
                     },
                     KeyCode::Down => {
-                        app.sound_manager.play(SoundType::Scroll);
                         move_sidebar_selection(app, 1);
                     },
                     KeyCode::Up => {
-                        app.sound_manager.play(SoundType::Scroll);
                         move_sidebar_selection(app, -1);
                     },
                     KeyCode::Enter => {
