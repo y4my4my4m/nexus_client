@@ -231,16 +231,30 @@ pub fn draw_color_picker_page(f: &mut Frame, app: &mut App, area: Rect) {
     .block(Block::default().borders(Borders::ALL).title("Preview"));
     f.render_widget(preview, inner[0]);
     // Palette
-    let mut palette_lines = Vec::new();
+    let mut palette_lines: Vec<Line> = Vec::new();
+    let mut current_line: Vec<Span> = Vec::new();
+    let mut current_width = 0u16;
+    let max_width = inner[1].width.saturating_sub(4); // account for borders/margins
     for (i, &color) in colors.iter().enumerate() {
+        let label = format!(" {} ", color_names[i]);
+        let label_width = label.chars().count() as u16;
         let style = if i == app.color_picker_selected {
             Style::default().fg(Color::Black).bg(color).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(color)
         };
-        palette_lines.push(Span::styled(format!(" {} ", color_names[i]), style));
+        if current_width + label_width > max_width && !current_line.is_empty() {
+            palette_lines.push(Line::from(current_line));
+            current_line = Vec::new();
+            current_width = 0;
+        }
+        current_line.push(Span::styled(label, style));
+        current_width += label_width;
     }
-    let palette = Paragraph::new(Line::from(palette_lines))
+    if !current_line.is_empty() {
+        palette_lines.push(Line::from(current_line));
+    }
+    let palette = Paragraph::new(palette_lines)
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL).title("Colors (←/→ to pick, Enter=Save, Esc=Cancel)"));
     f.render_widget(palette, inner[1]);

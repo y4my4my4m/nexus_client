@@ -178,16 +178,24 @@ pub fn draw_quit_confirm_popup(f: &mut Frame, app: &App) {
         .title("Are you sure?")
         .borders(Borders::ALL)
         .border_type(BorderType::Double);
-    let mut lines = vec![
-        Line::from(""),
-        Line::from(""),
-        Line::from(Span::styled(
-            "Do you really want to quit?",
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-        Line::from(""),
-        Line::from(""),
-    ];
+    // Fixed paddings
+    let pad_above_msg = 1;
+    let pad_between_msg_btn = 1;
+    let pad_below_btn = 1;
+    // Content lines: message + buttons
+    let content_lines = pad_above_msg + 1 + pad_between_msg_btn + 1 + pad_below_btn;
+    let popup_height = area.height.saturating_sub(2); // minus borders
+    let extra = popup_height.saturating_sub(content_lines);
+    let pad_top = extra / 2;
+    let pad_bottom = extra - pad_top;
+    let mut lines = Vec::new();
+    for _ in 0..pad_top { lines.push(Line::from("")); }
+    for _ in 0..pad_above_msg { lines.push(Line::from("")); }
+    lines.push(Line::from(Span::styled(
+        "Do you really want to quit?",
+        Style::default().add_modifier(Modifier::BOLD),
+    )));
+    for _ in 0..pad_between_msg_btn { lines.push(Line::from("")); }
     let yes_style = if app.quit_confirm_selected == 0 {
         Style::default().fg(Color::Black).bg(Color::Green).add_modifier(Modifier::BOLD)
     } else {
@@ -204,6 +212,8 @@ pub fn draw_quit_confirm_popup(f: &mut Frame, app: &App) {
         Span::styled("[ No ]", no_style),
     ];
     lines.push(Line::from(buttons));
+    for _ in 0..pad_below_btn { lines.push(Line::from("")); }
+    for _ in 0..pad_bottom { lines.push(Line::from("")); }
     let para = Paragraph::new(lines)
         .block(block)
         .alignment(Alignment::Center)
