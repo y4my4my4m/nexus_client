@@ -587,18 +587,39 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         app.sound_manager.play(SoundType::ChangeChannel);
                     },
                     KeyCode::Down => {
-                        move_sidebar_selection(app, 1);
+                        match app.sidebar_tab {
+                            crate::app::SidebarTab::Servers => move_sidebar_selection(app, 1),
+                            crate::app::SidebarTab::DMs => move_dm_selection(app, 1),
+                        }
                     },
                     KeyCode::Up => {
-                        move_sidebar_selection(app, -1);
+                        match app.sidebar_tab {
+                            crate::app::SidebarTab::Servers => move_sidebar_selection(app, -1),
+                            crate::app::SidebarTab::DMs => move_dm_selection(app, -1),
+                        }
                     },
                     KeyCode::Enter => {
-                        if app.selected_server.is_some() && app.selected_channel.is_none() {
-                            app.show_server_actions = true;
-                            app.server_actions_selected = 0;
-                            app.sound_manager.play(SoundType::PopupOpen);
-                        } else {
-                            app.chat_focus = crate::app::ChatFocus::Messages;
+                        match app.sidebar_tab {
+                            crate::app::SidebarTab::Servers => {
+                                if app.selected_server.is_some() && app.selected_channel.is_none() {
+                                    app.show_server_actions = true;
+                                    app.server_actions_selected = 0;
+                                    app.sound_manager.play(SoundType::PopupOpen);
+                                } else {
+                                    app.chat_focus = crate::app::ChatFocus::Messages;
+                                }
+                            },
+                            crate::app::SidebarTab::DMs => {
+                                if let Some(idx) = app.selected_dm_user {
+                                    if let Some(user) = app.dm_user_list.get(idx) {
+                                        let user_id = user.id;
+                                        app.dm_target = Some(user_id);
+                                        app.send_to_server(ClientMessage::GetDirectMessages { user_id, before: None });
+                                        app.chat_focus = crate::app::ChatFocus::Messages;
+                                        app.unread_dm_conversations.remove(&user_id);
+                                    }
+                                }
+                            }
                         }
                     },
                     KeyCode::Esc => app.mode = AppMode::MainMenu,
