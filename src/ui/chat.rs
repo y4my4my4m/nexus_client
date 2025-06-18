@@ -164,6 +164,7 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
                         role: common::UserRole::User,
                         profile_pic: Some(pic.to_string()),
                         cover_banner: None,
+                        status: common::UserStatus::Offline, // Add status for fallback user
                     };
                     if let Some(state) = get_avatar_protocol(app, &user, AVATAR_PIXEL_SIZE) {
                         let image_widget = StatefulImage::default();
@@ -314,7 +315,8 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
 
     let mut current_y = inner_area.y;
     // Collect connected_users into a temporary vector before the loop
-    let users: Vec<_> = app.connected_users.iter().enumerate().skip(offset).map(|(i, user)| (i, user.clone())).collect();
+    // Use per-channel user list if available
+    let users: Vec<_> = app.channel_userlist.iter().enumerate().skip(offset).map(|(i, user)| (i, user.clone())).collect();
     for (i, user) in users {
         if current_y + row_height > inner_area.y + inner_area.height { break; }
         let row_area = Rect::new(inner_area.x, current_y, inner_area.width, row_height);
@@ -329,6 +331,20 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
             f.render_widget(Block::default().style(Style::default().bg(Color::Cyan)), row_area);
         }
 
+        // Status indicator
+        let status_symbol = match user.status {
+            common::UserStatus::Connected => "●",
+            common::UserStatus::Away => "◐",
+            common::UserStatus::Busy => "■",
+            common::UserStatus::Offline => "○",
+        };
+        let status_color = match user.status {
+            common::UserStatus::Connected => Color::Green,
+            common::UserStatus::Away => Color::Yellow,
+            common::UserStatus::Busy => Color::Red,
+            common::UserStatus::Offline => Color::DarkGray,
+        };
+
         if let Some(state) = get_avatar_protocol(app, &user, AVATAR_PIXEL_SIZE) {
             let row_chunks = Layout::default()
                 .direction(Direction::Horizontal)
@@ -337,14 +353,14 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
             let image_widget = StatefulImage::default();
             f.render_stateful_widget(image_widget, row_chunks[0], state);
             let text = Line::from(vec![
-                Span::raw(" "),
+                Span::styled(format!(" {} ", status_symbol), Style::default().fg(status_color)),
                 Span::styled(&user.username, text_style),
                 Span::styled(format!(" ({:?})", user.role), text_style.remove_modifier(Modifier::BOLD).add_modifier(Modifier::DIM)),
             ]);
             f.render_widget(Paragraph::new(text).alignment(ratatui::layout::Alignment::Left), row_chunks[1]);
         } else {
             let text = Line::from(vec![
-                Span::raw(" ○ "),
+                Span::styled(format!(" {} ", status_symbol), Style::default().fg(status_color)),
                 Span::styled(&user.username, text_style),
                 Span::styled(format!(" ({:?})", user.role), text_style.remove_modifier(Modifier::BOLD).add_modifier(Modifier::DIM)),
             ]);

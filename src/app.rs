@@ -125,6 +125,9 @@ pub struct App<'a> {
     // --- Chat scrolling fields ---
     pub chat_scroll_offset: usize, // how many lines up from the latest message
     pub last_chat_rows: Option<usize>, // number of visible chat rows from last render
+
+    // --- Per-channel user list ---
+    pub channel_userlist: Vec<User>,
 }
 
 impl<'a> App<'a> {
@@ -192,6 +195,7 @@ impl<'a> App<'a> {
             selected_channel: None,
             chat_scroll_offset: 0,
             last_chat_rows: None,
+            channel_userlist: vec![],
         }
     }
 
@@ -431,6 +435,9 @@ impl<'a> App<'a> {
                             .collect();
                     }
                 }
+            }
+            ServerMessage::ChannelUserList { channel_id, users } => {
+                self.channel_userlist = users;
             }
         }
     }

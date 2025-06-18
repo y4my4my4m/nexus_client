@@ -865,7 +865,9 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
         app.chat_scroll_offset = 0; // Reset scroll when switching channels
         if let Some(server) = app.servers.get(s) {
             if let Some(channel) = server.channels.get(c) {
-                app.send_to_server(ClientMessage::GetChannelMessages { channel_id: channel.id });
+                let channel_id = channel.id;
+                app.send_to_server(ClientMessage::GetChannelMessages { channel_id });
+                app.send_to_server(ClientMessage::GetChannelUserList { channel_id });
             }
         }
     } else if app.selected_server.is_some() {
@@ -874,8 +876,9 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
             if let Some(server) = app.servers.get(s) {
                 if !server.channels.is_empty() {
                     app.selected_channel = Some(0);
-                    let channel = &server.channels[0];
-                    app.send_to_server(ClientMessage::GetChannelMessages { channel_id: channel.id });
+                    let channel_id = server.channels[0].id;
+                    app.send_to_server(ClientMessage::GetChannelMessages { channel_id });
+                    app.send_to_server(ClientMessage::GetChannelUserList { channel_id });
                 }
             }
         }
