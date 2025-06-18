@@ -4,6 +4,7 @@ use ratatui::{Frame, layout::Rect, style::{Style, Color, Modifier}, widgets::{Bl
 use ratatui::prelude::{Alignment, Direction};
 use crate::app::{App};
 use base64::Engine;
+use crate::global_prefs;
 
 pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
     let items = vec![
@@ -258,4 +259,26 @@ pub fn draw_color_picker_page(f: &mut Frame, app: &mut App, area: Rect) {
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL).title("Colors (←/→ to pick, Enter=Save, Esc=Cancel)"));
     f.render_widget(palette, inner[1]);
+}
+
+pub fn draw_parameters_page(f: &mut Frame, app: &mut App, area: Rect) {
+    use ratatui::widgets::{Block, Borders, Paragraph};
+    use ratatui::text::{Span, Line};
+    use ratatui::style::{Style, Color, Modifier};
+    let block = Block::default().title("Parameters").borders(Borders::ALL);
+    f.render_widget(block, area);
+    let inner = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(0),
+        ])
+        .split(area);
+    let checked = if global_prefs::global_prefs().sound_effects_enabled { "[x]" } else { "[ ]" };
+    let line = Line::from(vec![
+        Span::raw("Sound Effects "),
+        Span::styled(checked, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+    ]);
+    f.render_widget(Paragraph::new(line), inner[0]);
 }

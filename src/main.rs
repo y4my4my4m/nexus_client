@@ -1,10 +1,9 @@
-// client/src/main.rs
-
 mod app;
 mod handler;
 mod ui;
 mod banner;
 mod sound;
+mod global_prefs;
 
 use crate::app::App;
 use crate::sound::SoundManager;
@@ -30,6 +29,7 @@ enum AppEvent {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    global_prefs::init_global_prefs();
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;

@@ -1,8 +1,9 @@
 // client/src/sound.rs
 // SoundManager for playing UI sounds
+use crate::global_prefs::global_prefs;
+use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
 
 #[derive(Hash, Eq, PartialEq, Clone, Copy)]
 pub enum SoundType {
@@ -62,6 +63,9 @@ impl SoundManager {
     }
 
     pub fn play(&self, sound: SoundType) {
+        if !global_prefs().sound_effects_enabled {
+            return;
+        }
         if let Some(data) = self.sounds.get(&sound) {
             if !data.is_empty() {
                 let cursor = std::io::Cursor::new(data.clone());

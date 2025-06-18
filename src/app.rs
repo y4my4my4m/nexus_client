@@ -10,12 +10,14 @@ use std::io::Cursor;
 use std::path::Path;
 use base64::engine::Engine as _;
 use std::collections::HashMap;
+use crate::global_prefs::GlobalPrefs;
+use std::sync::Arc;
 
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum AppMode {
-    Login, Register, MainMenu, Settings, ForumList, ThreadList, PostView, Chat, Input, EditProfile, ColorPicker,
+    Login, Register, MainMenu, Settings, ForumList, ThreadList, PostView, Chat, Input, EditProfile, ColorPicker, Parameters,
 }
 
 #[derive(Debug, Clone, PartialEq)]

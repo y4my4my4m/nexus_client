@@ -76,6 +76,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         }
         AppMode::EditProfile => draw_profile_edit_page(f, app, main_area),
         AppMode::ColorPicker => draw_color_picker_page(f, app, main_area),
+        AppMode::Parameters => crate::ui::settings::draw_parameters_page(f, app, main_area),
     }
 
     if let Some((notification, _, minimal)) = &app.notification {

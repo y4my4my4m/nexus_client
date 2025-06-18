@@ -2,6 +2,7 @@
 
 use crate::app::{App, AppMode, InputMode};
 use crate::sound::SoundType;
+use crate::global_prefs::global_prefs_mut;
 use common::{ClientMessage, SerializableColor};
 use crossterm::event::{self, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::Color;
@@ -51,7 +52,14 @@ pub fn handle_key_event(key: KeyEvent, app: &mut crate::app::App) {
     }
 
     match app.mode {
-        AppMode::Login | AppMode::Register => handle_auth_mode(key, app),
+        AppMode::Login | AppMode::Register => {
+            match key.code {
+                KeyCode::F(2) => {
+                    app.mode = AppMode::Parameters;
+                },
+                _ => handle_auth_mode(key, app),
+            }
+        },
         AppMode::Input => handle_input_mode(key, app),
         _ => handle_main_app_mode(key, app),
     }
@@ -253,6 +261,9 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                 }
             },
             KeyCode::Esc => app.mode = AppMode::MainMenu,
+            KeyCode::Char('p') => {
+                app.mode = AppMode::Parameters;
+            },
             _ => {}
         },
         AppMode::ColorPicker => match key.code {
@@ -771,6 +782,22 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     _ => {}
                 },
             }
+        },
+        AppMode::Parameters => match key.code {
+            KeyCode::Char(' ') | KeyCode::Enter => {
+                let mut prefs = global_prefs_mut();
+                prefs.sound_effects_enabled = !prefs.sound_effects_enabled;
+                prefs.save();
+            },
+            KeyCode::Esc => {
+                // Return to previous menu
+                if app.current_user.is_some() {
+                    app.mode = AppMode::Settings;
+                } else {
+                    app.mode = if app.input_mode == Some(InputMode::RegisterUsername) || app.input_mode == Some(InputMode::RegisterPassword) { AppMode::Register } else { AppMode::Login };
+                }
+            },
+            _ => {}
         },
         _ => {}
     }
