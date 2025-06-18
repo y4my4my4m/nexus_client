@@ -4,6 +4,7 @@ mod ui;
 mod banner;
 mod sound;
 mod global_prefs;
+mod model;
 
 use crate::app::App;
 use crate::sound::SoundManager;

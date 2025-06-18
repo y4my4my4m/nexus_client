@@ -16,6 +16,15 @@ pub struct ChatMessage {
     pub color: Color,
 }
 
+#[derive(Debug, Clone)]
+pub struct ChatMessageWithMeta {
+    pub author: String,
+    pub content: String,
+    pub color: Color,
+    pub profile_pic: Option<String>,
+    pub timestamp: Option<i64>,
+}
+
 // Remove local Thread and Post definitions, use common::{Thread, Post}
 pub use common::{Thread, Post, DirectMessage};
 

@@ -1,6 +1,6 @@
 // client/src/handler.rs
 
-use crate::app::{App, AppMode, InputMode};
+use crate::app::{App, AppMode, InputMode, ChatTarget};
 use crate::sound::SoundType;
 use crate::global_prefs::global_prefs_mut;
 use common::{ClientMessage, SerializableColor};
@@ -602,6 +602,12 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     KeyCode::Enter => {
                         match app.sidebar_tab {
                             crate::app::SidebarTab::Servers => {
+                                if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
+                                    if let (Some(server), Some(channel)) = (app.servers.get(s), app.servers.get(s).and_then(|srv| srv.channels.get(c))) {
+                                        let target = ChatTarget::Channel { server_id: server.id, channel_id: channel.id };
+                                        app.set_current_chat_target(target);
+                                    }
+                                }
                                 if app.selected_server.is_some() && app.selected_channel.is_none() {
                                     app.show_server_actions = true;
                                     app.server_actions_selected = 0;
@@ -614,6 +620,8 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                                 if let Some(idx) = app.selected_dm_user {
                                     if let Some(user) = app.dm_user_list.get(idx) {
                                         let user_id = user.id;
+                                        let target = ChatTarget::DM { user_id };
+                                        app.set_current_chat_target(target);
                                         app.dm_target = Some(user_id);
                                         app.send_to_server(ClientMessage::GetDirectMessages { user_id, before: None });
                                         app.chat_focus = crate::app::ChatFocus::Messages;
@@ -700,50 +708,58 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                                     }
                                 }
                             }
-                        } else if !app.current_input.is_empty() {
-                            if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
-                                if let Some(server) = app.servers.get(s) {
-                                    if let Some(channel) = server.channels.get(c) {
-                                        let content = app.current_input.drain(..).collect();
-                                        app.send_to_server(ClientMessage::SendChannelMessage {
-                                            channel_id: channel.id,
-                                            content,
-                                        });
-                                        app.sound_manager.play(SoundType::SendChannelMessage);
+                        } else {
+                            let content = app.get_current_input().to_string();
+                            if !content.is_empty() {
+                                if let Some(target) = &app.current_chat_target {
+                                    match target {
+                                        ChatTarget::Channel { channel_id, .. } => {
+                                            app.send_to_server(ClientMessage::SendChannelMessage {
+                                                channel_id: *channel_id,
+                                                content: content.clone(),
+                                            });
+                                            app.sound_manager.play(SoundType::SendChannelMessage);
+                                        },
+                                        ChatTarget::DM { user_id } => {
+                                            app.send_to_server(ClientMessage::SendDirectMessage {
+                                                to: *user_id,
+                                                content: content.clone(),
+                                            });
+                                            app.sound_manager.play(SoundType::MessageSent);
+                                        },
                                     }
+                                    app.clear_current_input();
                                 }
                             }
                         }
-                },
-                KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
-                    app.show_user_list = !app.show_user_list;
-                    app.chat_focus = if app.show_user_list {
-                        crate::app::ChatFocus::Users
-                    } else {
-                        crate::app::ChatFocus::Messages
-                    };
-                },
-                KeyCode::Char(c) => {
-                    if key.modifiers.contains(KeyModifiers::CONTROL) {
-                        return;
-                    }
-                    app.current_input.push(c);
-                    // Check for @mention context
-                    let cursor = app.current_input.len();
-                    let upto = &app.current_input[..cursor];
-                    if let Some(idx) = upto.rfind('@') {
-                        let after_at = &upto[(idx+1)..];
-                        if after_at.chars().all(|ch| ch.is_alphanumeric() || ch == '_' ) && !after_at.is_empty() {
-                            let prefix = after_at;
-                            let mut suggestions: Vec<usize> = app.channel_userlist.iter().enumerate()
-                                .filter(|(_, u)| u.username.to_lowercase().starts_with(&prefix.to_lowercase()))
-                                .map(|(i, _)| i)
-                                .collect();
-                            suggestions.sort_by_key(|&i| app.channel_userlist[i].username.to_lowercase());
-                            if !suggestions.is_empty() {
-                                app.mention_suggestions = suggestions;
-                                app.mention_selected = 0;
-                                app.mention_prefix = Some(prefix.to_string());
+                    },
+                    KeyCode::Char(c) => {
+                        if key.modifiers.contains(KeyModifiers::CONTROL) {
+                            return;
+                        }
+                        let mut cur = app.get_current_input().to_string();
+                        cur.push(c);
+                        app.set_current_input(cur);
+                        // Check for @mention context
+                        let cursor = app.current_input.len();
+                        let upto = &app.current_input[..cursor];
+                        if let Some(idx) = upto.rfind('@') {
+                            let after_at = &upto[(idx+1)..];
+                            if after_at.chars().all(|ch| ch.is_alphanumeric() || ch == '_' ) && !after_at.is_empty() {
+                                let prefix = after_at;
+                                let mut suggestions: Vec<usize> = app.channel_userlist.iter().enumerate()
+                                    .filter(|(_, u)| u.username.to_lowercase().starts_with(&prefix.to_lowercase()))
+                                    .map(|(i, _)| i)
+                                    .collect();
+                                suggestions.sort_by_key(|&i| app.channel_userlist[i].username.to_lowercase());
+                                if !suggestions.is_empty() {
+                                    app.mention_suggestions = suggestions;
+                                    app.mention_selected = 0;
+                                    app.mention_prefix = Some(prefix.to_string());
+                                } else {
+                                    app.mention_suggestions.clear();
+                                    app.mention_prefix = None;
+                                }
                             } else {
                                 app.mention_suggestions.clear();
                                 app.mention_prefix = None;
@@ -752,29 +768,31 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                             app.mention_suggestions.clear();
                             app.mention_prefix = None;
                         }
-                    } else {
-                        app.mention_suggestions.clear();
-                        app.mention_prefix = None;
-                    }
-                },
-                KeyCode::Backspace => {
-                    app.current_input.pop();
-                    // Recompute mention suggestions
-                    let cursor = app.current_input.len();
-                    let upto = &app.current_input[..cursor];
-                    if let Some(idx) = upto.rfind('@') {
-                        let after_at = &upto[(idx+1)..];
-                        if after_at.chars().all(|ch| ch.is_alphanumeric() || ch == '_' ) && !after_at.is_empty() {
-                            let prefix = after_at;
-                            let mut suggestions: Vec<usize> = app.channel_userlist.iter().enumerate()
-                                .filter(|(_, u)| u.username.to_lowercase().starts_with(&prefix.to_lowercase()))
-                                .map(|(i, _)| i)
-                                .collect();
-                            suggestions.sort_by_key(|&i| app.channel_userlist[i].username.to_lowercase());
-                            if !suggestions.is_empty() {
-                                app.mention_suggestions = suggestions;
-                                app.mention_selected = 0;
-                                app.mention_prefix = Some(prefix.to_string());
+                    },
+                    KeyCode::Backspace => {
+                        let mut cur = app.get_current_input().to_string();
+                        cur.pop();
+                        app.set_current_input(cur);
+                        // Recompute mention suggestions
+                        let cursor = app.current_input.len();
+                        let upto = &app.current_input[..cursor];
+                        if let Some(idx) = upto.rfind('@') {
+                            let after_at = &upto[(idx+1)..];
+                            if after_at.chars().all(|ch| ch.is_alphanumeric() || ch == '_' ) && !after_at.is_empty() {
+                                let prefix = after_at;
+                                let mut suggestions: Vec<usize> = app.channel_userlist.iter().enumerate()
+                                    .filter(|(_, u)| u.username.to_lowercase().starts_with(&prefix.to_lowercase()))
+                                    .map(|(i, _)| i)
+                                    .collect();
+                                suggestions.sort_by_key(|&i| app.channel_userlist[i].username.to_lowercase());
+                                if !suggestions.is_empty() {
+                                    app.mention_suggestions = suggestions;
+                                    app.mention_selected = 0;
+                                    app.mention_prefix = Some(prefix.to_string());
+                                } else {
+                                    app.mention_suggestions.clear();
+                                    app.mention_prefix = None;
+                                }
                             } else {
                                 app.mention_suggestions.clear();
                                 app.mention_prefix = None;
@@ -783,13 +801,9 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                             app.mention_suggestions.clear();
                             app.mention_prefix = None;
                         }
-                    } else {
-                        app.mention_suggestions.clear();
-                        app.mention_prefix = None;
-                    }
-                },
-                KeyCode::Esc => app.mode = AppMode::MainMenu,
-                _ => {}
+                    },
+                    KeyCode::Esc => app.mode = AppMode::MainMenu,
+                    _ => {}
                 },
                 crate::app::ChatFocus::Users => match key.code {
                     KeyCode::Tab => {

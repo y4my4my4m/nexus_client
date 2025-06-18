@@ -69,6 +69,12 @@ pub enum SidebarTab {
     DMs,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ChatTarget {
+    Channel { server_id: Uuid, channel_id: Uuid },
+    DM { user_id: Uuid },
+}
+
 pub struct App<'a> {
     pub mode: AppMode,
     pub input_mode: Option<InputMode>,
@@ -166,6 +172,10 @@ pub struct App<'a> {
     pub sidebar_tab: SidebarTab,
     pub unread_channels: HashSet<uuid::Uuid>, // channel_id
     pub unread_dm_conversations: HashSet<uuid::Uuid>, // user_id
+
+    // --- Chat input drafts ---
+    pub chat_input_drafts: HashMap<ChatTarget, String>,
+    pub current_chat_target: Option<ChatTarget>,
 }
 
 impl<'a> App<'a> {
@@ -248,6 +258,8 @@ impl<'a> App<'a> {
             sidebar_tab: SidebarTab::Servers,
             unread_channels: HashSet::new(),
             unread_dm_conversations: HashSet::new(),
+            chat_input_drafts: HashMap::new(),
+            current_chat_target: None,
         }
     }
 
@@ -778,17 +790,73 @@ impl<'a> App<'a> {
         f.render_stateful_widget(list, area, &mut app.user_list_state.clone());
     }
 
-    pub fn draw_dm_conversation(f: &mut ratatui::Frame, app: &mut App, area: ratatui::layout::Rect) {
-        use ratatui::widgets::{Block, Borders, Paragraph};
-        use ratatui::text::{Span, Line};
-        let lines: Vec<Line> = app.dm_messages.iter().map(|m| {
-            Line::from(vec![
-                Span::styled(format!("{}: ", m.author_username), ratatui::style::Style::default().fg(m.author_color)),
-                Span::raw(&m.content),
-            ])
-        }).collect();
-        let para = Paragraph::new(lines)
-            .block(Block::default().borders(Borders::ALL).title("Conversation"));
-        f.render_widget(para, area);
+    pub fn set_current_chat_target(&mut self, target: ChatTarget) {
+        self.current_chat_target = Some(target);
+    }
+    pub fn get_current_input(&self) -> &str {
+        if let Some(target) = &self.current_chat_target {
+            self.chat_input_drafts.get(target).map(|s| s.as_str()).unwrap_or("")
+        } else {
+            ""
+        }
+    }
+    pub fn set_current_input(&mut self, value: String) {
+        if let Some(target) = &self.current_chat_target {
+            self.chat_input_drafts.insert(target.clone(), value);
+        }
+    }
+    pub fn clear_current_input(&mut self) {
+        if let Some(target) = &self.current_chat_target {
+            self.chat_input_drafts.insert(target.clone(), String::new());
+        }
+    }
+    // --- Shared chat message list logic for channel and DM ---
+    pub fn get_current_message_list(&self) -> Vec<crate::model::ChatMessageWithMeta> {
+        match &self.current_chat_target {
+            Some(ChatTarget::Channel { server_id, channel_id }) => {
+                for server in &self.servers {
+                    if &server.id == server_id {
+                        for channel in &server.channels {
+                            if &channel.id == channel_id {
+                                return channel.messages.iter().map(|msg| crate::model::ChatMessageWithMeta {
+                                    author: msg.author_username.clone(),
+                                    content: msg.content.clone(),
+                                    color: msg.author_color,
+                                    profile_pic: msg.author_profile_pic.clone(),
+                                    timestamp: Some(msg.timestamp),
+                                }).collect();
+                            }
+                        }
+                    }
+                }
+                vec![]
+            }
+            Some(ChatTarget::DM { user_id }) => {
+                self.dm_messages.iter().filter(|msg| msg.from == *user_id || msg.to == *user_id).map(|msg| {
+                    let (author, color, profile_pic) = if msg.from == *user_id {
+                        // Find user in dm_user_list
+                        if let Some(user) = self.dm_user_list.iter().find(|u| u.id == msg.from) {
+                            (user.username.clone(), user.color, user.profile_pic.clone())
+                        } else {
+                            ("?".to_string(), ratatui::style::Color::Gray, None)
+                        }
+                    } else {
+                        // Current user
+                        let username = self.current_user.as_ref().map(|u| u.username.clone()).unwrap_or("me".to_string());
+                        let color = self.current_user.as_ref().map(|u| u.color).unwrap_or(ratatui::style::Color::Cyan);
+                        let profile_pic = self.current_user.as_ref().and_then(|u| u.profile_pic.clone());
+                        (username, color, profile_pic)
+                    };
+                    crate::model::ChatMessageWithMeta {
+                        author,
+                        content: msg.content.clone(),
+                        color,
+                        profile_pic,
+                        timestamp: Some(msg.timestamp),
+                    }
+                }).collect()
+            }
+            None => vec![]
+        }
     }
 }
