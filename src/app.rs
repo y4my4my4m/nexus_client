@@ -343,15 +343,6 @@ impl<'a> App<'a> {
                 self.password_input.clear();
                 self.main_menu_state.select(Some(0));
                 self.sound_manager.play(SoundType::LoginSuccess);
-                // self.send_to_server(ClientMessage::GetServers); // Ensure servers are requested after login
-                // --- FIX: Request channel user list for first channel if in chat mode ---
-                // if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {
-                //     if let Some(server) = self.servers.get(s) {
-                //         if let Some(channel) = server.channels.get(c) {
-                //             self.send_to_server(ClientMessage::GetChannelUserList { channel_id: channel.id });
-                //         }
-                //     }
-                // }
             }
             ServerMessage::AuthFailure(reason) => {
                 self.set_notification(format!("Error: {}", reason), None, false);

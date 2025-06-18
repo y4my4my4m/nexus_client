@@ -528,9 +528,9 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
             if app.show_server_actions {
                 match key.code {
                     KeyCode::Up => {
+                        app.sound_manager.play(SoundType::Scroll);
                         if app.server_actions_selected > 0 {
                             app.server_actions_selected -= 1;
-                            app.sound_manager.play(SoundType::Scroll);
                         }
                     },
                     KeyCode::Down => {
@@ -592,43 +592,27 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                             crate::app::SidebarTab::Servers => move_sidebar_selection(app, 1),
                             crate::app::SidebarTab::DMs => move_dm_selection(app, 1),
                         }
+                        select_current_sidebar_target(app);
                     },
                     KeyCode::Up => {
                         match app.sidebar_tab {
                             crate::app::SidebarTab::Servers => move_sidebar_selection(app, -1),
                             crate::app::SidebarTab::DMs => move_dm_selection(app, -1),
                         }
+                        select_current_sidebar_target(app);
                     },
                     KeyCode::Enter => {
-                        match app.sidebar_tab {
-                            crate::app::SidebarTab::Servers => {
-                                if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
-                                    if let (Some(server), Some(channel)) = (app.servers.get(s), app.servers.get(s).and_then(|srv| srv.channels.get(c))) {
-                                        let target = ChatTarget::Channel { server_id: server.id, channel_id: channel.id };
-                                        app.set_current_chat_target(target);
-                                    }
-                                }
-                                if app.selected_server.is_some() && app.selected_channel.is_none() {
-                                    app.show_server_actions = true;
-                                    app.server_actions_selected = 0;
-                                    app.sound_manager.play(SoundType::PopupOpen);
-                                } else {
-                                    app.chat_focus = crate::app::ChatFocus::Messages;
-                                }
-                            },
-                            crate::app::SidebarTab::DMs => {
-                                if let Some(idx) = app.selected_dm_user {
-                                    if let Some(user) = app.dm_user_list.get(idx) {
-                                        let user_id = user.id;
-                                        let target = ChatTarget::DM { user_id };
-                                        app.set_current_chat_target(target);
-                                        app.dm_target = Some(user_id);
-                                        app.send_to_server(ClientMessage::GetDirectMessages { user_id, before: None });
-                                        app.chat_focus = crate::app::ChatFocus::Messages;
-                                        app.unread_dm_conversations.remove(&user_id);
-                                    }
-                                }
+                        select_current_sidebar_target(app);
+                        if let crate::app::SidebarTab::Servers = app.sidebar_tab {
+                            if app.selected_server.is_some() && app.selected_channel.is_none() {
+                                app.show_server_actions = true;
+                                app.server_actions_selected = 0;
+                                app.sound_manager.play(SoundType::PopupOpen);
+                            } else {
+                                app.chat_focus = crate::app::ChatFocus::Messages;
                             }
+                        } else {
+                            app.chat_focus = crate::app::ChatFocus::Messages;
                         }
                     },
                     KeyCode::Esc => app.mode = AppMode::MainMenu,
@@ -901,19 +885,34 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
 
 }
 
-// If DM list is open and a DM user is selected, move within DM users
-// if app.show_dm_list && app.selected_dm_user.is_some() {
-//     let len = app.dm_user_list.len();
-//     if len > 0 {
-//         let idx = app.selected_dm_user.unwrap();
-//         let new_idx = if direction == 1 {
-//             (idx + 1) % len
-//         } else {
-//             (idx + len - 1) % len
-//         };
-//         app.selected_dm_user = Some(new_idx);
-//     }
-// } else {
+fn select_current_sidebar_target(app: &mut App) {
+    match app.sidebar_tab {
+        crate::app::SidebarTab::Servers => {
+            if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
+                if let (Some(server), Some(channel)) = (app.servers.get(s), app.servers.get(s).and_then(|srv| srv.channels.get(c))) {
+                    let server_id = server.id;
+                    let channel_id = channel.id;
+                    let target = ChatTarget::Channel { server_id, channel_id };
+                    app.set_current_chat_target(target);
+                    app.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: None });
+                    app.send_to_server(ClientMessage::GetChannelUserList { channel_id });
+                }
+            }
+        }
+        crate::app::SidebarTab::DMs => {
+            if let Some(idx) = app.selected_dm_user {
+                if let Some(user) = app.dm_user_list.get(idx) {
+                    let user_id = user.id;
+                    let target = ChatTarget::DM { user_id };
+                    app.set_current_chat_target(target);
+                    app.dm_target = Some(user_id);
+                    app.send_to_server(ClientMessage::GetDirectMessages { user_id, before: None });
+                    app.unread_dm_conversations.remove(&user_id);
+                }
+            }
+        }
+    }
+}
 
 fn move_sidebar_selection(app: &mut App, direction: i32) {
     // direction: 1 for down, -1 for up
