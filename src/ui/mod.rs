@@ -23,7 +23,10 @@ use crate::ui::popups::{draw_input_popup, draw_notification_popup, draw_minimal_
 
 pub fn ui(f: &mut Frame, app: &mut App) {
     let size = f.area();
-    let banner_height = if app.current_user.is_none() { 9 } else { 3 };
+    let (banner_height, use_full_banner) = match app.mode {
+        AppMode::Login | AppMode::Register | AppMode::MainMenu => (9, true),
+        _ => (3, false),
+    };
     let chunks = ratatui::layout::Layout::default()
         .constraints([
             ratatui::layout::Constraint::Length(banner_height), // Banner height
@@ -32,7 +35,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         ])
         .split(size);
 
-    if app.current_user.is_none() {
+    if use_full_banner {
         draw_full_banner(f, app, chunks[0]);
     } else {
         draw_min_banner(f, app, chunks[0]);
