@@ -30,6 +30,7 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             Constraint::Length(3), // Url2
             Constraint::Length(3), // Url3
             Constraint::Length(3), // Location
+            Constraint::Length(1), // ProfilePic Info
             Constraint::Length(5), // ProfilePic Preview
             Constraint::Length(3), // ProfilePic Field+Delete
             Constraint::Length(5), // CoverBanner Preview
@@ -87,6 +88,12 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             .style(location_style),
         inner[4],
     );
+    // Info for profile pic (now its own row)
+    let info_line = Paragraph::new(Span::styled(
+        "(i) Image must be a local file path, under 1MB, with no spaces in the path/name.",
+        Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC)
+    )).alignment(Alignment::Left);
+    f.render_widget(info_line, inner[5]);
     // Profile Pic preview (if any) above the field
     let pic_style = if app.profile_edit_focus == ProfilePic {
         Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
@@ -97,20 +104,20 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             if let Ok(img) = image::load_from_memory(&bytes) {
                 let mut protocol = app.picker.new_resize_protocol(img);
                 let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
-                f.render_stateful_widget(image_widget, inner[5], &mut protocol);
+                f.render_stateful_widget(image_widget, inner[6], &mut protocol);
                 show_placeholder = false;
             }
         }
         if show_placeholder {
             let preview_block = Block::default().borders(Borders::ALL).title("Profile Pic Preview");
-            f.render_widget(preview_block, inner[5]);
+            f.render_widget(preview_block, inner[6]);
         }
     }
     // Always render the field+delete row
     let row = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(80), Constraint::Percentage(20)])
-        .split(inner[6]);
+        .split(inner[7]);
     f.render_widget(
         Paragraph::new(app.edit_profile_pic.clone())
             .block(Block::default().borders(Borders::ALL).title("Profile Pic").border_style(pic_style))
@@ -134,20 +141,20 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             if let Ok(img) = image::load_from_memory(&bytes) {
                 let mut protocol = app.picker.new_resize_protocol(img);
                 let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
-                f.render_stateful_widget(image_widget, inner[7], &mut protocol);
+                f.render_stateful_widget(image_widget, inner[8], &mut protocol);
                 show_placeholder = false;
             }
         }
         if show_placeholder {
             let preview_block = Block::default().borders(Borders::ALL).title("Banner Preview");
-            f.render_widget(preview_block, inner[7]);
+            f.render_widget(preview_block, inner[8]);
         }
     }
     // Always render the field+delete row
     let row = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(80), Constraint::Percentage(20)])
-        .split(inner[8]);
+        .split(inner[9]);
     f.render_widget(
         Paragraph::new(app.edit_cover_banner.clone())
             .block(Block::default().borders(Borders::ALL).title("Cover Banner").border_style(banner_style))
@@ -177,10 +184,10 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
         Span::raw("   "),
         Span::styled("[ Cancel ]", cancel_style),
     ]);
-    f.render_widget(Paragraph::new(buttons).alignment(Alignment::Center), inner[9]);
+    f.render_widget(Paragraph::new(buttons).alignment(Alignment::Center), inner[10]);
     // Error message
     if let Some(err) = &app.profile_edit_error {
-        f.render_widget(Paragraph::new(err.as_str()).style(Style::default().fg(Color::Red)), inner[10]);
+        f.render_widget(Paragraph::new(err.as_str()).style(Style::default().fg(Color::Red)), inner[11]);
     }
     // Set cursor for focused field
     let cursor = match app.profile_edit_focus {
@@ -195,8 +202,8 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
         Url2 => (inner[2].x + app.edit_url2.len() as u16 + 1, inner[2].y + 1),
         Url3 => (inner[3].x + app.edit_url3.len() as u16 + 1, inner[3].y + 1),
         Location => (inner[4].x + app.edit_location.len() as u16 + 1, inner[4].y + 1),
-        ProfilePic => (inner[6].x + app.edit_profile_pic.len() as u16 + 1, inner[6].y + 1),
-        CoverBanner => (inner[8].x + app.edit_cover_banner.len() as u16 + 1, inner[8].y + 1),
+        ProfilePic => (inner[7].x + app.edit_profile_pic.len() as u16 + 1, inner[7].y + 1),
+        CoverBanner => (inner[9].x + app.edit_cover_banner.len() as u16 + 1, inner[9].y + 1),
         _ => (0, 0),
     };
     if matches!(app.profile_edit_focus, Bio|Url1|Url2|Url3|Location|ProfilePic|CoverBanner) {
