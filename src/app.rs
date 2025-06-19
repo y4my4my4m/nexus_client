@@ -480,7 +480,7 @@ impl<'a> App<'a> {
             }
             ServerMessage::DirectMessage(dm) => {
                 let is_current = if let Some(ChatTarget::DM { user_id }) = self.current_chat_target {
-                    user_id == dm.from && self.sidebar_tab == SidebarTab::DMs
+                    (user_id == dm.from || user_id == dm.to) && self.sidebar_tab == SidebarTab::DMs
                 } else { false };
                 if is_current {
                     self.dm_messages.push(dm);
