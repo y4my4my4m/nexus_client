@@ -478,19 +478,22 @@ impl<'a> App<'a> {
                     existing.status = common::UserStatus::Offline;
                 }
             }
-            ServerMessage::DirectMessage { from, content } => {
-                let is_current = if let Some(target) = self.dm_target {
-                    target == from.id && self.sidebar_tab == SidebarTab::DMs
+            ServerMessage::DirectMessage(dm) => {
+                let is_current = if let Some(ChatTarget::DM { user_id }) = self.current_chat_target {
+                    user_id == dm.from && self.sidebar_tab == SidebarTab::DMs
                 } else { false };
-                if !is_current {
-                    self.unread_dm_conversations.insert(from.id);
+                if is_current {
+                    self.dm_messages.push(dm);
+                    self.chat_scroll_offset = 0;
+                } else {
+                    self.unread_dm_conversations.insert(dm.from);
+                    self.set_notification(
+                        format!("DM from {}: {}", dm.author_username, dm.content),
+                        Some(4000),
+                        true,
+                    );
+                    self.sound_manager.play(SoundType::DirectMessage);
                 }
-                self.set_notification(
-                    format!("DM from {}: {}", from.username, content),
-                    Some(4000),
-                    true,
-                );
-                self.sound_manager.play(SoundType::DirectMessage);
             }
             ServerMessage::MentionNotification { from, content } => {
                 self.set_notification(
@@ -585,10 +588,34 @@ impl<'a> App<'a> {
                 }
             }
             ServerMessage::DirectMessages { user_id, messages, history_complete } => {
-                // Always replace the DM messages with the latest from the server
+                // --- DM scrollback logic: prepend and adjust scroll offset ---
                 if let Some(idx) = self.dm_user_list.iter().position(|u| u.id == user_id) {
-                    self.dm_messages = messages;
-                    self.dm_history_complete = history_complete;
+                    if self.dm_messages.is_empty() {
+                        // Initial load: just set messages and scroll to bottom
+                        self.dm_messages = messages.clone();
+                        self.dm_history_complete = history_complete;
+                        self.chat_scroll_offset = 0;
+                    } else if !messages.is_empty() && self.dm_messages.first().map(|m| m.id) != messages.first().map(|m| m.id) {
+                        // Scrollback: prepend older messages
+                        let mut new_msgs = messages.clone();
+                        let added = new_msgs.len();
+                        new_msgs.append(&mut self.dm_messages);
+                        self.dm_messages = new_msgs;
+                        self.dm_history_complete = history_complete;
+                        self.chat_scroll_offset += added;
+                        // Clamp scroll offset so you can't scroll past the top
+                        let total_msgs = self.dm_messages.len();
+                        let max_rows = self.last_chat_rows.unwrap_or(20);
+                        let max_scroll = total_msgs.saturating_sub(max_rows);
+                        if self.chat_scroll_offset > max_scroll {
+                            self.chat_scroll_offset = max_scroll;
+                        }
+                    } else {
+                        // Replace (e.g. DM switch)
+                        self.dm_messages = messages.clone();
+                        self.dm_history_complete = history_complete;
+                        self.chat_scroll_offset = 0;
+                    }
                 }
             }
             ServerMessage::Notifications { notifications, history_complete } => {

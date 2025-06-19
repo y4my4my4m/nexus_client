@@ -75,7 +75,8 @@ pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
         }
         crate::app::SidebarTab::DMs => {
             draw_sidebar_dms(f, app, sidebar_chunks[1], focus == ChatFocus::Sidebar);
-            App::draw_dm_conversation(f, app, chunks[1]);
+            // Use draw_chat_main for DM conversation view
+            draw_chat_main(f, app, chunks[1], focus == ChatFocus::Messages);
         }
     }
     if show_users && chunks.len() > 2 {
@@ -208,6 +209,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
 
     let messages = app.get_current_message_list();
     let max_rows = (inner_area.height as usize) / (row_height as usize + 1);
+    app.last_chat_rows = Some(max_rows); // Store for scroll calculations
     let total_msgs = messages.len();
     let end_idx = total_msgs.saturating_sub(app.chat_scroll_offset);
     let start_idx = end_idx.saturating_sub(max_rows);

@@ -6,6 +6,7 @@ use crate::global_prefs::global_prefs_mut;
 use common::{ClientMessage, SerializableColor};
 use crossterm::event::{self, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::Color;
+use uuid::Uuid;
 
 pub fn handle_key_event(key: KeyEvent, app: &mut crate::app::App) {
     if key.kind != event::KeyEventKind::Press { return; }
@@ -631,40 +632,65 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     },
                     KeyCode::PageUp => {
                         app.sound_manager.play(SoundType::Scroll);
-                        let (max_rows, total_msgs, channel_id, history_complete, oldest_msg_id) = if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
-                            if let Some(server) = app.servers.get(s) {
-                                if let Some(channel) = server.channels.get(c) {
-                                    let max_rows = app.last_chat_rows.unwrap_or(20);
-                                    let channel_id = channel.id;
-                                    let history_complete = *app.channel_history_complete.get(&channel_id).unwrap_or(&false);
-                                    let oldest_msg_id = channel.messages.first().map(|m| m.id);
-                                    (max_rows, channel.messages.len(), Some(channel_id), history_complete, oldest_msg_id)
-                                } else { (20, 0, None, false, None) }
-                            } else { (20, 0, None, false, None) }
-                        } else {
-                            let max_rows = app.last_chat_rows.unwrap_or(20);
-                            (max_rows, app.chat_messages.len(), None, false, None)
-                        };
-                        let max_scroll_offset = total_msgs.saturating_sub(max_rows);
-                        // Clamp scroll offset
-                        app.chat_scroll_offset = (app.chat_scroll_offset + max_rows).min(max_scroll_offset);
-                        // If we've scrolled to the top and history isn't complete, fetch more
-                        if app.chat_scroll_offset == max_scroll_offset && !history_complete {
-                            if let (Some(channel_id), Some(before_id)) = (channel_id, oldest_msg_id) {
-                                app.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: Some(before_id) });
+                        let max_rows = app.last_chat_rows.unwrap_or(20);
+                        match &app.current_chat_target {
+                            Some(ChatTarget::Channel { server_id, channel_id }) => {
+                                let total_msgs = app.get_current_message_list().len();
+                                let max_scroll_offset = total_msgs.saturating_sub(max_rows);
+                                
+                                // Increase scroll offset, but clamp to max
+                                app.chat_scroll_offset = (app.chat_scroll_offset + max_rows).min(max_scroll_offset);
+                                
+                                // Fetch more messages when we're close to the top (not just exactly at max offset)
+                                let history_complete = app.channel_history_complete.get(channel_id).copied().unwrap_or(false);
+                                let should_fetch = !history_complete && 
+                                    (app.chat_scroll_offset >= max_scroll_offset.saturating_sub(max_rows / 2) || 
+                                     total_msgs <= max_rows * 2);
+                                
+                                if should_fetch {
+                                    let oldest_msg_id = app.servers.iter()
+                                        .find(|s| &s.id == server_id)
+                                        .and_then(|server| server.channels.iter().find(|c| &c.id == channel_id))
+                                        .and_then(|channel| channel.messages.first())
+                                        .map(|msg| msg.id);
+                                    
+                                    if let Some(before) = oldest_msg_id {
+                                        app.send_to_server(ClientMessage::GetChannelMessages { channel_id: *channel_id, before: Some(before) });
+                                    }
+                                }
                             }
+                            Some(ChatTarget::DM { user_id }) => {
+                                let total_msgs = app.get_current_message_list().len();
+                                let max_scroll_offset = total_msgs.saturating_sub(max_rows);
+                                
+                                app.chat_scroll_offset = (app.chat_scroll_offset + max_rows).min(max_scroll_offset);
+                                
+                                // Fetch more DM messages when close to the top
+                                let should_fetch = !app.dm_history_complete && 
+                                    (app.chat_scroll_offset >= max_scroll_offset.saturating_sub(max_rows / 2) || 
+                                     total_msgs <= max_rows * 2);
+                                
+                                if should_fetch {
+                                    let oldest = app.dm_messages.first().map(|m| m.timestamp);
+                                    if let Some(before) = oldest {
+                                        app.send_to_server(ClientMessage::GetDirectMessages { user_id: *user_id, before: Some(before) });
+                                    }
+                                }
+                            }
+                            _ => {}
                         }
-                    },
+                    }
                     KeyCode::PageDown => {
                         let max_rows = app.last_chat_rows.unwrap_or(20);
-                        // Clamp scroll offset
+                        let total_msgs = app.get_current_message_list().len();
+                        
                         if app.chat_scroll_offset >= max_rows {
                             app.chat_scroll_offset -= max_rows;
                         } else {
                             app.chat_scroll_offset = 0;
                         }
                         app.sound_manager.play(SoundType::Scroll);
-                    },
+                    }
                     KeyCode::Down => {
                         if !app.mention_suggestions.is_empty() {
                             app.mention_selected = (app.mention_selected + 1) % app.mention_suggestions.len();
