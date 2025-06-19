@@ -479,20 +479,26 @@ impl<'a> App<'a> {
                 }
             }
             ServerMessage::DirectMessage(dm) => {
-                let is_current = if let Some(ChatTarget::DM { user_id }) = self.current_chat_target {
-                    (user_id == dm.from || user_id == dm.to) && self.sidebar_tab == SidebarTab::DMs
+                let current_user_id = self.current_user.as_ref().map(|u| u.id);
+                let is_current = if let (Some(ChatTarget::DM { user_id }), Some(my_id)) = (self.current_chat_target.as_ref(), current_user_id) {
+                    // Only true if the DM is with the other user and we're in the DMs tab
+                    (user_id == &dm.from || user_id == &dm.to) && self.sidebar_tab == SidebarTab::DMs
+                        && (user_id == &dm.from || user_id == &dm.to)
                 } else { false };
                 if is_current {
                     self.dm_messages.push(dm);
                     self.chat_scroll_offset = 0;
-                } else {
-                    self.unread_dm_conversations.insert(dm.from);
-                    self.set_notification(
-                        format!("DM from {}: {}", dm.author_username, dm.content),
-                        Some(4000),
-                        true,
-                    );
-                    self.sound_manager.play(SoundType::DirectMessage);
+                } else if let Some(my_id) = current_user_id {
+                    // Only show notification if we are the recipient and not currently viewing the conversation
+                    if dm.to == my_id {
+                        self.unread_dm_conversations.insert(dm.from);
+                        self.set_notification(
+                            format!("DM from {}: {}", dm.author_username, dm.content),
+                            Some(4000),
+                            true,
+                        );
+                        self.sound_manager.play(SoundType::DirectMessage);
+                    }
                 }
             }
             ServerMessage::MentionNotification { from, content } => {
