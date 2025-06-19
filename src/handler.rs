@@ -707,12 +707,14 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     },
                     KeyCode::Enter => {
                         if !app.mention_suggestions.is_empty() {
-                            // Insert selected mention
+                            // Insert selected mention using per-channel input draft
                             if let Some(prefix) = &app.mention_prefix {
                                 if let Some(&user_idx) = app.mention_suggestions.get(app.mention_selected) {
                                     let suggestion = &app.channel_userlist[user_idx].username;
-                                    if let Some(idx) = app.current_input.rfind(&format!("@{prefix}")) {
-                                        app.current_input.replace_range(idx..(idx + 1 + prefix.len()), &format!("@{} ", suggestion));
+                                    let mut input = app.get_current_input().to_string();
+                                    if let Some(idx) = input.rfind(&format!("@{prefix}")) {
+                                        input.replace_range(idx..(idx + 1 + prefix.len()), &format!("@{} ", suggestion));
+                                        app.set_current_input(input);
                                         app.mention_suggestions.clear();
                                         app.mention_prefix = None;
                                     }
@@ -750,9 +752,10 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         let mut cur = app.get_current_input().to_string();
                         cur.push(c);
                         app.set_current_input(cur);
-                        // Check for @mention context
-                        let cursor = app.current_input.len();
-                        let upto = &app.current_input[..cursor];
+                        // Clone input to avoid borrow issues
+                        let input = app.get_current_input().to_string();
+                        let cursor = input.len();
+                        let upto = &input[..cursor];
                         if let Some(idx) = upto.rfind('@') {
                             let after_at = &upto[(idx+1)..];
                             if after_at.chars().all(|ch| ch.is_alphanumeric() || ch == '_' ) && !after_at.is_empty() {
@@ -783,9 +786,10 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         let mut cur = app.get_current_input().to_string();
                         cur.pop();
                         app.set_current_input(cur);
-                        // Recompute mention suggestions
-                        let cursor = app.current_input.len();
-                        let upto = &app.current_input[..cursor];
+                        // Clone input to avoid borrow issues
+                        let input = app.get_current_input().to_string();
+                        let cursor = input.len();
+                        let upto = &input[..cursor];
                         if let Some(idx) = upto.rfind('@') {
                             let after_at = &upto[(idx+1)..];
                             if after_at.chars().all(|ch| ch.is_alphanumeric() || ch == '_' ) && !after_at.is_empty() {
@@ -922,6 +926,8 @@ fn select_current_sidebar_target(app: &mut App) {
                     app.set_current_chat_target(target);
                     app.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: None });
                     app.send_to_server(ClientMessage::GetChannelUserList { channel_id });
+                    // Always scroll to bottom when switching channel
+                    app.chat_scroll_offset = 0;
                 }
             }
         }
@@ -934,6 +940,8 @@ fn select_current_sidebar_target(app: &mut App) {
                     app.dm_target = Some(user_id);
                     app.send_to_server(ClientMessage::GetDirectMessages { user_id, before: None });
                     app.unread_dm_conversations.remove(&user_id);
+                    // Always scroll to bottom when switching DM
+                    app.chat_scroll_offset = 0;
                 }
             }
         }

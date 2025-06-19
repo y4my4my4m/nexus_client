@@ -356,48 +356,10 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     if focused {
         f.set_cursor_position((chunks[1].x + input_str.len() as u16 + 1, chunks[1].y + 1));
     }
-
     // Draw mention suggestions popup if present
     if focused {
-        if !app.mention_suggestions.is_empty() {
-            let max_name_len = app.mention_suggestions.iter().map(|&i| app.channel_userlist[i].username.len()).max().unwrap_or(8).max(8);
-            let popup_width = (max_name_len + 12).min(area.width as usize) as u16;
-            let mut lines = vec![];
-            for (i, &user_idx) in app.mention_suggestions.iter().enumerate() {
-                let user = &app.channel_userlist[user_idx];
-                let style = if i == app.mention_selected {
-                    Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(user.color).bg(Color::Black)
-                };
-                lines.push(Line::from(Span::styled(format!("{}", user.username), style)));
-            }
-            // Height: lines + 2 (for borders/title)
-            let popup_height = (lines.len() as u16).saturating_add(2);
-            // Default: below input
-            let mut popup_y = chunks[1].y + chunks[1].height;
-            // If overflow, move above input
-            if popup_y + popup_height > area.y + area.height {
-                if area.y >= popup_height {
-                    popup_y = chunks[1].y - popup_height;
-                } else {
-                    popup_y = area.y; // Clamp to top
-                }
-            }
-            // Clamp popup_y to not go above chat area
-            if popup_y < area.y { popup_y = area.y; }
-            let popup_area = Rect::new(
-                chunks[1].x,
-                popup_y,
-                popup_width,
-                popup_height
-            );
-            let block = Block::default().borders(Borders::ALL).title("Mentions");
-            let para = Paragraph::new(lines).block(block).wrap(Wrap { trim: true });
-            f.render_widget(para, popup_area);
-        }
+        draw_mention_suggestion_popup(f, app, chunks[1], area);
     }
-
     // Draw scrollbar if there are more messages than fit - use message area only
     let messages = app.get_current_message_list();
     let total_msgs = messages.len();
@@ -549,4 +511,42 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
             idx += 1;
         }
     }
+}
+
+/// Draw the mention suggestion popup below (or above) the input area.
+pub fn draw_mention_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect, chat_area: Rect) {
+    if app.mention_suggestions.is_empty() { return; }
+    let max_name_len = app.mention_suggestions.iter().map(|&i| app.channel_userlist[i].username.len()).max().unwrap_or(8).max(8);
+    let popup_width = (max_name_len + 12).min(chat_area.width as usize) as u16;
+    let mut lines = vec![];
+    for (i, &user_idx) in app.mention_suggestions.iter().enumerate() {
+        let user = &app.channel_userlist[user_idx];
+        let style = if i == app.mention_selected {
+            Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(user.color).bg(Color::Black)
+        };
+        lines.push(Line::from(Span::styled(format!("{}", user.username), style)));
+    }
+    let popup_height = (lines.len() as u16).saturating_add(2);
+    // Default: below input
+    let mut popup_y = input_area.y + input_area.height;
+    // If overflow, move above input
+    if popup_y + popup_height > chat_area.y + chat_area.height {
+        if chat_area.y >= popup_height {
+            popup_y = input_area.y.saturating_sub(popup_height);
+        } else {
+            popup_y = chat_area.y; // Clamp to top
+        }
+    }
+    if popup_y < chat_area.y { popup_y = chat_area.y; }
+    let popup_area = Rect::new(
+        input_area.x,
+        popup_y,
+        popup_width,
+        popup_height
+    );
+    let block = Block::default().borders(Borders::ALL).title("Mentions");
+    let para = Paragraph::new(lines).block(block).wrap(Wrap { trim: true });
+    f.render_widget(para, popup_area);
 }

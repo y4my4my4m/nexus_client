@@ -28,6 +28,8 @@ pub fn draw_dm_input_popup(f: &mut Frame, app: &App) {
     f.render_widget(Clear, area);
     f.render_widget(input_field, area);
     f.set_cursor_position((area.x + app.dm_input.len() as u16 + 1, area.y + 1));
+    // Draw mention suggestions popup if present
+    crate::ui::chat::draw_mention_suggestion_popup(f, app, area, f.area());
 }
 
 pub fn draw_input_popup(f: &mut Frame, app: &App) {

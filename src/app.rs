@@ -596,19 +596,40 @@ impl<'a> App<'a> {
                         self.dm_history_complete = history_complete;
                         self.chat_scroll_offset = 0;
                     } else if !messages.is_empty() && self.dm_messages.first().map(|m| m.id) != messages.first().map(|m| m.id) {
-                        // Scrollback: prepend older messages
-                        let mut new_msgs = messages.clone();
-                        let added = new_msgs.len();
-                        new_msgs.append(&mut self.dm_messages);
-                        self.dm_messages = new_msgs;
-                        self.dm_history_complete = history_complete;
-                        self.chat_scroll_offset += added;
-                        // Clamp scroll offset so you can't scroll past the top
-                        let total_msgs = self.dm_messages.len();
-                        let max_rows = self.last_chat_rows.unwrap_or(20);
-                        let max_scroll = total_msgs.saturating_sub(max_rows);
-                        if self.chat_scroll_offset > max_scroll {
-                            self.chat_scroll_offset = max_scroll;
+                        // Scrollback: prepend only truly new messages (deduplicate)
+                        let first_existing_id = self.dm_messages.first().map(|m| m.id);
+                        let mut new_count = 0;
+                        for msg in messages.iter().rev() {
+                            if Some(msg.id) == first_existing_id {
+                                break;
+                            }
+                            new_count += 1;
+                        }
+                        let mut unique_new_msgs = Vec::new();
+                        for msg in messages.iter().take(new_count) {
+                            // Only add if not already present (shouldn't be, but extra safety)
+                            if !self.dm_messages.iter().any(|m| m.id == msg.id) {
+                                unique_new_msgs.push(msg.clone());
+                            }
+                        }
+                        // Prepend unique new messages
+                        if !unique_new_msgs.is_empty() {
+                            let added = unique_new_msgs.len();
+                            let mut new_msgs = unique_new_msgs;
+                            new_msgs.append(&mut self.dm_messages);
+                            self.dm_messages = new_msgs;
+                            self.dm_history_complete = history_complete;
+                            self.chat_scroll_offset += added;
+                            // Clamp scroll offset so you can't scroll past the top
+                            let total_msgs = self.dm_messages.len();
+                            let max_rows = self.last_chat_rows.unwrap_or(20);
+                            let max_scroll = total_msgs.saturating_sub(max_rows);
+                            if self.chat_scroll_offset > max_scroll {
+                                self.chat_scroll_offset = max_scroll;
+                            }
+                        } else {
+                            // No new unique messages, do not change scroll offset
+                            self.dm_history_complete = history_complete;
                         }
                     } else {
                         // Replace (e.g. DM switch)
