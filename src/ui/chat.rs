@@ -394,33 +394,36 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         }
     }
 
-    // Draw scrollbar if there are more messages than fit
-    if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
-        if let Some(server) = app.servers.get(s) {
-            if let Some(channel) = server.channels.get(c) {
-                let total_msgs = channel.messages.len();
-                if total_msgs > app.last_chat_rows.unwrap_or(0) && area.width > 2 {
-                    let bar_x = area.x + area.width - 1;
-                    let bar_y = area.y;
-                    let bar_height = area.height;
-                    let thumb_height = ((app.last_chat_rows.unwrap_or(0) as f32 / total_msgs as f32) * bar_height as f32).ceil().max(1.0) as u16;
-                    let max_offset = total_msgs.saturating_sub(app.last_chat_rows.unwrap_or(0));
-                    let offset = app.chat_scroll_offset.min(max_offset);
-                    // Invert thumb position: offset=0 => bottom, max_offset => top
-                    let thumb_pos = if max_offset > 0 {
-                        ((1.0 - (offset as f32 / max_offset as f32)) * (bar_height - thumb_height) as f32).round() as u16
-                    } else { bar_height.saturating_sub(thumb_height) };
-                    for i in 0..bar_height {
-                        let y = bar_y + i;
-                        let symbol = if i >= thumb_pos && i < thumb_pos + thumb_height {
-                            "█"
-                        } else {
-                            "│"
-                        };
-                        f.render_widget(Paragraph::new(symbol), Rect::new(bar_x, y, 1, 1));
-                    }
-                }
-            }
+    // Draw scrollbar if there are more messages than fit - use message area only
+    let messages = app.get_current_message_list();
+    let total_msgs = messages.len();
+    let max_rows = app.last_chat_rows.unwrap_or(0);
+    
+    if total_msgs > max_rows && chunks[0].width > 2 {
+        let msg_area = chunks[0]; // Use message area, not full area
+        let bar_x = msg_area.x + msg_area.width - 1;
+        let bar_y = msg_area.y;
+        let bar_height = msg_area.height;
+        
+        let thumb_height = ((max_rows as f32 / total_msgs as f32) * bar_height as f32).ceil().max(1.0) as u16;
+        let max_offset = total_msgs.saturating_sub(max_rows);
+        let offset = app.chat_scroll_offset.min(max_offset);
+        
+        // Invert thumb position: offset=0 => bottom, max_offset => top
+        let thumb_pos = if max_offset > 0 {
+            ((1.0 - (offset as f32 / max_offset as f32)) * (bar_height - thumb_height) as f32).round() as u16
+        } else { 
+            bar_height.saturating_sub(thumb_height) 
+        };
+        
+        for i in 0..bar_height {
+            let y = bar_y + i;
+            let symbol = if i >= thumb_pos && i < thumb_pos + thumb_height {
+                "█"
+            } else {
+                "│"
+            };
+            f.render_widget(Paragraph::new(symbol), Rect::new(bar_x, y, 1, 1));
         }
     }
 }
