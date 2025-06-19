@@ -154,25 +154,30 @@ pub fn draw_sidebar_dms(f: &mut Frame, app: &mut App, area: Rect, focused: bool)
     f.render_widget(block.clone(), area);
     let inner = block.inner(area);
     if inner.width == 0 || inner.height == 0 { return; }
-    // Sort DM user list by most recent (TODO: use last message timestamp if available)
-    let mut users = app.dm_user_list.clone();
-    // Optionally, sort by unread first
-    users.sort_by_key(|u| (!app.unread_dm_conversations.contains(&u.id), u.username.clone()));
-    let items: Vec<ListItem> = users.iter().enumerate().map(|(i, u)| {
-        let selected = app.selected_dm_user == Some(i);
-        let mut spans = vec![Span::styled(format!("{} {}", if u.status == common::UserStatus::Connected { "●" } else { "○" }, u.username), if selected {
-            Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(u.color)
-        })];
+    
+    // Create a list of (original_index, user) pairs to track original indices
+    let mut indexed_users: Vec<(usize, &common::User)> = app.dm_user_list.iter().enumerate().collect();
+    // Sort by unread first, then by username
+    indexed_users.sort_by_key(|(_, u)| (!app.unread_dm_conversations.contains(&u.id), u.username.clone()));
+    
+    let items: Vec<ListItem> = indexed_users.iter().map(|(original_idx, u)| {
+        let mut spans = vec![Span::styled(format!("{} {}", if u.status == common::UserStatus::Connected { "●" } else { "○" }, u.username), Style::default().fg(u.color))];
         if app.unread_dm_conversations.contains(&u.id) {
             spans.push(Span::raw(" "));
             spans.push(Span::styled("○", Style::default().fg(Color::Red)));
         }
         ListItem::new(Line::from(spans))
     }).collect();
+    
+    // Find the display index for the selected DM user
+    let display_selection = if let Some(selected_original_idx) = app.selected_dm_user {
+        indexed_users.iter().position(|(original_idx, _)| *original_idx == selected_original_idx)
+    } else {
+        None
+    };
+    
     let mut list_state = ListState::default();
-    list_state.select(app.selected_dm_user);
+    list_state.select(display_selection);
     let list = List::new(items)
         .block(Block::default())
         .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD))

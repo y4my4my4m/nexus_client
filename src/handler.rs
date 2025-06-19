@@ -1017,12 +1017,31 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
 
 fn move_dm_selection(app: &mut App, direction: i32) {
     let len = app.dm_user_list.len();
-    if len == 0 { app.selected_dm_user = None; return; }
-    let idx = app.selected_dm_user.unwrap_or(0);
-    let new_idx = if direction == 1 {
-        (idx + 1) % len
+    if len == 0 { 
+        app.selected_dm_user = None; 
+        return; 
+    }
+    
+    // Create the same sorted mapping as in the UI
+    let mut indexed_users: Vec<(usize, &common::User)> = app.dm_user_list.iter().enumerate().collect();
+    indexed_users.sort_by_key(|(_, u)| (!app.unread_dm_conversations.contains(&u.id), u.username.clone()));
+    
+    // Find current display position
+    let current_display_idx = if let Some(selected_original_idx) = app.selected_dm_user {
+        indexed_users.iter().position(|(original_idx, _)| *original_idx == selected_original_idx).unwrap_or(0)
     } else {
-        (idx + len - 1) % len
+        0
     };
-    app.selected_dm_user = Some(new_idx);
+    
+    // Calculate new display position
+    let new_display_idx = if direction == 1 {
+        (current_display_idx + 1) % len
+    } else {
+        (current_display_idx + len - 1) % len
+    };
+    
+    // Get the original index for the new display position
+    if let Some((original_idx, _)) = indexed_users.get(new_display_idx) {
+        app.selected_dm_user = Some(*original_idx);
+    }
 }
