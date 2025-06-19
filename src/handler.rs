@@ -935,26 +935,30 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
         if let Some(server) = app.servers.get(s) {
             if let Some(c) = app.selected_channel {
                 let next_c = if direction == 1 {
-                    if c + 1 < server.channels.len() { Some(c + 1) } else { None }
+                    if c + 1 < server.channels.len() { 
+                        app.sound_manager.play(SoundType::ChangeChannel);
+                        Some(c + 1) 
+                    } else { None }
                 } else {
-                    if c > 0 { Some(c - 1) } else { None }
+                    if c > 0 { 
+                        app.sound_manager.play(SoundType::ChangeChannel);
+                        Some(c - 1) 
+                    } else { None }
                 };
                 if let Some(new_c) = next_c {
                     app.selected_channel = Some(new_c);
                 } else if direction == 1 && s + 1 < app.servers.len() {
+                    app.sound_manager.play(SoundType::ChangeChannel);
                     app.selected_server = Some(s + 1);
                     app.selected_channel = None;
-                    // play sound
-                    app.sound_manager.play(SoundType::ChangeChannel);
                 } else if direction == -1 && s > 0 {
+                    app.sound_manager.play(SoundType::ChangeChannel);
                     app.selected_server = Some(s - 1);
                     if let Some(prev_server) = app.servers.get(s - 1) {
                         if !prev_server.channels.is_empty() {
                             app.selected_channel = Some(prev_server.channels.len() - 1);
                         }
                     }
-                    // play sound
-                    app.sound_manager.play(SoundType::ChangeChannel);
                 } else if direction == 1 {
                     // do nothing, end of list
                 }
