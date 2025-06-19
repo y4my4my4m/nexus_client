@@ -43,7 +43,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
 
     let help_text = match app.mode {
         AppMode::Login | AppMode::Register => "[Esc] QUIT | [F2] Preferences | [Tab]/[Shift+Tab] Change Focus | [Enter] Select/Submit",
-        _ => "[Q]uit | [F2] Preferences | [↑↓] Navigate | [Enter] Select | [Esc] Back"
+        _ => "[Q]uit | [F2] Prefs | [↑↓] Nav | [PgUp/PgDn] Scroll | [Enter] Sel | [Esc] Back"
     };
     let status_text = if let Some(user) = &app.current_user {
         format!("Logged in as: {} ({:?})", user.username, user.role)
