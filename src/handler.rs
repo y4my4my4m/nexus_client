@@ -944,6 +944,8 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
                 } else if direction == 1 && s + 1 < app.servers.len() {
                     app.selected_server = Some(s + 1);
                     app.selected_channel = None;
+                    // play sound
+                    app.sound_manager.play(SoundType::ChangeChannel);
                 } else if direction == -1 && s > 0 {
                     app.selected_server = Some(s - 1);
                     if let Some(prev_server) = app.servers.get(s - 1) {
@@ -951,6 +953,8 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
                             app.selected_channel = Some(prev_server.channels.len() - 1);
                         }
                     }
+                    // play sound
+                    app.sound_manager.play(SoundType::ChangeChannel);
                 } else if direction == 1 {
                     // do nothing, end of list
                 }
@@ -1000,8 +1004,6 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
             }
         }
     }
-    // play sound
-    app.sound_manager.play(SoundType::ChangeChannel);
 }
 
 fn move_dm_selection(app: &mut App, direction: i32) {
@@ -1010,6 +1012,8 @@ fn move_dm_selection(app: &mut App, direction: i32) {
         app.selected_dm_user = None; 
         return; 
     }
+    // play sound
+    app.sound_manager.play(SoundType::ChangeChannel);
     
     // Create the same sorted mapping as in the UI
     let mut indexed_users: Vec<(usize, &common::User)> = app.dm_user_list.iter().enumerate().collect();
