@@ -382,14 +382,14 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
             _ => {}
         },
         AppMode::EditProfile => match key.code {
-            KeyCode::Tab => {
+            KeyCode::Tab | KeyCode::Down => {
                 use crate::app::ProfileEditFocus::*;
                 app.profile_edit_focus = match app.profile_edit_focus {
-                    Bio => Url1,
+                    Bio => Location,
+                    Location => Url1,
                     Url1 => Url2,
                     Url2 => Url3,
-                    Url3 => Location,
-                    Location => ProfilePic,
+                    Url3 => ProfilePic,
                     ProfilePic => ProfilePicDelete,
                     ProfilePicDelete => CoverBanner,
                     CoverBanner => CoverBannerDelete,
@@ -398,15 +398,15 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     Cancel => Bio,
                 };
             },
-            KeyCode::BackTab => {
+            KeyCode::BackTab | KeyCode::Up => {
                 use crate::app::ProfileEditFocus::*;
                 app.profile_edit_focus = match app.profile_edit_focus {
                     Bio => Cancel,
-                    Url1 => Bio,
+                    Location => Bio,
+                    Url1 => Location,
                     Url2 => Url1,
                     Url3 => Url2,
-                    Location => Url3,
-                    ProfilePic => Location,
+                    ProfilePic => Url3,
                     ProfilePicDelete => ProfilePic,
                     CoverBanner => ProfilePicDelete,
                     CoverBannerDelete => CoverBanner,

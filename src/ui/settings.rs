@@ -20,194 +20,425 @@ pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
 
 pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
     use crate::app::ProfileEditFocus::*;
-    let block = Block::default().title("Edit Profile").borders(Borders::ALL).border_type(BorderType::Double);
-    let inner = Layout::default()
+    let min_two_col_width = 110; // Increased for more breathing room
+    let is_narrow = area.width < min_two_col_width;
+    // Outer card with more margin
+    let outer_margin = 2;
+    let block = Block::default()
+        .title(Span::styled("✦ Edit Your Profile ✦", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)))
+        .borders(Borders::ALL)
+        .border_type(BorderType::Double)
+        .style(Style::default().bg(Color::Black));
+    let card_area = Layout::default()
         .direction(Direction::Vertical)
-        .margin(2)
-        .constraints([
-            Constraint::Length(5), // Bio (multiline, taller)
-            Constraint::Length(3), // Url1
-            Constraint::Length(3), // Url2
-            Constraint::Length(3), // Url3
-            Constraint::Length(3), // Location
-            Constraint::Length(1), // ProfilePic Info
-            Constraint::Length(5), // ProfilePic Preview
-            Constraint::Length(3), // ProfilePic Field+Delete
-            Constraint::Length(5), // CoverBanner Preview
-            Constraint::Length(3), // CoverBanner Field+Delete
-            Constraint::Length(2), // Spacer
-            Constraint::Length(3), // Save/Cancel
-            Constraint::Min(0),    // Error
-        ])
-        .split(area);
-    f.render_widget(block, area);
-    // Multiline bio
-    let bio_style = if app.profile_edit_focus == Bio {
-        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
-    } else { Style::default() };
-    f.render_widget(
-        Paragraph::new(app.edit_bio.as_str())
-            .block(Block::default().borders(Borders::ALL).title("Bio").border_style(bio_style))
-            .style(bio_style)
-            .wrap(Wrap { trim: false }),
-        inner[0],
-    );
-    let url1_style = if app.profile_edit_focus == Url1 {
-        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
-    } else { Style::default() };
-    f.render_widget(
-        Paragraph::new(app.edit_url1.clone())
-            .block(Block::default().borders(Borders::ALL).title("URL1").border_style(url1_style))
-            .style(url1_style),
-        inner[1],
-    );
-    let url2_style = if app.profile_edit_focus == Url2 {
-        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
-    } else { Style::default() };
-    f.render_widget(
-        Paragraph::new(app.edit_url2.clone())
-            .block(Block::default().borders(Borders::ALL).title("URL2").border_style(url2_style))
-            .style(url2_style),
-        inner[2],
-    );
-    let url3_style = if app.profile_edit_focus == Url3 {
-        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
-    } else { Style::default() };
-    f.render_widget(
-        Paragraph::new(app.edit_url3.clone())
-            .block(Block::default().borders(Borders::ALL).title("URL3").border_style(url3_style))
-            .style(url3_style),
-        inner[3],
-    );
-    let location_style = if app.profile_edit_focus == Location {
-        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
-    } else { Style::default() };
-    f.render_widget(
-        Paragraph::new(app.edit_location.clone())
-            .block(Block::default().borders(Borders::ALL).title("Location").border_style(location_style))
-            .style(location_style),
-        inner[4],
-    );
-    // Info for profile pic (now its own row)
-    let info_line = Paragraph::new(Span::styled(
-        "(i) Image must be a local file path, under 1MB, with no spaces in the path/name.",
-        Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC)
-    )).alignment(Alignment::Left);
-    f.render_widget(info_line, inner[5]);
-    // Profile Pic preview (if any) above the field
-    let pic_style = if app.profile_edit_focus == ProfilePic {
-        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
-    } else { Style::default() };
-    if !app.edit_profile_pic.trim().is_empty() {
-        let mut show_placeholder = true;
-        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.edit_profile_pic.trim()) {
-            if let Ok(img) = image::load_from_memory(&bytes) {
-                let mut protocol = app.picker.new_resize_protocol(img);
-                let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
-                f.render_stateful_widget(image_widget, inner[6], &mut protocol);
-                show_placeholder = false;
+        .margin(outer_margin)
+        .constraints([Constraint::Min(0)])
+        .split(area)[0];
+    f.render_widget(&block, card_area);
+    let inner = block.inner(card_area);
+    let padded = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2) // More padding inside card
+        .constraints([Constraint::Min(0)])
+        .split(inner)[0];
+
+    if !is_narrow {
+        // --- Two-column layout ---
+        let columns = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(52),
+                Constraint::Percentage(48),
+            ])
+            .margin(0)
+            .split(padded);
+        let left = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(2), // Section header
+                Constraint::Length(2), // Padding
+                Constraint::Length(5), // Bio
+                Constraint::Length(2), // Padding
+                Constraint::Length(3), // Location
+                Constraint::Length(2), // Padding
+                Constraint::Length(3), // URL1
+                Constraint::Length(2), // Padding
+                Constraint::Length(3), // URL2
+                Constraint::Length(2), // Padding
+                Constraint::Length(3), // URL3
+                Constraint::Min(0),
+            ])
+            .split(columns[0]);
+        // Add left padding to the right column
+        let right_area = Rect {
+            x: columns[1].x + 2, // 2 chars padding
+            y: columns[1].y,
+            width: columns[1].width.saturating_sub(2),
+            height: columns[1].height,
+        };
+        let right = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(2), // Section header
+                Constraint::Length(1), // (i) image info
+                Constraint::Length(2), // Padding
+                Constraint::Length(5), // Profile Pic preview
+                Constraint::Length(2), // Padding
+                Constraint::Length(3), // Profile Pic field+delete
+                Constraint::Length(2), // Padding
+                Constraint::Length(5), // Banner preview
+                Constraint::Length(2), // Padding
+                Constraint::Length(3), // Banner field+delete
+                Constraint::Length(2), // Padding
+                Constraint::Length(3), // Save/Cancel
+                Constraint::Length(2), // Padding
+                Constraint::Min(0),    // Error
+            ])
+            .split(right_area);
+        // --- LEFT COLUMN: Text fields ---
+        // Section header
+        f.render_widget(Paragraph::new(Span::styled("Personal Info", Style::default().fg(Color::LightCyan).add_modifier(Modifier::BOLD))).alignment(Alignment::Left), left[0]);
+        // Bio
+        let bio_style = if app.profile_edit_focus == Bio {
+            Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
+        } else { Style::default().bg(Color::DarkGray) };
+        f.render_widget(
+            Paragraph::new(app.edit_bio.as_str())
+                .block(Block::default().borders(Borders::ALL).title("📝 Bio").border_style(bio_style))
+                .style(bio_style)
+                .wrap(Wrap { trim: false }),
+            left[2],
+        );
+        // Location
+        let location_style = if app.profile_edit_focus == Location {
+            Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
+        } else { Style::default().bg(Color::DarkGray) };
+        f.render_widget(
+            Paragraph::new(app.edit_location.clone())
+                .block(Block::default().borders(Borders::ALL).title("📍 Location").border_style(location_style))
+                .style(location_style),
+            left[4],
+        );
+        // URLs
+        let url_titles = ["🔗 URL1", "🔗 URL2", "🔗 URL3"];
+        let url_fields = [&app.edit_url1, &app.edit_url2, &app.edit_url3];
+        let url_focus = [Url1, Url2, Url3];
+        for i in 0..3 {
+            let style = if app.profile_edit_focus == url_focus[i] {
+                Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
+            } else { Style::default().bg(Color::DarkGray) };
+            f.render_widget(
+                Paragraph::new(url_fields[i].clone())
+                    .block(Block::default().borders(Borders::ALL).title(url_titles[i]).border_style(style))
+                    .style(style),
+                left[6 + i * 2],
+            );
+        }
+
+        // --- RIGHT COLUMN: Images and actions ---
+        f.render_widget(Paragraph::new(Span::styled("Profile Images", Style::default().fg(Color::LightMagenta).add_modifier(Modifier::BOLD))).alignment(Alignment::Left), right[0]);
+        f.render_widget(Paragraph::new(Span::styled(
+            "(i) Image: local file path, under 1MB, no spaces.",
+            Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC)
+        )).alignment(Alignment::Left), right[1]);
+        // Profile Pic preview
+        let pic_style = if app.profile_edit_focus == ProfilePic {
+            Style::default().fg(Color::Black).bg(Color::LightMagenta).add_modifier(Modifier::BOLD)
+        } else { Style::default().bg(Color::DarkGray) };
+        if !app.edit_profile_pic.trim().is_empty() {
+            let mut show_placeholder = true;
+            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.edit_profile_pic.trim()) {
+                if let Ok(img) = image::load_from_memory(&bytes) {
+                    let mut protocol = app.picker.new_resize_protocol(img);
+                    let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
+                    f.render_stateful_widget(image_widget, right[3], &mut protocol);
+                    show_placeholder = false;
+                }
             }
-        }
-        if show_placeholder {
-            let preview_block = Block::default().borders(Borders::ALL).title("Profile Pic Preview");
-            f.render_widget(preview_block, inner[6]);
-        }
-    }
-    // Always render the field+delete row
-    let row = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(80), Constraint::Percentage(20)])
-        .split(inner[7]);
-    f.render_widget(
-        Paragraph::new(app.edit_profile_pic.clone())
-            .block(Block::default().borders(Borders::ALL).title("Profile Pic").border_style(pic_style))
-            .style(pic_style),
-        row[0],
-    );
-    let del_style = if app.profile_edit_focus == ProfilePicDelete {
-        Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
-    } else { Style::default().fg(Color::Red) };
-    f.render_widget(
-        Paragraph::new(Span::styled("[ Delete ]", del_style)).alignment(Alignment::Center),
-        row[1],
-    );
-    // Cover Banner preview (if any) above the field
-    let banner_style = if app.profile_edit_focus == CoverBanner {
-        Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
-    } else { Style::default() };
-    if !app.edit_cover_banner.trim().is_empty() {
-        let mut show_placeholder = true;
-        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.edit_cover_banner.trim()) {
-            if let Ok(img) = image::load_from_memory(&bytes) {
-                let mut protocol = app.picker.new_resize_protocol(img);
-                let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
-                f.render_stateful_widget(image_widget, inner[8], &mut protocol);
-                show_placeholder = false;
+            if show_placeholder {
+                let preview_block = Block::default().borders(Borders::ALL).title("Profile Pic Preview").style(pic_style);
+                f.render_widget(preview_block, right[3]);
             }
+        } else {
+            let preview_block = Block::default().borders(Borders::ALL).title("Profile Pic Preview").style(pic_style);
+            f.render_widget(preview_block, right[3]);
         }
-        if show_placeholder {
-            let preview_block = Block::default().borders(Borders::ALL).title("Banner Preview");
-            f.render_widget(preview_block, inner[8]);
+        // Profile Pic field + delete
+        let row = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(75), Constraint::Percentage(25)])
+            .split(right[5]);
+        f.render_widget(
+            Paragraph::new(app.edit_profile_pic.clone())
+                .block(Block::default().borders(Borders::ALL).title("🖼️ Path/Base64").border_style(pic_style))
+                .style(pic_style),
+            row[0],
+        );
+        let del_style = if app.profile_edit_focus == ProfilePicDelete {
+            Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
+        } else { Style::default().fg(Color::Red) };
+        f.render_widget(
+            Paragraph::new(Span::styled("[ Delete ]", del_style)).alignment(Alignment::Center),
+            row[1],
+        );
+        // Banner preview
+        let banner_style = if app.profile_edit_focus == CoverBanner {
+            Style::default().fg(Color::Black).bg(Color::LightMagenta).add_modifier(Modifier::BOLD)
+        } else { Style::default().bg(Color::DarkGray) };
+        if !app.edit_cover_banner.trim().is_empty() {
+            let mut show_placeholder = true;
+            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.edit_cover_banner.trim()) {
+                if let Ok(img) = image::load_from_memory(&bytes) {
+                    let mut protocol = app.picker.new_resize_protocol(img);
+                    let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
+                    f.render_stateful_widget(image_widget, right[7], &mut protocol);
+                    show_placeholder = false;
+                }
+            }
+            if show_placeholder {
+                let preview_block = Block::default().borders(Borders::ALL).title("Banner Preview").style(banner_style);
+                f.render_widget(preview_block, right[7]);
+            }
+        } else {
+            let preview_block = Block::default().borders(Borders::ALL).title("Banner Preview").style(banner_style);
+            f.render_widget(preview_block, right[7]);
         }
-    }
-    // Always render the field+delete row
-    let row = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(80), Constraint::Percentage(20)])
-        .split(inner[9]);
-    f.render_widget(
-        Paragraph::new(app.edit_cover_banner.clone())
-            .block(Block::default().borders(Borders::ALL).title("Cover Banner").border_style(banner_style))
-            .style(banner_style),
-        row[0],
-    );
-    let del_style = if app.profile_edit_focus == CoverBannerDelete {
-        Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
-    } else { Style::default().fg(Color::Red) };
-    f.render_widget(
-        Paragraph::new(Span::styled("[ Delete ]", del_style)).alignment(Alignment::Center),
-        row[1],
-    );
-    // Save/Cancel buttons
-    let save_style = if app.profile_edit_focus == Save {
-        Style::default().fg(Color::Black).bg(Color::Green).add_modifier(Modifier::BOLD)
+        // Banner field + delete
+        let row = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(75), Constraint::Percentage(25)])
+            .split(right[9]);
+        f.render_widget(
+            Paragraph::new(app.edit_cover_banner.clone())
+                .block(Block::default().borders(Borders::ALL).title("🖼️ Path/Base64").border_style(banner_style))
+                .style(banner_style),
+            row[0],
+        );
+        let del_style = if app.profile_edit_focus == CoverBannerDelete {
+            Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
+        } else { Style::default().fg(Color::Red) };
+        f.render_widget(
+            Paragraph::new(Span::styled("[ Delete ]", del_style)).alignment(Alignment::Center),
+            row[1],
+        );
+        // Save/Cancel buttons
+        let save_style = if app.profile_edit_focus == Save {
+            Style::default().fg(Color::Black).bg(Color::Green).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Green)
+        };
+        let cancel_style = if app.profile_edit_focus == Cancel {
+            Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Red)
+        };
+        let buttons = Line::from(vec![
+            Span::styled("[ Save ]", save_style),
+            Span::raw("   "),
+            Span::styled("[ Cancel ]", cancel_style),
+        ]);
+        f.render_widget(Paragraph::new(buttons).alignment(Alignment::Center), right[11]);
+        // Error message with extra padding
+        if let Some(err) = &app.profile_edit_error {
+            f.render_widget(Paragraph::new(err.as_str()).style(Style::default().fg(Color::Red)), right[13]);
+        }
+        // Set cursor for focused field (moved inside this block)
+        let cursor = match app.profile_edit_focus {
+            Bio => {
+                let lines: Vec<&str> = app.edit_bio.split('\n').collect();
+                let y = left[2].y + lines.len() as u16 - 1 + 1;
+                let x = left[2].x + lines.last().map(|l| l.len()).unwrap_or(0) as u16 + 1;
+                (x, y)
+            },
+            Location => (left[4].x + app.edit_location.len() as u16 + 1, left[4].y + 1),
+            Url1 => (left[6].x + app.edit_url1.len() as u16 + 1, left[6].y + 1),
+            Url2 => (left[8].x + app.edit_url2.len() as u16 + 1, left[8].y + 1),
+            Url3 => (left[10].x + app.edit_url3.len() as u16 + 1, left[10].y + 1),
+            ProfilePic => (row[0].x + app.edit_profile_pic.len() as u16 + 1, row[0].y + 1),
+            CoverBanner => (row[0].x + app.edit_cover_banner.len() as u16 + 1, row[0].y + 1),
+            _ => (0, 0),
+        };
+        if matches!(app.profile_edit_focus, Bio|Location|Url1|Url2|Url3|ProfilePic|CoverBanner) {
+            f.set_cursor_position(cursor);
+        }
     } else {
-        Style::default().fg(Color::Green)
-    };
-    let cancel_style = if app.profile_edit_focus == Cancel {
-        Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(Color::Red)
-    };
-    let buttons = Line::from(vec![
-        Span::styled("[ Save ]", save_style),
-        Span::raw("   "),
-        Span::styled("[ Cancel ]", cancel_style),
-    ]);
-    f.render_widget(Paragraph::new(buttons).alignment(Alignment::Center), inner[10]);
-    // Error message
-    if let Some(err) = &app.profile_edit_error {
-        f.render_widget(Paragraph::new(err.as_str()).style(Style::default().fg(Color::Red)), inner[11]);
-    }
-    // Set cursor for focused field
-    let cursor = match app.profile_edit_focus {
-        Bio => {
-            // Find cursor position in multiline bio
-            let lines: Vec<&str> = app.edit_bio.split('\n').collect();
-            let y = inner[0].y + lines.len() as u16 - 1 + 1;
-            let x = inner[0].x + lines.last().map(|l| l.len()).unwrap_or(0) as u16 + 1;
-            (x, y)
-        },
-        Url1 => (inner[1].x + app.edit_url1.len() as u16 + 1, inner[1].y + 1),
-        Url2 => (inner[2].x + app.edit_url2.len() as u16 + 1, inner[2].y + 1),
-        Url3 => (inner[3].x + app.edit_url3.len() as u16 + 1, inner[3].y + 1),
-        Location => (inner[4].x + app.edit_location.len() as u16 + 1, inner[4].y + 1),
-        ProfilePic => (inner[7].x + app.edit_profile_pic.len() as u16 + 1, inner[7].y + 1),
-        CoverBanner => (inner[9].x + app.edit_cover_banner.len() as u16 + 1, inner[9].y + 1),
-        _ => (0, 0),
-    };
-    if matches!(app.profile_edit_focus, Bio|Url1|Url2|Url3|Location|ProfilePic|CoverBanner) {
-        f.set_cursor_position(cursor);
+        // --- Single-column (stacked) layout for small screens ---
+        let fields = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(2), // Personal Info header
+                Constraint::Length(2), // Padding
+                Constraint::Length(5), // Bio
+                Constraint::Length(2), // Padding
+                Constraint::Length(3), // Location
+                Constraint::Length(2), // Padding
+                Constraint::Length(3), // URL1
+                Constraint::Length(2), // Padding
+                Constraint::Length(3), // URL2
+                Constraint::Length(2), // Padding
+                Constraint::Length(3), // URL3
+                Constraint::Length(2), // Profile Images header
+                Constraint::Length(1), // (i) image info
+                Constraint::Length(2), // Padding
+                Constraint::Length(5), // Profile Pic preview
+                Constraint::Length(2), // Padding
+                Constraint::Length(3), // Profile Pic field+delete
+                Constraint::Length(2), // Padding
+                Constraint::Length(5), // Banner preview
+                Constraint::Length(2), // Padding
+                Constraint::Length(3), // Banner field+delete
+                Constraint::Length(2), // Padding
+                Constraint::Length(3), // Save/Cancel
+                Constraint::Length(2), // Padding
+                Constraint::Min(0),    // Error
+            ])
+            .split(padded);
+        // Section header
+        f.render_widget(Paragraph::new(Span::styled("Personal Info", Style::default().fg(Color::LightCyan).add_modifier(Modifier::BOLD))).alignment(Alignment::Left), fields[0]);
+        // Bio
+        let bio_style = if app.profile_edit_focus == Bio {
+            Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
+        } else { Style::default().bg(Color::DarkGray) };
+        f.render_widget(
+            Paragraph::new(app.edit_bio.as_str())
+                .block(Block::default().borders(Borders::ALL).title("📝 Bio").border_style(bio_style))
+                .style(bio_style)
+                .wrap(Wrap { trim: false }),
+            fields[2],
+        );
+        // Location
+        let location_style = if app.profile_edit_focus == Location {
+            Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
+        } else { Style::default().bg(Color::DarkGray) };
+        f.render_widget(
+            Paragraph::new(app.edit_location.clone())
+                .block(Block::default().borders(Borders::ALL).title("📍 Location").border_style(location_style))
+                .style(location_style),
+            fields[4],
+        );
+        // URLs
+        let url_titles = ["🔗 URL1", "🔗 URL2", "🔗 URL3"];
+        let url_fields = [&app.edit_url1, &app.edit_url2, &app.edit_url3];
+        let url_focus = [Url1, Url2, Url3];
+        for i in 0..3 {
+            let style = if app.profile_edit_focus == url_focus[i] {
+                Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
+            } else { Style::default().bg(Color::DarkGray) };
+            f.render_widget(
+                Paragraph::new(url_fields[i].clone())
+                    .block(Block::default().borders(Borders::ALL).title(url_titles[i]).border_style(style))
+                    .style(style),
+                fields[6 + i * 2],
+            );
+        }
+        // Section header
+        f.render_widget(Paragraph::new(Span::styled("Profile Images", Style::default().fg(Color::LightMagenta).add_modifier(Modifier::BOLD))).alignment(Alignment::Left), fields[12]);
+        // (i) image info
+        f.render_widget(Paragraph::new(Span::styled(
+            "(i) Image: local file path, under 1MB, no spaces.",
+            Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC)
+        )).alignment(Alignment::Left), fields[13]);
+        // Profile Pic preview
+        let pic_style = if app.profile_edit_focus == ProfilePic {
+            Style::default().fg(Color::Black).bg(Color::LightMagenta).add_modifier(Modifier::BOLD)
+        } else { Style::default().bg(Color::DarkGray) };
+        if !app.edit_profile_pic.trim().is_empty() {
+            let mut show_placeholder = true;
+            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.edit_profile_pic.trim()) {
+                if let Ok(img) = image::load_from_memory(&bytes) {
+                    let mut protocol = app.picker.new_resize_protocol(img);
+                    let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
+                    f.render_stateful_widget(image_widget, fields[15], &mut protocol);
+                    show_placeholder = false;
+                }
+            }
+            if show_placeholder {
+                let preview_block = Block::default().borders(Borders::ALL).title("Profile Pic Preview").style(pic_style);
+                f.render_widget(preview_block, fields[15]);
+            }
+        } else {
+            let preview_block = Block::default().borders(Borders::ALL).title("Profile Pic Preview").style(pic_style);
+            f.render_widget(preview_block, fields[15]);
+        }
+        // Profile Pic field + delete
+        let row = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(75), Constraint::Percentage(25)])
+            .split(fields[17]);
+        f.render_widget(
+            Paragraph::new(app.edit_profile_pic.clone())
+                .block(Block::default().borders(Borders::ALL).title("🖼️ Path/Base64").border_style(pic_style))
+                .style(pic_style),
+            row[0],
+        );
+        let del_style = if app.profile_edit_focus == ProfilePicDelete {
+            Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
+        } else { Style::default().fg(Color::Red) };
+        f.render_widget(
+            Paragraph::new(Span::styled("[ Delete ]", del_style)).alignment(Alignment::Center),
+            row[1],
+        );
+        // Banner preview
+        let banner_style = if app.profile_edit_focus == CoverBanner {
+            Style::default().fg(Color::Black).bg(Color::LightMagenta).add_modifier(Modifier::BOLD)
+        } else { Style::default().bg(Color::DarkGray) };
+        if !app.edit_cover_banner.trim().is_empty() {
+            let mut show_placeholder = true;
+            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.edit_cover_banner.trim()) {
+                if let Ok(img) = image::load_from_memory(&bytes) {
+                    let mut protocol = app.picker.new_resize_protocol(img);
+                    let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
+                    f.render_stateful_widget(image_widget, fields[19], &mut protocol);
+                    show_placeholder = false;
+                }
+            }
+            if show_placeholder {
+                let preview_block = Block::default().borders(Borders::ALL).title("Banner Preview").style(banner_style);
+                f.render_widget(preview_block, fields[19]);
+            }
+        } else {
+            let preview_block = Block::default().borders(Borders::ALL).title("Banner Preview").style(banner_style);
+            f.render_widget(preview_block, fields[19]);
+        }
+        // Banner field + delete
+        let row = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(75), Constraint::Percentage(25)])
+            .split(fields[21]);
+        f.render_widget(
+            Paragraph::new(app.edit_cover_banner.clone())
+                .block(Block::default().borders(Borders::ALL).title("🖼️ Path/Base64").border_style(banner_style))
+                .style(banner_style),
+            row[0],
+        );
+        let del_style = if app.profile_edit_focus == CoverBannerDelete {
+            Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
+        } else { Style::default().fg(Color::Red) };
+        f.render_widget(
+            Paragraph::new(Span::styled("[ Delete ]", del_style)).alignment(Alignment::Center),
+            row[1],
+        );
+        // Save/Cancel buttons
+        let save_style = if app.profile_edit_focus == Save {
+            Style::default().fg(Color::Black).bg(Color::Green).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Green)
+        };
+        let cancel_style = if app.profile_edit_focus == Cancel {
+            Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Red)
+        };
+        let buttons = Line::from(vec![
+            Span::styled("[ Save ]", save_style),
+            Span::raw("   "),
+            Span::styled("[ Cancel ]", cancel_style),
+        ]);
+        f.render_widget(Paragraph::new(buttons).alignment(Alignment::Center), fields[23]);
+        // Error message with extra padding
+        if let Some(err) = &app.profile_edit_error {
+            f.render_widget(Paragraph::new(err.as_str()).style(Style::default().fg(Color::Red)), fields[25]);
+        }
     }
 }
 
