@@ -500,7 +500,7 @@ pub fn draw_color_picker_page(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(palette, inner[1]);
 }
 
-pub fn draw_parameters_page(f: &mut Frame, app: &mut App, area: Rect) {
+pub fn draw_parameters_page(f: &mut Frame, _app: &mut App, area: Rect) {
     use ratatui::widgets::{Block, Borders, Paragraph};
     use ratatui::text::{Span, Line};
     use ratatui::style::{Style, Color, Modifier};

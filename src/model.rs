@@ -2,19 +2,6 @@ use ratatui::style::Color;
 
 // --- Data Structures ---
 
-#[derive(Debug)]
-pub struct Forum {
-    pub name: String,
-    pub description: String,
-    pub threads: Vec<Thread>,
-}
-
-#[derive(Debug)]
-pub struct ChatMessage {
-    pub author: String,
-    pub content: String,
-    pub color: Color,
-}
 
 #[derive(Debug, Clone)]
 pub struct ChatMessageWithMeta {
@@ -24,9 +11,6 @@ pub struct ChatMessageWithMeta {
     pub profile_pic: Option<String>,
     pub timestamp: Option<i64>,
 }
-
-// Remove local Thread and Post definitions, use common::{Thread, Post}
-pub use common::{Thread, Post, DirectMessage};
 
 // // --- Mock Data Creation ---
 

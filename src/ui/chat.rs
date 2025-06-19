@@ -3,11 +3,11 @@
 use ratatui::{Frame, layout::{Rect, Layout, Constraint, Direction}, style::{Style, Color, Modifier}, widgets::{Block, Paragraph, Borders, List, ListItem, Wrap}, text::{Line, Span}};
 use crate::app::{App, ChatFocus};
 use crate::ui::avatar::get_avatar_protocol;
-use crate::ui::time_format::{format_message_timestamp, format_date_delimiter};
 use ratatui_image::StatefulImage;
 use ratatui::widgets::ListState;
-use chrono::TimeZone;
 use ratatui::widgets::{Tabs};
+use crate::ui::time_format::{format_date_delimiter, format_message_timestamp};
+use chrono::TimeZone;
 
 pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
     // Sidebar with Tabs: [ Servers ] [ DMs ]
@@ -127,7 +127,7 @@ pub fn draw_sidebar_servers(f: &mut Frame, app: &mut App, area: Rect, focused: b
     let mut list_state = ListState::default();
     // Highlight selected server/channel
     let mut idx = 0;
-    for (si, server) in app.servers.iter().enumerate() {
+    for (si, _server) in app.servers.iter().enumerate() {
         if app.selected_server == Some(si) {
             idx += 1 + app.selected_channel.unwrap_or(0);
             break;
@@ -159,7 +159,7 @@ pub fn draw_sidebar_dms(f: &mut Frame, app: &mut App, area: Rect, focused: bool)
     // Sort by unread first, then by username
     indexed_users.sort_by_key(|(_, u)| (!app.unread_dm_conversations.contains(&u.id), u.username.clone()));
     
-    let items: Vec<ListItem> = indexed_users.iter().map(|(original_idx, u)| {
+    let items: Vec<ListItem> = indexed_users.iter().map(|(_original_idx, u)| {
         let mut spans = vec![Span::styled(format!("{} {}", if u.status == common::UserStatus::Connected { "●" } else { "○" }, u.username), Style::default().fg(u.color))];
         if app.unread_dm_conversations.contains(&u.id) {
             spans.push(Span::raw(" "));
@@ -188,11 +188,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
     use ratatui::widgets::{Block, Borders, Paragraph};
     use ratatui::text::{Span, Line};
     use crate::ui::avatar::get_avatar_protocol;
-    use crate::ui::time_format::{format_message_timestamp, format_date_delimiter};
     use ratatui_image::StatefulImage;
-    use chrono::TimeZone;
-    use ratatui::style::{Style, Color, Modifier};
-    use uuid::Uuid;
 
     let border_style = if focused {
         Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
@@ -254,7 +250,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
             Some(crate::app::ChatTarget::Channel { .. }) => {
                 app.channel_userlist.iter().find(|u| u.username == msg.author).map(|u| u.clone())
             }
-            Some(crate::app::ChatTarget::DM { user_id }) => {
+            Some(crate::app::ChatTarget::DM { user_id: _ }) => {
                 if let Some(dm_user) = app.dm_user_list.iter().find(|u| u.username == msg.author) {
                     Some(dm_user.clone())
                 } else if let Some(current) = &app.current_user {
@@ -396,12 +392,6 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     }
 }
 
-impl<'a> App<'a> {
-    pub fn draw_dm_conversation(f: &mut ratatui::Frame, app: &mut App, area: ratatui::layout::Rect) {
-        draw_message_list(f, app, area, false, "Direct Messages");
-    }
-}
-
 pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     let border_style = if focused {
         Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
@@ -434,21 +424,12 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     roles.sort();
     roles.reverse();
     // Status order: Connected, Busy, Away, Offline
-    fn status_order(status: &common::UserStatus) -> u8 {
-        match status {
-            common::UserStatus::Connected => 0,
-            common::UserStatus::Busy => 1,
-            common::UserStatus::Away => 2,
-            common::UserStatus::Offline => 3,
-        }
-    }
     // For selection logic
     let list_state = app.user_list_state.clone();
     let selected_index = list_state.selected();
-    let offset = list_state.offset();
     let mut idx = 0;
     for role in roles {
-        let mut users = role_map.get(&role).cloned().unwrap_or_default();
+        let users = role_map.get(&role).cloned().unwrap_or_default();
         // Draw role header
         if current_y + row_height > inner_area.y + inner_area.height { break; }
         let header = Block::default()

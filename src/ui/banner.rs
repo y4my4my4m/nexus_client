@@ -9,10 +9,10 @@ pub fn draw_full_banner(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(banner, area);
 }
 
-pub fn draw_min_banner(f: &mut Frame, app: &App, area: Rect) {
+pub fn draw_min_banner(f: &mut Frame, _app: &App, _area: Rect) {
     let banner_text = "NEXUS".to_string();
     let banner = Paragraph::new(banner_text)
         .block(Block::default().borders(Borders::ALL))
         .alignment(ratatui::layout::Alignment::Center);
-    f.render_widget(banner, area);
+    f.render_widget(banner, _area);
 }

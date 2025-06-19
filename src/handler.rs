@@ -6,7 +6,6 @@ use crate::global_prefs::global_prefs_mut;
 use common::{ClientMessage, SerializableColor};
 use crossterm::event::{self, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::Color;
-use uuid::Uuid;
 
 pub fn handle_key_event(key: KeyEvent, app: &mut crate::app::App) {
     if key.kind != event::KeyEventKind::Press { return; }
@@ -663,7 +662,6 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     }
                     KeyCode::PageDown => {
                         let max_rows = app.last_chat_rows.unwrap_or(20);
-                        let total_msgs = app.get_current_message_list().len();
                         
                         if app.chat_scroll_offset >= max_rows {
                             app.chat_scroll_offset -= max_rows;

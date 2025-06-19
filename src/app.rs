@@ -10,11 +10,8 @@ use std::io::Cursor;
 use std::path::Path;
 use base64::engine::Engine as _;
 use std::collections::{HashSet, HashMap};
-use crate::global_prefs::GlobalPrefs;
-use std::sync::Arc;
 
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
-use image::{DynamicImage, ImageFormat, Rgba, imageops, GenericImageView};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum AppMode {
@@ -56,12 +53,6 @@ pub enum ProfileEditFocus {
     CoverBannerDelete,
     Save,
     Cancel,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SidebarSection {
-    Servers,
-    DMs,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -367,7 +358,7 @@ impl<'a> App<'a> {
                 // Insert the message into the correct channel's message list
                 if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {
                     if let Some(server) = self.servers.get_mut(s) {
-                        if let Some(channel) = server.channels.get_mut(c) {
+                        if let Some(_channel) = server.channels.get_mut(c) {
                             // For local echo, just add a ChatMessage (not ChannelMessage)
                             self.chat_messages.push(common::ChatMessage {
                                 author: msg.author.clone(),
@@ -481,7 +472,7 @@ impl<'a> App<'a> {
             }
             ServerMessage::DirectMessage(dm) => {
                 let current_user_id = self.current_user.as_ref().map(|u| u.id);
-                let is_current = if let (Some(ChatTarget::DM { user_id }), Some(my_id)) = (self.current_chat_target.as_ref(), current_user_id) {
+                let is_current = if let (Some(ChatTarget::DM { user_id }), Some(_my_id)) = (self.current_chat_target.as_ref(), current_user_id) {
                     // Only true if the DM is with the other user and we're in the DMs tab
                     (user_id == &dm.from || user_id == &dm.to) && self.sidebar_tab == SidebarTab::DMs
                         && (user_id == &dm.from || user_id == &dm.to)
@@ -552,7 +543,7 @@ impl<'a> App<'a> {
                     self.select_and_load_first_chat();
                 }
             }
-            ServerMessage::ChannelUserList { channel_id, users } => {
+            ServerMessage::ChannelUserList { channel_id: _, users } => {
                 let mut sorted_users = users;
                 sorted_users.sort_by(|a, b| a.username.to_lowercase().cmp(&b.username.to_lowercase()));
                 sorted_users.reverse();
@@ -570,7 +561,7 @@ impl<'a> App<'a> {
                     self.select_and_load_first_chat();
                 }
             }
-            ServerMessage::DirectMessages { user_id, messages, history_complete } => {
+            ServerMessage::DirectMessages { user_id: _, messages, history_complete } => {
                 // --- DM scrollback logic: prepend and adjust scroll offset ---
                 // If we just switched DMs or fetched latest (before=None), always replace and reset scroll
                 let is_switch_or_latest = self.dm_messages.is_empty() || self.dm_messages.last().map(|m| m.timestamp) < messages.last().map(|m| m.timestamp);
@@ -695,7 +686,7 @@ impl<'a> App<'a> {
             let target_w = banner_size.0;
             let scale = target_w as f32 / orig_w as f32;
             let scaled_h = (orig_h as f32 * scale).round() as u32;
-            let mut resized = img.resize_exact(target_w, scaled_h, imageops::FilterType::Lanczos3).to_rgba8();
+            let resized = img.resize_exact(target_w, scaled_h, imageops::FilterType::Lanczos3).to_rgba8();
             // Create output image with target size, transparent background
             let mut out_img = image::RgbaImage::from_pixel(banner_size.0, banner_size.1, Rgba([0, 0, 0, 0]));
             // Center vertically
@@ -809,22 +800,6 @@ impl<'a> App<'a> {
                 self.profile_image_state = None;
             }
         }
-    }
-
-    // --- DM UI stubs ---
-    pub fn draw_dm_user_list(f: &mut ratatui::Frame, app: &mut App, area: ratatui::layout::Rect) {
-        use ratatui::widgets::{Block, Borders, List, ListItem};
-        let items: Vec<ListItem> = app.dm_user_list.iter().map(|u| {
-            let status = match u.status {
-                common::UserStatus::Connected => "●",
-                _ => "○",
-            };
-            ListItem::new(format!("{} {}", status, u.username))
-        }).collect();
-        let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title("Direct Messages"))
-            .highlight_symbol(">> ");
-        f.render_stateful_widget(list, area, &mut app.user_list_state.clone());
     }
 
     pub fn set_current_chat_target(&mut self, target: ChatTarget) {
