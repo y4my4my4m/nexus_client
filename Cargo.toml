@@ -5,7 +5,7 @@ edition = "2021"
 
 [features]
 default = ["audio"]
-audio = []
+audio = ["rodio"]
 
 [dependencies]
 common = { path = "../common" }
