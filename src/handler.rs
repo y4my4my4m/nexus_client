@@ -603,18 +603,18 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         select_current_sidebar_target(app);
                     },
                     KeyCode::Enter => {
-                        select_current_sidebar_target(app);
-                        if let crate::app::SidebarTab::Servers = app.sidebar_tab {
-                            if app.selected_server.is_some() && app.selected_channel.is_none() {
-                                app.show_server_actions = true;
-                                app.server_actions_selected = 0;
-                                app.sound_manager.play(SoundType::PopupOpen);
-                            } else {
-                                app.chat_focus = crate::app::ChatFocus::Messages;
-                            }
-                        } else {
-                            app.chat_focus = crate::app::ChatFocus::Messages;
-                        }
+                        // select_current_sidebar_target(app);
+                        // if let crate::app::SidebarTab::Servers = app.sidebar_tab {
+                        //     if app.selected_server.is_some() && app.selected_channel.is_none() {
+                        //         app.show_server_actions = true;
+                        //         app.server_actions_selected = 0;
+                        //         app.sound_manager.play(SoundType::PopupOpen);
+                        //     } else {
+                        //         app.chat_focus = crate::app::ChatFocus::Messages;
+                        //     }
+                        // } else {
+                        //     app.chat_focus = crate::app::ChatFocus::Messages;
+                        // }
                     },
                     KeyCode::Esc => app.mode = AppMode::MainMenu,
                     _ => {}

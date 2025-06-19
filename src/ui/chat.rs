@@ -75,7 +75,6 @@ pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
         }
         crate::app::SidebarTab::DMs => {
             draw_sidebar_dms(f, app, sidebar_chunks[1], focus == ChatFocus::Sidebar);
-            // Use draw_chat_main for DM conversation view
             draw_chat_main(f, app, chunks[1], focus == ChatFocus::Messages);
         }
     }
