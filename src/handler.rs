@@ -574,19 +574,14 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
                         app.show_user_list = !app.show_user_list;
                     },
-                    KeyCode::Left => {
+                    KeyCode::Left | KeyCode::Right => {
+                        // Switch tab and always select/load first available chat
                         app.sidebar_tab = match app.sidebar_tab {
                             crate::app::SidebarTab::Servers => crate::app::SidebarTab::DMs,
                             crate::app::SidebarTab::DMs => crate::app::SidebarTab::Servers,
                         };
                         app.sound_manager.play(SoundType::ChangeChannel);
-                    },
-                    KeyCode::Right => {
-                        app.sidebar_tab = match app.sidebar_tab {
-                            crate::app::SidebarTab::Servers => crate::app::SidebarTab::DMs,
-                            crate::app::SidebarTab::DMs => crate::app::SidebarTab::Servers,
-                        };
-                        app.sound_manager.play(SoundType::ChangeChannel);
+                        app.select_and_load_first_chat();
                     },
                     KeyCode::Down => {
                         match app.sidebar_tab {
@@ -601,21 +596,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                             crate::app::SidebarTab::DMs => move_dm_selection(app, -1),
                         }
                         select_current_sidebar_target(app);
-                    },
-                    KeyCode::Enter => {
-                        // select_current_sidebar_target(app);
-                        // if let crate::app::SidebarTab::Servers = app.sidebar_tab {
-                        //     if app.selected_server.is_some() && app.selected_channel.is_none() {
-                        //         app.show_server_actions = true;
-                        //         app.server_actions_selected = 0;
-                        //         app.sound_manager.play(SoundType::PopupOpen);
-                        //     } else {
-                        //         app.chat_focus = crate::app::ChatFocus::Messages;
-                        //     }
-                        // } else {
-                        //     app.chat_focus = crate::app::ChatFocus::Messages;
-                        // }
-                    },
+                    }
                     KeyCode::Esc => app.mode = AppMode::MainMenu,
                     _ => {}
                 },

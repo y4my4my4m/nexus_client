@@ -541,32 +541,8 @@ impl<'a> App<'a> {
             ServerMessage::Servers(servers) => {
                 self.servers = servers;
                 // Default selection: first server and first channel
-                let mut should_fetch_channel = false;
-                if self.selected_server.is_none() && !self.servers.is_empty() {
-                    self.selected_server = Some(0);
-                    if !self.servers[0].channels.is_empty() {
-                        self.selected_channel = Some(0);
-                        self.chat_messages.clear(); // Do not expect pre-populated messages
-                        // Only fetch if we're in Chat mode
-                        if self.mode == AppMode::Chat {
-                            should_fetch_channel = true;
-                        }
-                    }
-                } else if self.mode == AppMode::Chat && self.selected_server.is_some() && self.selected_channel.is_some() {
-                    // If already selected, but just entered chat mode, fetch
-                    should_fetch_channel = true;
-                }
-                // Always fetch userlist and messages for selected channel if needed
-                if should_fetch_channel {
-                    if let (Some(s), Some(c)) = (self.selected_server, self.selected_channel) {
-                        let channel_id = self.servers.get(s)
-                            .and_then(|server| server.channels.get(c))
-                            .map(|channel| channel.id);
-                        if let Some(channel_id) = channel_id {
-                            self.send_to_server(ClientMessage::GetChannelUserList { channel_id });
-                            self.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: None });
-                        }
-                    }
+                if self.mode == AppMode::Chat {
+                    self.select_and_load_first_chat();
                 }
             }
             ServerMessage::ChannelUserList { channel_id, users } => {
@@ -583,8 +559,8 @@ impl<'a> App<'a> {
             }
             ServerMessage::DMUserList(users) => {
                 self.dm_user_list = users;
-                if self.selected_dm_user.is_none() && !self.dm_user_list.is_empty() {
-                    self.selected_dm_user = Some(0);
+                if self.mode == AppMode::Chat {
+                    self.select_and_load_first_chat();
                 }
             }
             ServerMessage::DirectMessages { user_id, messages, history_complete } => {
@@ -837,6 +813,70 @@ impl<'a> App<'a> {
     pub fn clear_current_input(&mut self) {
         if let Some(target) = &self.current_chat_target {
             self.chat_input_drafts.insert(target.clone(), String::new());
+        }
+    }
+    /// Select and load the first available channel or DM, depending on the current sidebar tab.
+    pub fn select_and_load_first_chat(&mut self) {
+        match self.sidebar_tab {
+            SidebarTab::Servers => {
+                // Select first server and channel if not already selected
+                if self.servers.is_empty() {
+                    self.selected_server = None;
+                    self.selected_channel = None;
+                    self.current_chat_target = None;
+                    return;
+                }
+                if self.selected_server.is_none() {
+                    self.selected_server = Some(0);
+                }
+                let s = self.selected_server.unwrap_or(0);
+                let (server_id, channel_id) = {
+                    let server = self.servers.get(s);
+                    if let Some(server) = server {
+                        if server.channels.is_empty() {
+                            self.selected_channel = None;
+                            self.current_chat_target = None;
+                            return;
+                        }
+                        if self.selected_channel.is_none() {
+                            self.selected_channel = Some(0);
+                        }
+                        let c = self.selected_channel.unwrap_or(0);
+                        if let Some(channel) = server.channels.get(c) {
+                            (server.id, channel.id)
+                        } else {
+                            return;
+                        }
+                    } else {
+                        return;
+                    }
+                };
+                let target = ChatTarget::Channel { server_id, channel_id };
+                self.set_current_chat_target(target);
+                self.send_to_server(ClientMessage::GetChannelUserList { channel_id });
+                self.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: None });
+                self.chat_scroll_offset = 0;
+            }
+            SidebarTab::DMs => {
+                if self.dm_user_list.is_empty() {
+                    self.selected_dm_user = None;
+                    self.current_chat_target = None;
+                    return;
+                }
+                if self.selected_dm_user.is_none() {
+                    self.selected_dm_user = Some(0);
+                }
+                let idx = self.selected_dm_user.unwrap_or(0);
+                if let Some(user) = self.dm_user_list.get(idx) {
+                    let user_id = user.id;
+                    let target = ChatTarget::DM { user_id };
+                    self.set_current_chat_target(target);
+                    self.dm_target = Some(user_id);
+                    self.send_to_server(ClientMessage::GetDirectMessages { user_id, before: None });
+                    self.unread_dm_conversations.remove(&user_id);
+                    self.chat_scroll_offset = 0;
+                }
+            }
         }
     }
     // --- Shared chat message list logic for channel and DM ---
