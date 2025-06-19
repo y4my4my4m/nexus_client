@@ -215,7 +215,9 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
     let max_rows = (inner_area.height as usize) / (row_height as usize + 1);
     app.last_chat_rows = Some(max_rows); // Store for scroll calculations
     let total_msgs = messages.len();
-    let end_idx = total_msgs.saturating_sub(app.chat_scroll_offset);
+    let max_scroll = total_msgs.saturating_sub(max_rows);
+    let scroll_offset = app.chat_scroll_offset.min(max_scroll);
+    let end_idx = total_msgs.saturating_sub(scroll_offset);
     let start_idx = end_idx.saturating_sub(max_rows);
     let display_items = &messages[start_idx..end_idx];
 
