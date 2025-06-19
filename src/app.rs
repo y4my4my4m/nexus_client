@@ -14,6 +14,7 @@ use crate::global_prefs::GlobalPrefs;
 use std::sync::Arc;
 
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
+use image::{DynamicImage, ImageFormat, Rgba, imageops, GenericImageView};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum AppMode {
@@ -684,13 +685,27 @@ impl<'a> App<'a> {
         pfp_size: (u32, u32),
         pfp_padding_left: u32,
     ) -> Option<Vec<u8>> {
-        use image::{DynamicImage, ImageFormat, Rgba, imageops};
+        use image::{DynamicImage, ImageFormat, Rgba, imageops, GenericImageView};
         // If banner_bytes is all zero (fully transparent), create a transparent image
         let mut banner_img = if banner_bytes.iter().all(|&b| b == 0) {
             image::RgbaImage::from_pixel(banner_size.0, banner_size.1, Rgba([0, 0, 0, 0]))
         } else {
             let img = image::load_from_memory(banner_bytes).ok()?;
-            img.resize_exact(banner_size.0, banner_size.1, imageops::FilterType::Lanczos3).to_rgba8()
+            let (orig_w, orig_h) = img.dimensions();
+            let target_w = banner_size.0;
+            let scale = target_w as f32 / orig_w as f32;
+            let scaled_h = (orig_h as f32 * scale).round() as u32;
+            let mut resized = img.resize_exact(target_w, scaled_h, imageops::FilterType::Lanczos3).to_rgba8();
+            // Create output image with target size, transparent background
+            let mut out_img = image::RgbaImage::from_pixel(banner_size.0, banner_size.1, Rgba([0, 0, 0, 0]));
+            // Center vertically
+            let y_offset = if banner_size.1 > scaled_h {
+                (banner_size.1 - scaled_h) / 2
+            } else {
+                0
+            };
+            imageops::overlay(&mut out_img, &resized, 0, y_offset as i64);
+            out_img
         };
         // Add a subtle black gradient to transparent left to right
         for y in 0..banner_size.1 {
@@ -700,12 +715,24 @@ impl<'a> App<'a> {
                 *px = Rgba([px[0], px[1], px[2], alpha]);
             }
         }
-        // Resize PFP
+        // Resize and center/crop PFP with aspect ratio preserved (cover logic)
         let mut pfp_img = if pfp_bytes.iter().all(|&b| b == 0) {
             image::RgbaImage::from_pixel(pfp_size.0, pfp_size.1, Rgba([0, 0, 0, 0]))
         } else {
             let img = image::load_from_memory(pfp_bytes).ok()?;
-            img.resize_exact(pfp_size.0, pfp_size.1, imageops::FilterType::Lanczos3).to_rgba8()
+            let (orig_w, orig_h) = img.dimensions();
+            let scale = f32::max(
+                pfp_size.0 as f32 / orig_w as f32,
+                pfp_size.1 as f32 / orig_h as f32,
+            );
+            let new_w = (orig_w as f32 * scale).ceil() as u32;
+            let new_h = (orig_h as f32 * scale).ceil() as u32;
+            let resized = img.resize_exact(new_w, new_h, imageops::FilterType::Lanczos3).to_rgba8();
+            // Crop the center square
+            let x_offset = ((new_w as i32 - pfp_size.0 as i32) / 2).max(0) as u32;
+            let y_offset = ((new_h as i32 - pfp_size.1 as i32) / 2).max(0) as u32;
+            let cropped = imageops::crop_imm(&resized, x_offset, y_offset, pfp_size.0, pfp_size.1).to_image();
+            cropped
         };
         // Apply circular mask to PFP
         let radius = pfp_size.0.min(pfp_size.1) as f32 / 2.0;

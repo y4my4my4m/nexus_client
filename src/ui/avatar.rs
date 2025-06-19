@@ -1,7 +1,7 @@
 //! Avatar protocol and image helpers for the UI.
 
 use base64::Engine;
-use image::{DynamicImage, RgbaImage};
+use image::{DynamicImage, RgbaImage, GenericImageView};
 use crate::app::App;
 
 // Returns a mutable reference to a cached StatefulProtocol for the user's avatar, creating it if needed.
@@ -15,9 +15,18 @@ pub fn get_avatar_protocol<'a>(app: &'a mut App, user: &common::User, size: u32)
         } else { pic };
         let bytes = base64::engine::general_purpose::STANDARD.decode(b64).ok()?;
         let img = image::load_from_memory(&bytes).ok()?;
-        let mut resized = img.resize_exact(size, size, image::imageops::FilterType::Lanczos3).to_rgba8();
-        apply_circular_mask(&mut resized);
-        let protocol = app.picker.new_resize_protocol(DynamicImage::ImageRgba8(resized));
+        let (orig_w, orig_h) = img.dimensions();
+        let scale = f32::max(size as f32 / orig_w as f32, size as f32 / orig_h as f32);
+        let new_w = (orig_w as f32 * scale).ceil() as u32;
+        let new_h = (orig_h as f32 * scale).ceil() as u32;
+        let resized = img.resize_exact(new_w, new_h, image::imageops::FilterType::Lanczos3).to_rgba8();
+        // Crop the center square
+        let x_offset = ((new_w as i32 - size as i32) / 2).max(0) as u32;
+        let y_offset = ((new_h as i32 - size as i32) / 2).max(0) as u32;
+        let cropped = image::imageops::crop_imm(&resized, x_offset, y_offset, size, size).to_image();
+        let mut square = cropped;
+        apply_circular_mask(&mut square);
+        let protocol = app.picker.new_resize_protocol(DynamicImage::ImageRgba8(square));
         app.avatar_protocol_cache.insert(key, protocol);
     }
     app.avatar_protocol_cache.get_mut(&key)
