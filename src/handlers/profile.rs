@@ -1,7 +1,5 @@
 use crate::app::App;
 use crate::sound::SoundType;
-use crate::services::ProfileService;
-use common::ClientMessage;
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// Handle profile editing input

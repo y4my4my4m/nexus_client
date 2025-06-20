@@ -1,4 +1,4 @@
-use common::{User, DirectMessage, Server, Channel, ChatMessage};
+use common::{User, DirectMessage, Server, Channel, ChannelMessage};
 use uuid::Uuid;
 use std::collections::{HashMap, HashSet};
 use ratatui::widgets::ListState;
@@ -31,7 +31,7 @@ pub struct ChatState {
     pub selected_channel: Option<usize>,
     
     // Chat messages and scrolling
-    pub chat_messages: Vec<ChatMessage>,
+    pub chat_messages: Vec<ChannelMessage>,
     pub chat_scroll_offset: usize,
     pub last_chat_rows: Option<usize>,
     

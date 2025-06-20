@@ -1,6 +1,6 @@
 // client/src/app.rs
 
-use common::{ClientMessage, ServerMessage, User, UserProfile};
+use common::{ClientMessage, ServerMessage};
 use crate::sound::{SoundManager, SoundType};
 use crate::state::{
     ChatState, ForumState, ProfileState, AuthState, NotificationState, UiState,
@@ -9,7 +9,6 @@ use crate::state::{
 use crate::services::{ChatService, MessageService, ProfileService, ImageService};
 use crate::model::ChatMessageWithMeta;
 use tokio::sync::mpsc;
-use uuid::Uuid;
 
 /// Main application state and controller
 pub struct App<'a> {
@@ -202,9 +201,80 @@ impl<'a> App<'a> {
                 let prefix = if is_error { "Error: " } else { "Info: " };
                 self.set_notification(format!("{}{}", prefix, text), Some(2000), false);
             }
-            // Handle other message types...
+            ServerMessage::Notifications { notifications, history_complete } => {
+                self.notifications.notifications = notifications;
+                self.notifications.notification_history_complete = history_complete;
+            }
+            ServerMessage::NotificationUpdated { notification_id, read } => {
+                self.notifications.update_notification(notification_id, read);
+            }
+            ServerMessage::ServerInviteReceived(invite) => {
+                let message = format!("Server invite from {} to join '{}'", invite.from_user.username, invite.server.name);
+                self.set_notification(message, Some(5000), false);
+                self.sound_manager.play(SoundType::PopupOpen);
+            }
+            ServerMessage::ServerInviteResponse { invite_id: _, accepted, user } => {
+                let status = if accepted { "accepted" } else { "declined" };
+                let message = format!("{} {} your server invite", user.username, status);
+                self.set_notification(message, Some(3000), false);
+            }
+            ServerMessage::UserJoined(user) => {
+                if !self.chat.channel_userlist.iter().any(|u| u.id == user.id) {
+                    self.chat.channel_userlist.push(user);
+                }
+            }
+            ServerMessage::UserLeft(user_id) => {
+                self.chat.channel_userlist.retain(|u| u.id != user_id);
+            }
+            ServerMessage::NewChannelMessage(msg) => {
+                let current_target = &self.chat.current_chat_target;
+                let is_current_channel = if let Some(crate::state::ChatTarget::Channel { channel_id, .. }) = current_target {
+                    *channel_id == msg.channel_id
+                } else { false };
+                
+                if is_current_channel {
+                    self.chat.chat_messages.push(msg);
+                    self.chat.reset_scroll_offset();
+                    self.sound_manager.play(SoundType::ReceiveChannelMessage);
+                } else {
+                    self.chat.unread_channels.insert(msg.channel_id);
+                }
+            }
+            ServerMessage::ChannelMessages { channel_id, messages, history_complete } => {
+                if let Some(crate::state::ChatTarget::Channel { channel_id: current_channel_id, .. }) = &self.chat.current_chat_target {
+                    if *current_channel_id == channel_id {
+                        if self.chat.chat_messages.is_empty() {
+                            self.chat.chat_messages = messages;
+                        } else {
+                            // Prepend new messages for history loading
+                            let mut all_messages = messages;
+                            all_messages.extend(self.chat.chat_messages.drain(..));
+                            self.chat.chat_messages = all_messages;
+                        }
+                        
+                        self.chat.channel_history_complete.insert(channel_id, history_complete);
+                    }
+                }
+            }
+            ServerMessage::DirectMessages { user_id, messages, history_complete } => {
+                if let Some(crate::state::ChatTarget::DM { user_id: current_user_id }) = &self.chat.current_chat_target {
+                    if *current_user_id == user_id {
+                        if self.chat.dm_messages.is_empty() {
+                            self.chat.dm_messages = messages;
+                        } else {
+                            // Prepend new messages for history loading
+                            let mut all_messages = messages;
+                            all_messages.extend(self.chat.dm_messages.drain(..));
+                            self.chat.dm_messages = all_messages;
+                        }
+                        
+                        self.chat.dm_history_complete = history_complete;
+                    }
+                }
+            }
             _ => {
-                // TODO: Implement remaining message handlers
+                // Log unhandled messages for debugging
+                println!("Unhandled server message: {:?}", std::any::type_name::<ServerMessage>());
             }
         }
     }
@@ -426,5 +496,5 @@ impl<'a> App<'a> {
 }
 
 // Re-export commonly used types for backward compatibility
-pub use crate::state::{AppMode, ChatFocus, SidebarTab, ChatTarget, ProfileEditFocus};
+pub use crate::state::{AppMode, ChatFocus, ProfileEditFocus};
 pub use crate::state::InputMode;

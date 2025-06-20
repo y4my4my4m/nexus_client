@@ -1,7 +1,6 @@
 use crate::state::{ChatState, ChatTarget};
 use crate::model::ChatMessageWithMeta;
-use common::{User, DirectMessage, ChannelMessage};
-use uuid::Uuid;
+use common::User;
 
 /// Business logic for chat functionality
 pub struct ChatService;
@@ -44,11 +43,11 @@ impl ChatService {
             Some(ChatTarget::Channel { .. }) => {
                 chat_state.chat_messages.iter().map(|msg| {
                     ChatMessageWithMeta {
-                        author: msg.author.clone(),
+                        author: msg.author_username.clone(),
                         content: msg.content.clone(),
-                        color: msg.color,
-                        profile_pic: None, // TODO: Add profile pic support
-                        timestamp: None,   // TODO: Add timestamp support
+                        color: msg.author_color,
+                        profile_pic: msg.author_profile_pic.clone(),
+                        timestamp: Some(msg.timestamp),
                     }
                 }).collect()
             }
@@ -88,7 +87,7 @@ impl ChatService {
         max_rows: usize,
     ) -> bool {
         match &chat_state.current_chat_target {
-            Some(ChatTarget::Channel { channel_id, server_id }) => {
+            Some(ChatTarget::Channel { channel_id, server_id: _ }) => {
                 let history_complete = chat_state.channel_history_complete
                     .get(channel_id)
                     .copied()
