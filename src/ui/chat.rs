@@ -520,6 +520,7 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     // Draw mention suggestions popup if present
     if focused {
         draw_mention_suggestion_popup(f, app, chunks[1], area);
+        draw_emoji_suggestion_popup(f, app, chunks[1], area);
     }
     
     // Draw scrollbar if there are more messages than fit - use message area only
@@ -693,6 +694,43 @@ pub fn draw_mention_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect,
         popup_height
     );
     let block = Block::default().borders(Borders::ALL).title("Mentions");
+    let para = Paragraph::new(lines).block(block).wrap(Wrap { trim: true });
+    f.render_widget(para, popup_area);
+}
+
+/// Draw the emoji suggestion popup below (or above) the input area.
+pub fn draw_emoji_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect, chat_area: Rect) {
+    if app.chat.emoji_suggestions.is_empty() { return; }
+    let max_emoji_len = app.chat.emoji_suggestions.iter().map(|emoji| emoji.chars().count()).max().unwrap_or(3).max(8);
+    let popup_width = (max_emoji_len + 10).min(chat_area.width as usize) as u16;
+    let mut lines = vec![];
+    for (i, emoji) in app.chat.emoji_suggestions.iter().enumerate() {
+        let style = if i == app.chat.emoji_selected {
+            Style::default().fg(Color::Black).bg(Color::Yellow).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White).bg(Color::Black)
+        };
+        lines.push(Line::from(Span::styled(format!("{}", emoji), style)));
+    }
+    let popup_height = (lines.len() as u16).saturating_add(2);
+    // Default: below input
+    let mut popup_y = input_area.y + input_area.height;
+    // If overflow, move above input
+    if popup_y + popup_height > chat_area.y + chat_area.height {
+        if chat_area.y >= popup_height {
+            popup_y = input_area.y.saturating_sub(popup_height);
+        } else {
+            popup_y = chat_area.y; // Clamp to top
+        }
+    }
+    if popup_y < chat_area.y { popup_y = chat_area.y; }
+    let popup_area = Rect::new(
+        input_area.x,
+        popup_y,
+        popup_width,
+        popup_height
+    );
+    let block = Block::default().borders(Borders::ALL).title("Emojis");
     let para = Paragraph::new(lines).block(block).wrap(Wrap { trim: true });
     f.render_widget(para, popup_area);
 }

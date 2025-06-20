@@ -162,20 +162,28 @@ fn handle_message_input(key: KeyEvent, app: &mut App) {
             handle_scroll_down(app);
         }
         KeyCode::Down => {
-            // Handle mention suggestions
+            // Handle mention suggestions first, then emoji suggestions
             if !app.chat.mention_suggestions.is_empty() {
                 app.chat.mention_selected = (app.chat.mention_selected + 1) % app.chat.mention_suggestions.len();
+            } else if !app.chat.emoji_suggestions.is_empty() {
+                app.chat.emoji_selected = (app.chat.emoji_selected + 1) % app.chat.emoji_suggestions.len();
             } else if app.chat.chat_scroll_offset > 0 {
                 app.chat.chat_scroll_offset -= 1;
             }
         }
         KeyCode::Up => {
-            // Handle mention suggestions
+            // Handle mention suggestions first, then emoji suggestions
             if !app.chat.mention_suggestions.is_empty() {
                 if app.chat.mention_selected == 0 {
                     app.chat.mention_selected = app.chat.mention_suggestions.len() - 1;
                 } else {
                     app.chat.mention_selected -= 1;
+                }
+            } else if !app.chat.emoji_suggestions.is_empty() {
+                if app.chat.emoji_selected == 0 {
+                    app.chat.emoji_selected = app.chat.emoji_suggestions.len() - 1;
+                } else {
+                    app.chat.emoji_selected -= 1;
                 }
             } else {
                 let max_rows = app.chat.last_chat_rows.unwrap_or(20);
@@ -189,6 +197,8 @@ fn handle_message_input(key: KeyEvent, app: &mut App) {
         KeyCode::Enter => {
             if !app.chat.mention_suggestions.is_empty() {
                 app.apply_selected_mention();
+            } else if !app.chat.emoji_suggestions.is_empty() {
+                app.apply_selected_emoji();
             } else if let Err(e) = app.send_message() {
                 app.set_notification(format!("Failed to send message: {}", e), Some(2000), false);
             }
@@ -201,12 +211,14 @@ fn handle_message_input(key: KeyEvent, app: &mut App) {
             current.push(c);
             app.set_current_input(current);
             app.update_mention_suggestions();
+            app.update_emoji_suggestions();
         }
         KeyCode::Backspace => {
             let mut current = app.get_current_input().to_string();
             current.pop();
             app.set_current_input(current);
             app.update_mention_suggestions();
+            app.update_emoji_suggestions();
         }
         KeyCode::Esc => {
             app.ui.set_mode(crate::state::AppMode::MainMenu);

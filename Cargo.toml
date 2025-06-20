@@ -30,3 +30,4 @@ serde_json = "1.0.140"
 
 # Optional rodio dependency, only included when the "audio" feature is enabled
 rodio = { version = "0.17", default-features = false, features = ["mp3"], optional = true }
+emojis = "0.6"

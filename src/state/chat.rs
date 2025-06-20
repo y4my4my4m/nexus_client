@@ -63,6 +63,11 @@ pub struct ChatState {
     pub mention_suggestions: Vec<usize>,
     pub mention_selected: usize,
     pub mention_prefix: Option<String>,
+    
+    // Emoji system
+    pub emoji_suggestions: Vec<String>,
+    pub emoji_selected: usize,
+    pub emoji_prefix: Option<String>,
 }
 
 impl Default for ChatState {
@@ -93,6 +98,9 @@ impl Default for ChatState {
             mention_suggestions: Vec::new(),
             mention_selected: 0,
             mention_prefix: None,
+            emoji_suggestions: Vec::new(),
+            emoji_selected: 0,
+            emoji_prefix: None,
         }
     }
 }
@@ -141,5 +149,11 @@ impl ChatState {
         self.mention_suggestions.clear();
         self.mention_prefix = None;
         self.mention_selected = 0;
+    }
+    
+    pub fn clear_emoji_suggestions(&mut self) {
+        self.emoji_suggestions.clear();
+        self.emoji_prefix = None;
+        self.emoji_selected = 0;
     }
 }

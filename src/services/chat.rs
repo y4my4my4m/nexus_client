@@ -35,6 +35,47 @@ impl ChatService {
         result
     }
     
+    /// Get emoji suggestions based on input text
+    pub fn get_emoji_suggestions(input: &str) -> Vec<String> {
+        let cursor = input.len();
+        let upto = &input[..cursor];
+        
+        if let Some(idx) = upto.rfind(':') {
+            let after_colon = &upto[(idx + 1)..];
+            if after_colon.chars().all(|ch| ch.is_alphabetic() || ch == '_') && !after_colon.is_empty() {
+                let prefix = after_colon.to_lowercase();
+                let mut suggestions: Vec<String> = emojis::iter()
+                    .filter_map(|emoji| {
+                        // Check if any shortcode matches the prefix
+                        for shortcode in emoji.shortcodes() {
+                            if shortcode.to_lowercase().starts_with(&prefix) {
+                                return Some(emoji.as_str().to_string());
+                            }
+                        }
+                        None
+                    })
+                    .collect();
+                
+                // Remove duplicates and limit to reasonable number
+                suggestions.sort();
+                suggestions.dedup();
+                suggestions.truncate(10);
+                return suggestions;
+            }
+        }
+        
+        Vec::new()
+    }
+    
+    /// Apply emoji suggestion to input text
+    pub fn apply_emoji_suggestion(input: &str, emoji: &str, prefix: &str) -> String {
+        let mut result = input.to_string();
+        if let Some(idx) = input.rfind(&format!(":{}", prefix)) {
+            result.replace_range(idx..(idx + 1 + prefix.len()), &format!("{} ", emoji));
+        }
+        result
+    }
+    
     pub fn build_message_list(
         chat_state: &ChatState,
         current_user: Option<&User>,

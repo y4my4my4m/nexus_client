@@ -483,6 +483,40 @@ impl<'a> App<'a> {
         }
     }
 
+    // --- Emoji System ---
+    
+    pub fn update_emoji_suggestions(&mut self) {
+        let input = self.get_current_input().to_string();
+        let suggestions = ChatService::get_emoji_suggestions(&input);
+        
+        if !suggestions.is_empty() {
+            self.chat.emoji_suggestions = suggestions;
+            self.chat.emoji_selected = 0;
+            
+            // Extract prefix from input
+            if let Some(idx) = input.rfind(':') {
+                let after_colon = &input[(idx + 1)..];
+                if after_colon.chars().all(|ch| ch.is_alphabetic() || ch == '_') && !after_colon.is_empty() {
+                    self.chat.emoji_prefix = Some(after_colon.to_string());
+                }
+            }
+        } else {
+            self.chat.clear_emoji_suggestions();
+        }
+    }
+
+    pub fn apply_selected_emoji(&mut self) {
+        if let (Some(prefix), Some(emoji)) = (
+            &self.chat.emoji_prefix.clone(),
+            self.chat.emoji_suggestions.get(self.chat.emoji_selected)
+        ) {
+            let input = self.get_current_input().to_string();
+            let new_input = ChatService::apply_emoji_suggestion(&input, emoji, prefix);
+            self.set_current_input(new_input);
+            self.chat.clear_emoji_suggestions();
+        }
+    }
+
     pub fn update_profile_banner_composite(&mut self) {
         // Create composite banner + profile pic image for profile view popup
         if let Some(profile) = &self.profile.profile_view {
