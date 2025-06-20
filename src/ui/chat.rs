@@ -419,42 +419,88 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
 
     draw_message_list(f, app, chunks[0], focused, "Chat");
 
-    let input = Paragraph::new(input_str.as_str())
-        .style(Style::default().fg(Color::Cyan))
-        .block(Block::default().borders(Borders::ALL).title("Input"))
+    // Create styled input text with white text and colored @mentions
+    let mut input_spans = Vec::new();
+    let mut last = 0;
+    let mention_re = regex::Regex::new(r"@([a-zA-Z0-9_]+)").unwrap();
+    
+    for m in mention_re.find_iter(&input_str) {
+        let start = m.start();
+        let end = m.end();
+        
+        // Add text before the mention in white
+        if start > last {
+            input_spans.push(Span::styled(&input_str[last..start], Style::default().fg(Color::White)));
+        }
+        
+        // Add the mention with user color or default styling
+        let mention = &input_str[start+1..end];
+        let mention_color = app.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color);
+        if let Some(mcolor) = mention_color {
+            input_spans.push(Span::styled(format!("@{}", mention), Style::default().fg(Color::Black).bg(mcolor).add_modifier(Modifier::BOLD)));
+        } else {
+            input_spans.push(Span::styled(format!("@{}", mention), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+        }
+        last = end;
+    }
+    
+    // Add remaining text after last mention in white
+    if last < input_str.len() {
+        input_spans.push(Span::styled(&input_str[last..], Style::default().fg(Color::White)));
+    }
+    
+    // If no spans were created (no mentions), create a single white span
+    if input_spans.is_empty() && !input_str.is_empty() {
+        input_spans.push(Span::styled(&input_str, Style::default().fg(Color::White)));
+    }
+
+    let input = Paragraph::new(Line::from(input_spans))
+        .block(Block::default().borders(Borders::ALL).title("Input").border_style(
+            if focused {
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            }
+        ))
         .wrap(Wrap { trim: true });
     f.render_widget(input, chunks[1]);
     
     if focused {
-        // For cursor positioning with wrapped text, we need to calculate based on
-        // the actual position within the input string
+        // Improved cursor positioning for multiline input
         let input_area = chunks[1];
         let inner_area = Block::default().borders(Borders::ALL).inner(input_area);
         
-        if inner_area.width > 0 && !input_str.is_empty() {
-            // Simple cursor positioning - for now place at end of input
-            // More sophisticated cursor positioning would require tracking actual cursor position
+        if inner_area.width > 0 {
             let cursor_pos = input_str.len();
             let text_up_to_cursor = &input_str[..cursor_pos];
             
-            // Count newlines to get line position
-            let newlines = text_up_to_cursor.matches('\n').count() as u16;
-            let last_line = text_up_to_cursor.split('\n').last().unwrap_or("");
+            // More accurate cursor positioning that accounts for wrapping
+            let mut current_line = 0u16;
+            let mut current_col = 0u16;
             
-            // Estimate column based on character count in last line
-            let col_in_line = last_line.len() as u16;
-            let estimated_col = col_in_line % inner_area.width;
-            let estimated_line = newlines + (col_in_line / inner_area.width);
+            for ch in text_up_to_cursor.chars() {
+                if ch == '\n' {
+                    current_line += 1;
+                    current_col = 0;
+                } else {
+                    current_col += 1;
+                    // Handle wrapping when line exceeds width
+                    if current_col >= inner_area.width {
+                        current_line += 1;
+                        current_col = 0;
+                    }
+                }
+            }
             
-            let cursor_y = inner_area.y + estimated_line;
-            let cursor_x = inner_area.x + estimated_col;
+            let cursor_y = inner_area.y + current_line;
+            let cursor_x = inner_area.x + current_col;
             
             // Ensure cursor is within bounds
             if cursor_y < inner_area.y + inner_area.height && cursor_x < inner_area.x + inner_area.width {
                 f.set_cursor_position((cursor_x, cursor_y));
             }
         } else {
-            // Empty input - place cursor at start
+            // Empty input or no width - place cursor at start
             f.set_cursor_position((inner_area.x, inner_area.y));
         }
     }
