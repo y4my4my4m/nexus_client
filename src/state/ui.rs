@@ -69,6 +69,10 @@ impl Default for UiState {
 }
 
 impl UiState {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    
     pub fn set_mode(&mut self, mode: AppMode) {
         self.mode = mode;
     }

@@ -4,9 +4,11 @@ use crate::global_prefs::global_prefs;
 #[cfg(not(target_env = "musl"))]
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::BufReader;
 use std::path::PathBuf;
 
-#[derive(Hash, Eq, PartialEq, Clone, Copy)]
+#[derive(Hash, Eq, PartialEq, Clone, Copy, Debug)]
 pub enum SoundType {
     ChangeChannel,
     SendChannelMessage,
@@ -29,13 +31,17 @@ pub enum SoundType {
 pub struct SoundManager {
     _stream: OutputStream,
     stream_handle: OutputStreamHandle,
+    sink: Sink,
     sounds: HashMap<SoundType, Vec<u8>>, // Store sound data in memory
+    enabled: bool,
+    volume: f32,
 }
 
 #[cfg(not(target_env = "musl"))]
 impl SoundManager {
     pub fn new() -> Self {
         let (_stream, stream_handle) = OutputStream::try_default().expect("Failed to open audio output");
+        let sink = Sink::try_new(&stream_handle).expect("Failed to create sink");
         let mut sounds = HashMap::new();
         let base_path = env!("CARGO_MANIFEST_DIR");
         let error_path = PathBuf::from(base_path).join("sounds/error.mp3");
@@ -68,24 +74,31 @@ impl SoundManager {
         sounds.insert(SoundType::PopupClose, std::fs::read(popup_close_path).unwrap_or_default());
         sounds.insert(SoundType::Notify, std::fs::read(notify_path).unwrap_or_default());
         sounds.insert(SoundType::Mention, std::fs::read(mention_path).unwrap_or_default());
-        Self { _stream, stream_handle, sounds }
+        Self { _stream, stream_handle, sink, sounds, enabled: true, volume: 0.7 }
     }
 
     pub fn play(&self, sound: SoundType) {
-        if !global_prefs().sound_effects_enabled {
+        if !self.enabled {
             return;
         }
         if let Some(data) = self.sounds.get(&sound) {
             if !data.is_empty() {
                 let cursor = std::io::Cursor::new(data.clone());
                 if let Ok(decoder) = Decoder::new(cursor) {
-                    if let Ok(sink) = Sink::try_new(&self.stream_handle) {
-                        sink.append(decoder);
-                        sink.detach(); // Play in background
-                    }
+                    self.sink.set_volume(self.volume);
+                    self.sink.append(decoder);
                 }
             }
         }
+    }
+
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.enabled = enabled;
+    }
+
+    pub fn set_volume(&mut self, volume: f32) {
+        self.volume = volume.clamp(0.0, 1.0);
+        self.sink.set_volume(self.volume);
     }
 }
 
@@ -96,5 +109,8 @@ pub struct SoundManager;
 #[cfg(target_env = "musl")]
 impl SoundManager {
     pub fn new() -> Self { SoundManager }
+    pub fn dummy() -> Self { SoundManager }
     pub fn play(&self, _sound: SoundType) {}
+    pub fn set_enabled(&mut self, _enabled: bool) {}
+    pub fn set_volume(&mut self, _volume: f32) {}
 }

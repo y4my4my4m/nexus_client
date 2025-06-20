@@ -1,6 +1,6 @@
 use crate::state::{ChatState, ChatTarget};
 use crate::model::ChatMessageWithMeta;
-use common::User;
+use common::{User, ChannelMessage, DirectMessage};
 
 /// Business logic for chat functionality
 pub struct ChatService;
@@ -170,6 +170,43 @@ impl ChatService {
                  total_msgs <= max_rows * 2)
             }
             None => false,
+        }
+    }
+    
+    /// Improved pagination for message loading
+    pub fn get_messages_paginated(
+        chat_state: &ChatState,
+        current_user: Option<&User>,
+        limit: usize,
+        offset: usize,
+    ) -> Vec<ChatMessageWithMeta> {
+        let messages = Self::build_message_list(chat_state, current_user);
+        
+        // Efficient pagination - skip and take only what we need
+        messages
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .collect()
+    }
+    
+    /// Check if more messages are available for pagination
+    pub fn has_more_messages(chat_state: &ChatState, offset: usize, limit: usize) -> bool {
+        let total_count = match &chat_state.current_chat_target {
+            Some(ChatTarget::Channel { .. }) => chat_state.chat_messages.len(),
+            Some(ChatTarget::DM { .. }) => chat_state.dm_messages.len(),
+            None => 0,
+        };
+        
+        offset + limit < total_count
+    }
+    
+    /// Get total message count for current chat target
+    pub fn get_message_count(chat_state: &ChatState) -> usize {
+        match &chat_state.current_chat_target {
+            Some(ChatTarget::Channel { .. }) => chat_state.chat_messages.len(),
+            Some(ChatTarget::DM { .. }) => chat_state.dm_messages.len(),
+            None => 0,
         }
     }
 }

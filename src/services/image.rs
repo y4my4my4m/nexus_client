@@ -1,173 +1,235 @@
 use crate::state::AppError;
-use std::io::Cursor;
 use base64::Engine;
+use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
-/// Service for image processing and validation
-pub struct ImageService;
+/// Cached image data with metadata
+#[derive(Clone)]
+pub struct CachedImage {
+    pub data: Vec<u8>,
+    pub content_type: String,
+    pub size: usize,
+    pub last_accessed: u64,
+}
 
-impl ImageService {
-    pub fn decode_image_bytes(val: &Option<String>) -> Option<Vec<u8>> {
-        if let Some(s) = val {
-            if s.starts_with("http") {
-                None // Not handling URLs here
-            } else {
-                let b64 = if let Some(idx) = s.find(",") {
-                    &s[idx+1..]
-                } else {
-                    s.as_str()
-                };
-                base64::engine::general_purpose::STANDARD.decode(b64).ok()
-            }
+/// Image caching system for avatars and banners
+pub struct ImageCache {
+    cache: HashMap<String, CachedImage>,
+    max_size_bytes: usize,
+    current_size_bytes: usize,
+    max_entries: usize,
+}
+
+impl ImageCache {
+    pub fn new(max_size_mb: usize, max_entries: usize) -> Self {
+        Self {
+            cache: HashMap::new(),
+            max_size_bytes: max_size_mb * 1024 * 1024,
+            current_size_bytes: 0,
+            max_entries,
+        }
+    }
+    
+    /// Generate cache key for user avatar
+    pub fn avatar_key(user_id: Uuid, size: u32) -> String {
+        format!("avatar:{}:{}", user_id, size)
+    }
+    
+    /// Generate cache key for user banner
+    pub fn banner_key(user_id: Uuid) -> String {
+        format!("banner:{}", user_id)
+    }
+    
+    /// Get cached image data
+    pub fn get(&mut self, key: &str) -> Option<&CachedImage> {
+        if let Some(cached) = self.cache.get_mut(key) {
+            // Update last accessed time
+            cached.last_accessed = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            Some(cached)
         } else {
             None
         }
     }
     
-    pub fn composite_banner_and_pfp(
-        banner_bytes: &[u8],
-        pfp_bytes: &[u8],
-        banner_size: (u32, u32),
-        pfp_size: (u32, u32),
-        pfp_padding_left: u32,
-    ) -> Result<Vec<u8>, AppError> {
-        // Load images
-        let banner_img = image::load_from_memory(banner_bytes)
-            .map_err(|e| AppError::Image(format!("Failed to load banner: {}", e)))?;
-        let pfp_img = image::load_from_memory(pfp_bytes)
-            .map_err(|e| AppError::Image(format!("Failed to load profile picture: {}", e)))?;
+    /// Store image in cache
+    pub fn put(&mut self, key: String, data: Vec<u8>, content_type: String) -> Result<(), AppError> {
+        let size = data.len();
         
-        // Crop banner to fill the target size (instead of fitting)
-        let banner_aspect = banner_img.width() as f32 / banner_img.height() as f32;
-        let target_aspect = banner_size.0 as f32 / banner_size.1 as f32;
+        // Check if we need to make space
+        while (self.current_size_bytes + size > self.max_size_bytes) || 
+              (self.cache.len() >= self.max_entries) {
+            self.evict_lru()?;
+        }
         
-        let banner_resized = if banner_aspect > target_aspect {
-            // Banner is wider - crop width
-            let new_height = banner_img.height();
-            let new_width = (new_height as f32 * target_aspect) as u32;
-            let x_offset = (banner_img.width() - new_width) / 2;
-            let cropped = banner_img.crop_imm(x_offset, 0, new_width, new_height);
-            cropped.resize_exact(banner_size.0, banner_size.1, image::imageops::FilterType::Lanczos3)
-        } else {
-            // Banner is taller - crop height
-            let new_width = banner_img.width();
-            let new_height = (new_width as f32 / target_aspect) as u32;
-            let y_offset = (banner_img.height() - new_height) / 2;
-            let cropped = banner_img.crop_imm(0, y_offset, new_width, new_height);
-            cropped.resize_exact(banner_size.0, banner_size.1, image::imageops::FilterType::Lanczos3)
+        let cached = CachedImage {
+            data,
+            content_type,
+            size,
+            last_accessed: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
         };
         
-        // Create composite image
-        let mut composite = banner_resized.to_rgba8();
-        
-        // Add black gradient overlay for better text readability
-        for y in 0..banner_size.1 {
-            for x in 0..banner_size.0 {
-                let pixel = composite.get_pixel_mut(x, y);
-                // Create a subtle black gradient from top to bottom
-                let gradient_factor = (y as f32 / banner_size.1 as f32) * 0.4 + 0.1; // 0.1 to 0.5 opacity
-                pixel[0] = (pixel[0] as f32 * (1.0 - gradient_factor)) as u8;
-                pixel[1] = (pixel[1] as f32 * (1.0 - gradient_factor)) as u8;
-                pixel[2] = (pixel[2] as f32 * (1.0 - gradient_factor)) as u8;
-            }
+        // Remove old entry if it exists
+        if let Some(old) = self.cache.remove(&key) {
+            self.current_size_bytes = self.current_size_bytes.saturating_sub(old.size);
         }
         
-        // Create circular masked profile picture
-        let pfp_resized = pfp_img.resize_exact(
-            pfp_size.0, 
-            pfp_size.1, 
-            image::imageops::FilterType::Lanczos3
-        );
-        let mut pfp_rgba = pfp_resized.to_rgba8();
+        self.current_size_bytes += size;
+        self.cache.insert(key, cached);
         
-        // Apply circular mask to profile picture
-        let center_x = pfp_size.0 as f32 / 2.0;
-        let center_y = pfp_size.1 as f32 / 2.0;
-        let radius = (pfp_size.0.min(pfp_size.1) as f32 / 2.0) - 1.0; // Slightly smaller for clean edges
-        
-        for y in 0..pfp_size.1 {
-            for x in 0..pfp_size.0 {
-                let dx = x as f32 - center_x;
-                let dy = y as f32 - center_y;
-                let distance = (dx * dx + dy * dy).sqrt();
-                
-                if distance > radius {
-                    // Outside circle - make transparent
-                    let pixel = pfp_rgba.get_pixel_mut(x, y);
-                    pixel[3] = 0; // Set alpha to 0
-                } else if distance > radius - 2.0 {
-                    // Anti-aliasing edge
-                    let pixel = pfp_rgba.get_pixel_mut(x, y);
-                    let fade = (radius - distance) / 2.0;
-                    pixel[3] = (pixel[3] as f32 * fade) as u8;
-                }
-            }
-        }
-        
-        // Add subtle border around circular profile picture
-        for y in 0..pfp_size.1 {
-            for x in 0..pfp_size.0 {
-                let dx = x as f32 - center_x;
-                let dy = y as f32 - center_y;
-                let distance = (dx * dx + dy * dy).sqrt();
-                
-                if distance >= radius - 2.0 && distance <= radius {
-                    let pixel = pfp_rgba.get_pixel_mut(x, y);
-                    // Add white border
-                    pixel[0] = 255;
-                    pixel[1] = 255;
-                    pixel[2] = 255;
-                    pixel[3] = 200; // Semi-transparent white border
-                }
-            }
-        }
-        
-        // Overlay circular PFP on banner
-        let pfp_y = (banner_size.1 - pfp_size.1) / 2; // Center vertically
-        
-        // Blend the circular profile picture with proper alpha compositing
-        for y in 0..pfp_size.1 {
-            for x in 0..pfp_size.0 {
-                let banner_x = pfp_padding_left + x;
-                let banner_y = pfp_y + y;
-                
-                if banner_x < banner_size.0 && banner_y < banner_size.1 {
-                    let pfp_pixel = pfp_rgba.get_pixel(x, y);
-                    let banner_pixel = composite.get_pixel_mut(banner_x, banner_y);
-                    
-                    if pfp_pixel[3] > 0 {
-                        // Alpha blend
-                        let alpha = pfp_pixel[3] as f32 / 255.0;
-                        let inv_alpha = 1.0 - alpha;
-                        
-                        banner_pixel[0] = (pfp_pixel[0] as f32 * alpha + banner_pixel[0] as f32 * inv_alpha) as u8;
-                        banner_pixel[1] = (pfp_pixel[1] as f32 * alpha + banner_pixel[1] as f32 * inv_alpha) as u8;
-                        banner_pixel[2] = (pfp_pixel[2] as f32 * alpha + banner_pixel[2] as f32 * inv_alpha) as u8;
-                    }
-                }
-            }
-        }
-        
-        // Convert to bytes
-        let mut buffer = Vec::new();
-        composite.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
-            .map_err(|e| AppError::Image(format!("Failed to encode composite image: {}", e)))?;
-        
-        Ok(buffer)
+        Ok(())
     }
     
-    pub fn validate_image_data(data: &str) -> Result<(), AppError> {
-        if data.trim().is_empty() {
-            return Ok(());
+    /// Remove least recently used item
+    fn evict_lru(&mut self) -> Result<(), AppError> {
+        if self.cache.is_empty() {
+            return Err(AppError::Image("Cache is full but empty".to_string()));
         }
         
-        // Try to decode and validate as image
-        if let Some(bytes) = Self::decode_image_bytes(&Some(data.to_string())) {
-            image::load_from_memory(&bytes)
-                .map_err(|e| AppError::Image(format!("Invalid image data: {}", e)))?;
-        } else {
-            return Err(AppError::Image("Failed to decode image data".to_string()));
+        // Find the LRU item
+        let lru_key = self.cache
+            .iter()
+            .min_by_key(|(_, cached)| cached.last_accessed)
+            .map(|(key, _)| key.clone())
+            .ok_or_else(|| AppError::Image("Failed to find LRU item".to_string()))?;
+        
+        if let Some(removed) = self.cache.remove(&lru_key) {
+            self.current_size_bytes = self.current_size_bytes.saturating_sub(removed.size);
         }
         
         Ok(())
+    }
+    
+    /// Clear cache for specific user (when profile updated)
+    pub fn invalidate_user(&mut self, user_id: Uuid) {
+        let keys_to_remove: Vec<String> = self.cache
+            .keys()
+            .filter(|key| key.contains(&user_id.to_string()))
+            .cloned()
+            .collect();
+        
+        for key in keys_to_remove {
+            if let Some(removed) = self.cache.remove(&key) {
+                self.current_size_bytes = self.current_size_bytes.saturating_sub(removed.size);
+            }
+        }
+    }
+    
+    /// Get cache statistics
+    pub fn stats(&self) -> CacheStats {
+        CacheStats {
+            entries: self.cache.len(),
+            size_bytes: self.current_size_bytes,
+            size_mb: self.current_size_bytes as f32 / (1024.0 * 1024.0),
+            max_entries: self.max_entries,
+            max_size_mb: self.max_size_bytes as f32 / (1024.0 * 1024.0),
+        }
+    }
+    
+    /// Clear entire cache
+    pub fn clear(&mut self) {
+        self.cache.clear();
+        self.current_size_bytes = 0;
+    }
+}
+
+#[derive(Debug)]
+pub struct CacheStats {
+    pub entries: usize,
+    pub size_bytes: usize,
+    pub size_mb: f32,
+    pub max_entries: usize,
+    pub max_size_mb: f32,
+}
+
+/// Service for image validation and processing
+pub struct ImageService;
+
+impl ImageService {
+    /// Validate image data size and format
+    pub fn validate_image_data(base64_data: &str) -> Result<(), AppError> {
+        if base64_data.is_empty() {
+            return Ok(()); // Empty is valid (no image)
+        }
+        
+        // Decode base64 to check size
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(base64_data.trim())
+            .map_err(|e| AppError::Image(format!("Invalid base64: {}", e)))?;
+        
+        // Check file size (1MB limit)
+        const MAX_SIZE: usize = 1024 * 1024;
+        if decoded.len() > MAX_SIZE {
+            return Err(AppError::Image(format!(
+                "Image too large: {} bytes (max: {} bytes)",
+                decoded.len(),
+                MAX_SIZE
+            )));
+        }
+        
+        // Validate image format
+        Self::detect_image_type(&decoded)?;
+        
+        Ok(())
+    }
+    
+    /// Decode base64 image with caching
+    pub fn decode_cached_image(
+        base64_data: &str,
+        cache: &mut ImageCache,
+        cache_key: &str,
+    ) -> Result<Vec<u8>, AppError> {
+        // Check cache first
+        if let Some(cached) = cache.get(cache_key) {
+            return Ok(cached.data.clone());
+        }
+        
+        // Decode and cache
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(base64_data.trim())
+            .map_err(|e| AppError::Image(format!("Invalid base64: {}", e)))?;
+        
+        // Determine content type
+        let content_type = Self::detect_image_type(&decoded)?;
+        
+        // Cache the decoded data
+        cache.put(cache_key.to_string(), decoded.clone(), content_type)?;
+        
+        Ok(decoded)
+    }
+    
+    /// Detect image content type from bytes
+    fn detect_image_type(data: &[u8]) -> Result<String, AppError> {
+        if data.len() < 4 {
+            return Err(AppError::Image("Image data too short".to_string()));
+        }
+        
+        // Check PNG signature
+        if data.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+            return Ok("image/png".to_string());
+        }
+        
+        // Check JPEG signature
+        if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+            return Ok("image/jpeg".to_string());
+        }
+        
+        // Check GIF signature
+        if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
+            return Ok("image/gif".to_string());
+        }
+        
+        // Check WebP signature
+        if data.len() >= 12 && data[0..4] == [0x52, 0x49, 0x46, 0x46] && data[8..12] == [0x57, 0x45, 0x42, 0x50] {
+            return Ok("image/webp".to_string());
+        }
+        
+        Ok("application/octet-stream".to_string())
     }
 }

@@ -6,4 +6,4 @@ pub mod image;
 pub use chat::ChatService;
 pub use message::MessageService;
 pub use profile::ProfileService;
-pub use image::ImageService;
+pub use image::{ImageService, ImageCache, CacheStats};
