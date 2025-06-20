@@ -224,7 +224,6 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
 
     let now = chrono::Local::now();
     let mut last_date: Option<chrono::NaiveDate> = None;
-    let mut current_y = inner_area.y;
     let text_area_width = inner_area.width.saturating_sub(avatar_cell_width + 1);
     
     // Render messages from bottom up to handle dynamic heights properly
@@ -269,7 +268,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
     let visible_heights = &message_heights[visible_start..];
     
     // Start from bottom and work up
-    current_y = inner_area.y + inner_area.height;
+    let mut current_y = inner_area.y + inner_area.height;
     
     for (msg, &msg_height) in visible_messages.iter().zip(visible_heights.iter()).rev() {
         current_y = current_y.saturating_sub(msg_height + 1);
@@ -289,6 +288,8 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
                             .title(format_date_delimiter(ts))
                             .border_style(Style::default().fg(Color::DarkGray))
                             .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC));
+                            // Use `min_row_height` to ensure consistent spacing for date headers.
+                            // This value should be verified to match the intended vertical spacing.
                         f.render_widget(header, Rect::new(inner_area.x, current_y, inner_area.width, min_row_height));
                         current_y = current_y.saturating_sub(min_row_height);
                     }
@@ -454,8 +455,11 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         input_spans.push(Span::styled(&input_str, Style::default().fg(Color::White)));
     }
 
+    let char_count = input_str.chars().count();
+    let input_title = format!("{} / 500", char_count);
+
     let input = Paragraph::new(Line::from(input_spans))
-        .block(Block::default().borders(Borders::ALL).title("Input").border_style(
+        .block(Block::default().borders(Borders::ALL).title(input_title).border_style(
             if focused {
                 Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
             } else {

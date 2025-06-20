@@ -729,9 +729,9 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         } else {
                             let content = app.get_current_input().to_string();
                             if !content.is_empty() {
-                                let final_content = if content.len() > 4000 {
-                                    app.set_notification("Message truncated to 4000 characters", Some(2000), false);
-                                    content[..4000].to_string()
+                                let final_content = if content.chars().count() > 500 {
+                                    app.set_notification("Message truncated to 500 characters", Some(2000), false);
+                                    content.chars().take(500).collect::<String>()
                                 } else {
                                     content
                                 };
