@@ -1,13 +1,15 @@
 mod app;
-mod handler;
+mod handlers;
+mod services;
+mod state;
 mod ui;
 mod banner;
 mod sound;
 mod global_prefs;
 mod model;
 
-use crate::app::App;
-use crate::sound::SoundManager;
+use app::App;
+use sound::SoundManager;
 use common::{ClientMessage, ServerMessage};
 use crossterm::{
     event::{self, Event as CEvent},
@@ -21,7 +23,7 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-// --- CHANGE 1: Add a `Tick` variant to our event enum ---
+/// Application events
 enum AppEvent {
     Terminal(CEvent),
     Server(ServerMessage),
@@ -30,112 +32,125 @@ enum AppEvent {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    // Initialize global preferences
     global_prefs::init_global_prefs();
+    
+    // Enable terminal raw mode
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let addr = env::args().nth(1).unwrap_or_else(|| "127.0.0.1:8080".to_string());
-    let stream = TcpStream::connect(addr).await?;
-    let framed = Framed::new(stream, LengthDelimitedCodec::new());
-    let (mut server_writer, mut server_reader) = framed.split();
+    // Create event channels
+    let (tx_to_server, mut rx_from_ui) = mpsc::unbounded_channel::<ClientMessage>();
+    let (tx_to_ui, mut rx_from_server) = mpsc::unbounded_channel::<ServerMessage>();
 
-    let (to_server_tx, mut to_server_rx) = mpsc::unbounded_channel::<ClientMessage>();
+    // Initialize sound manager
+    let sound_manager = SoundManager::new();
+
+    // Create app instance
+    let mut app = App::new(tx_to_server, &sound_manager);
+
+    // Get server address from command line or use default
+    let server_addr = env::args().nth(1).unwrap_or_else(|| "127.0.0.1:8080".to_string());
+    
+    // Connect to server
+    let stream = TcpStream::connect(&server_addr).await?;
+    let mut framed = Framed::new(stream, LengthDelimitedCodec::new());
+
+    // Create event loop channels
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<AppEvent>();
 
-    // Task: Forward messages from our app TO the server
-    let notify_disconnect_tx = event_tx.clone();
+    // Spawn terminal event handler
+    let event_tx_clone = event_tx.clone();
     tokio::spawn(async move {
-        while let Some(msg) = to_server_rx.recv().await {
-            let bytes = bincode::serialize(&msg).unwrap();
-            if server_writer.send(bytes.into()).await.is_err() {
-                let _ = notify_disconnect_tx.send(AppEvent::Terminal(CEvent::Resize(0,0))); // dummy event to wake main loop
-                break;
-            }
-        }
-    });
-
-    // Task: Read messages FROM the server and send them as events
-    let server_event_tx = event_tx.clone();
-    let notify_disconnect_tx2 = event_tx.clone();
-    tokio::spawn(async move {
-        while let Some(result) = server_reader.next().await {
-            match result {
-                Ok(data) => {
-                    if let Ok(msg) = bincode::deserialize::<ServerMessage>(&data) {
-                        if server_event_tx.send(AppEvent::Server(msg)).is_err() { break; }
+        let mut interval = tokio::time::interval(Duration::from_millis(50));
+        loop {
+            interval.tick().await;
+            
+            // Check for terminal events (non-blocking)
+            if event::poll(Duration::from_millis(0)).unwrap_or(false) {
+                if let Ok(event) = event::read() {
+                    if event_tx_clone.send(AppEvent::Terminal(event)).is_err() {
+                        break;
                     }
                 }
-                Err(_) => {
-                    let _ = notify_disconnect_tx2.send(AppEvent::Terminal(CEvent::Resize(0,0))); // dummy event
-                    break;
-                },
             }
-        }
-    });
-
-    // Task: Read terminal keyboard events and send them as events
-    let terminal_event_tx = event_tx.clone();
-    tokio::spawn(async move {
-        loop {
-            // This now blocks until a key event occurs
-            if let Ok(event) = event::read() {
-                if terminal_event_tx.send(AppEvent::Terminal(event)).is_err() { break; }
-            }
-        }
-    });
-
-    // --- CHANGE 2: Add a new dedicated "Ticker" task ---
-    // This task's ONLY job is to send a Tick event at a fixed interval.
-    let tick_event_tx = event_tx;
-    tokio::spawn(async move {
-        let frame_rate = Duration::from_millis(100);
-        loop {
-            tokio::time::sleep(frame_rate).await;
-            if tick_event_tx.send(AppEvent::Tick).is_err() {
+            
+            // Send tick event
+            if event_tx_clone.send(AppEvent::Tick).is_err() {
                 break;
             }
         }
     });
 
+    // Spawn server message handler
+    let event_tx_clone = event_tx.clone();
+    tokio::spawn(async move {
+        while let Some(msg) = rx_from_server.recv().await {
+            if event_tx_clone.send(AppEvent::Server(msg)).is_err() {
+                break;
+            }
+        }
+    });
 
-    // --- CHANGE 3: The Main Loop now handles Ticks ---
-    let sound_manager = SoundManager::new();
-    let mut app = App::new(to_server_tx, &sound_manager);
-    let mut server_disconnected = false;
-    // Use a `while let` loop to continuously process events from the channel
-    while let Some(event) = event_rx.recv().await {
-        // First, handle any logic based on the event
-        match event {
-            AppEvent::Server(msg) => {
-                app.handle_server_message(msg);
-            }
-            AppEvent::Terminal(CEvent::Key(key)) => {
-                handler::handle_key_event(key, &mut app);
-            }
-            AppEvent::Terminal(CEvent::Resize(_, _)) => {
-                if !server_disconnected {
-                    app.set_notification("Server disconnected", None, true);
-                    server_disconnected = true;
+    // Spawn server communication handler
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                // Handle outgoing messages to server
+                msg = rx_from_ui.recv() => {
+                    if let Some(msg) = msg {
+                        let serialized = serde_json::to_vec(&msg).unwrap();
+                        if framed.send(serialized.into()).await.is_err() {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                
+                // Handle incoming messages from server
+                result = framed.next() => {
+                    match result {
+                        Some(Ok(bytes)) => {
+                            if let Ok(msg) = serde_json::from_slice::<ServerMessage>(&bytes) {
+                                if tx_to_ui.send(msg).is_err() {
+                                    break;
+                                }
+                            }
+                        }
+                        Some(Err(_)) | None => {
+                            break;
+                        }
+                    }
                 }
             }
-            // On every tick, we update the app's internal tick counter
-            AppEvent::Tick => {
-                app.on_tick();
-            }
-            _ => {}
         }
-        
-        // After handling logic, check if we need to quit
-        if app.should_quit {
-            break;
-        }
+    });
 
-        // After every event (including Ticks), we redraw the UI.
-        // This ensures the animation is constantly updated.
+    // Main application loop
+    while !app.ui.should_quit {
+        // Render UI
         terminal.draw(|f| ui::ui(f, &mut app))?;
+
+        // Handle events
+        if let Some(event) = event_rx.recv().await {
+            match event {
+                AppEvent::Terminal(terminal_event) => {
+                    if let CEvent::Key(key) = terminal_event {
+                        handlers::handle_key_event(key, &mut app);
+                    }
+                }
+                AppEvent::Server(server_msg) => {
+                    app.handle_server_message(server_msg);
+                }
+                AppEvent::Tick => {
+                    app.on_tick();
+                }
+            }
+        }
     }
 
     // Cleanup

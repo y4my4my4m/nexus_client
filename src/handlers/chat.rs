@@ -1,0 +1,432 @@
+use crate::app::App;
+use crate::sound::SoundType;
+use crate::services::ChatService;
+use common::ClientMessage;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+/// Handle chat-related input
+pub fn handle_chat_input(key: KeyEvent, app: &mut App) {
+    // Handle popups first
+    if handle_chat_popups(key, app) {
+        return;
+    }
+
+    match app.chat.chat_focus {
+        crate::state::ChatFocus::Sidebar => handle_sidebar_input(key, app),
+        crate::state::ChatFocus::Messages => handle_message_input(key, app),
+        crate::state::ChatFocus::Users => handle_user_list_input(key, app),
+        crate::state::ChatFocus::DMInput => handle_dm_input(key, app),
+    }
+}
+
+fn handle_chat_popups(key: KeyEvent, app: &mut App) -> bool {
+    // Handle user actions popup
+    if app.profile.show_user_actions {
+        match key.code {
+            KeyCode::Up => {
+                app.sound_manager.play(SoundType::Scroll);
+                if app.profile.user_actions_selected > 0 {
+                    app.profile.user_actions_selected -= 1;
+                }
+            }
+            KeyCode::Down => {
+                app.sound_manager.play(SoundType::Scroll);
+                if app.profile.user_actions_selected < 2 {
+                    app.profile.user_actions_selected += 1;
+                }
+            }
+            KeyCode::Enter => {
+                handle_user_action(app);
+            }
+            KeyCode::Esc => {
+                app.profile.show_user_actions = false;
+            }
+            _ => {}
+        }
+        return true;
+    }
+
+    // Handle server invite selection popup
+    if app.ui.show_server_invite_selection {
+        match key.code {
+            KeyCode::Up => {
+                if app.ui.server_invite_selected > 0 {
+                    app.ui.server_invite_selected -= 1;
+                }
+            }
+            KeyCode::Down => {
+                if app.ui.server_invite_selected < app.chat.servers.len().saturating_sub(1) {
+                    app.ui.server_invite_selected += 1;
+                }
+            }
+            KeyCode::Enter => {
+                if let Some(target_user_id) = app.ui.server_invite_target_user {
+                    if let Some(server) = app.chat.servers.get(app.ui.server_invite_selected) {
+                        app.send_to_server(ClientMessage::SendServerInvite {
+                            to_user_id: target_user_id,
+                            server_id: server.id,
+                        });
+                        
+                        let username = app.chat.channel_userlist.iter()
+                            .find(|u| u.id == target_user_id)
+                            .map(|u| u.username.clone())
+                            .unwrap_or_else(|| "User".to_string());
+                        
+                        app.set_notification(&format!("Sent server invite to {}!", username), Some(2000), false);
+                    }
+                }
+                app.ui.show_server_invite_selection = false;
+                app.ui.server_invite_target_user = None;
+                app.ui.server_invite_selected = 0;
+            }
+            KeyCode::Esc => {
+                app.ui.show_server_invite_selection = false;
+                app.ui.server_invite_target_user = None;
+                app.ui.server_invite_selected = 0;
+            }
+            _ => {}
+        }
+        return true;
+    }
+
+    false
+}
+
+fn handle_sidebar_input(key: KeyEvent, app: &mut App) {
+    match key.code {
+        KeyCode::Tab => {
+            if app.chat.show_user_list {
+                app.chat.chat_focus = crate::state::ChatFocus::Messages;
+            } else {
+                app.chat.chat_focus = crate::state::ChatFocus::Messages;
+            }
+        }
+        KeyCode::BackTab => {
+            if app.chat.show_user_list {
+                app.chat.chat_focus = crate::state::ChatFocus::Users;
+            } else {
+                app.chat.chat_focus = crate::state::ChatFocus::Messages;
+            }
+        }
+        KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
+            app.chat.show_user_list = !app.chat.show_user_list;
+        }
+        KeyCode::Left | KeyCode::Right => {
+            // Switch between servers and DMs tabs
+            app.chat.sidebar_tab = match app.chat.sidebar_tab {
+                crate::state::SidebarTab::Servers => crate::state::SidebarTab::DMs,
+                crate::state::SidebarTab::DMs => crate::state::SidebarTab::Servers,
+            };
+            app.sound_manager.play(SoundType::ChangeChannel);
+            app.select_and_load_first_chat();
+        }
+        KeyCode::Down => {
+            match app.chat.sidebar_tab {
+                crate::state::SidebarTab::Servers => move_server_selection(app, 1),
+                crate::state::SidebarTab::DMs => move_dm_selection(app, 1),
+            }
+            select_current_sidebar_target(app);
+        }
+        KeyCode::Up => {
+            match app.chat.sidebar_tab {
+                crate::state::SidebarTab::Servers => move_server_selection(app, -1),
+                crate::state::SidebarTab::DMs => move_dm_selection(app, -1),
+            }
+            select_current_sidebar_target(app);
+        }
+        KeyCode::Esc => {
+            app.ui.set_mode(crate::state::AppMode::MainMenu);
+        }
+        _ => {}
+    }
+}
+
+fn handle_message_input(key: KeyEvent, app: &mut App) {
+    match key.code {
+        KeyCode::Tab => {
+            if app.chat.show_user_list {
+                app.chat.chat_focus = crate::state::ChatFocus::Users;
+            } else {
+                app.chat.chat_focus = crate::state::ChatFocus::Sidebar;
+            }
+        }
+        KeyCode::BackTab => {
+            app.chat.chat_focus = crate::state::ChatFocus::Sidebar;
+        }
+        KeyCode::PageUp => {
+            app.sound_manager.play(SoundType::Scroll);
+            handle_scroll_up(app);
+        }
+        KeyCode::PageDown => {
+            app.sound_manager.play(SoundType::Scroll);
+            handle_scroll_down(app);
+        }
+        KeyCode::Down => {
+            // Handle mention suggestions
+            if !app.chat.mention_suggestions.is_empty() {
+                app.chat.mention_selected = (app.chat.mention_selected + 1) % app.chat.mention_suggestions.len();
+            } else if app.chat.chat_scroll_offset > 0 {
+                app.chat.chat_scroll_offset -= 1;
+            }
+        }
+        KeyCode::Up => {
+            // Handle mention suggestions
+            if !app.chat.mention_suggestions.is_empty() {
+                if app.chat.mention_selected == 0 {
+                    app.chat.mention_selected = app.chat.mention_suggestions.len() - 1;
+                } else {
+                    app.chat.mention_selected -= 1;
+                }
+            } else {
+                let max_rows = app.chat.last_chat_rows.unwrap_or(20);
+                let total_msgs = app.get_current_message_list().len();
+                let max_scroll = total_msgs.saturating_sub(max_rows);
+                if app.chat.chat_scroll_offset < max_scroll {
+                    app.chat.chat_scroll_offset += 1;
+                }
+            }
+        }
+        KeyCode::Enter => {
+            if !app.chat.mention_suggestions.is_empty() {
+                app.apply_selected_mention();
+            } else if let Err(e) = app.send_message() {
+                app.set_notification(format!("Failed to send message: {}", e), Some(2000), false);
+            }
+        }
+        KeyCode::Char(c) => {
+            if key.modifiers.contains(KeyModifiers::CONTROL) {
+                return;
+            }
+            let mut current = app.get_current_input().to_string();
+            current.push(c);
+            app.set_current_input(current);
+            app.update_mention_suggestions();
+        }
+        KeyCode::Backspace => {
+            let mut current = app.get_current_input().to_string();
+            current.pop();
+            app.set_current_input(current);
+            app.update_mention_suggestions();
+        }
+        KeyCode::Esc => {
+            app.ui.set_mode(crate::state::AppMode::MainMenu);
+        }
+        _ => {}
+    }
+}
+
+fn handle_user_list_input(key: KeyEvent, app: &mut App) {
+    match key.code {
+        KeyCode::Tab => {
+            app.chat.chat_focus = crate::state::ChatFocus::Sidebar;
+        }
+        KeyCode::BackTab => {
+            app.chat.chat_focus = crate::state::ChatFocus::Messages;
+        }
+        KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
+            app.chat.show_user_list = !app.chat.show_user_list;
+            app.chat.chat_focus = if app.chat.show_user_list {
+                crate::state::ChatFocus::Users
+            } else {
+                crate::state::ChatFocus::Messages
+            };
+        }
+        KeyCode::Down => {
+            let len = app.chat.channel_userlist.len();
+            if len > 0 {
+                app.sound_manager.play(SoundType::Scroll);
+                let sel = app.chat.user_list_state.selected().unwrap_or(0);
+                app.chat.user_list_state.select(Some((sel + 1) % len));
+            }
+        }
+        KeyCode::Up => {
+            let len = app.chat.channel_userlist.len();
+            if len > 0 {
+                app.sound_manager.play(SoundType::Scroll);
+                let sel = app.chat.user_list_state.selected().unwrap_or(0);
+                app.chat.user_list_state.select(Some((sel + len - 1) % len));
+            }
+        }
+        KeyCode::Enter => {
+            if let Some(idx) = app.chat.user_list_state.selected() {
+                app.sound_manager.play(SoundType::PopupOpen);
+                app.profile.show_user_actions = true;
+                app.profile.user_actions_selected = 0;
+                app.profile.user_actions_target = Some(idx);
+            }
+        }
+        KeyCode::Esc => {
+            app.ui.set_mode(crate::state::AppMode::MainMenu);
+        }
+        _ => {}
+    }
+}
+
+fn handle_dm_input(key: KeyEvent, app: &mut App) {
+    match key.code {
+        KeyCode::Enter => {
+            if let Some(target) = app.chat.dm_target {
+                let msg = app.chat.dm_input.clone();
+                if !msg.trim().is_empty() {
+                    app.send_to_server(ClientMessage::SendDirectMessage { to: target, content: msg });
+                    app.sound_manager.play(SoundType::MessageSent);
+                }
+            }
+            app.chat.dm_input.clear();
+            app.chat.chat_focus = crate::state::ChatFocus::Users;
+        }
+        KeyCode::Char(c) => {
+            app.chat.dm_input.push(c);
+        }
+        KeyCode::Backspace => {
+            app.chat.dm_input.pop();
+        }
+        KeyCode::Esc => {
+            app.chat.dm_input.clear();
+            app.chat.chat_focus = crate::state::ChatFocus::Users;
+        }
+        _ => {}
+    }
+}
+
+// Helper functions
+fn handle_user_action(app: &mut App) {
+    if let Some(idx) = app.profile.user_actions_target {
+        app.sound_manager.play(SoundType::PopupOpen);
+        let user = app.chat.channel_userlist.get(idx);
+        
+        match app.profile.user_actions_selected {
+            0 => { // View Profile
+                if let Some(user) = user {
+                    app.profile.profile_requested_by_user = true;
+                    app.send_to_server(ClientMessage::GetProfile { user_id: user.id });
+                }
+            }
+            1 => { // Send DM
+                if let Some(user) = user {
+                    app.chat.dm_target = Some(user.id);
+                    app.chat.dm_input.clear();
+                    app.chat.chat_focus = crate::state::ChatFocus::DMInput;
+                }
+            }
+            2 => { // Invite to Server
+                if let Some(user) = user {
+                    app.ui.show_server_invite_selection = true;
+                    app.ui.server_invite_selected = 0;
+                    app.ui.server_invite_target_user = Some(user.id);
+                }
+            }
+            _ => {}
+        }
+    }
+    app.profile.show_user_actions = false;
+}
+
+fn handle_scroll_up(app: &mut App) {
+    let max_rows = app.chat.last_chat_rows.unwrap_or(20);
+    
+    match &app.chat.current_chat_target {
+        Some(crate::state::ChatTarget::Channel { server_id, channel_id }) => {
+            let total_msgs = app.get_current_message_list().len();
+            let max_scroll_offset = total_msgs.saturating_sub(max_rows);
+            
+            app.chat.chat_scroll_offset = (app.chat.chat_scroll_offset + max_rows).min(max_scroll_offset);
+            
+            // Fetch more messages if needed
+            if crate::services::ChatService::should_fetch_more_messages(&app.chat, max_rows) {
+                if let Some(server) = app.chat.servers.iter().find(|s| s.channels.iter().any(|c| &c.id == channel_id)) {
+                    if let Some(channel) = server.channels.iter().find(|c| &c.id == channel_id) {
+                        if let Some(oldest_msg) = channel.messages.first() {
+                            app.send_to_server(ClientMessage::GetChannelMessages {
+                                channel_id: *channel_id,
+                                before: Some(oldest_msg.timestamp),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        Some(crate::state::ChatTarget::DM { user_id }) => {
+            let total_msgs = app.get_current_message_list().len();
+            let max_scroll_offset = total_msgs.saturating_sub(max_rows);
+            
+            app.chat.chat_scroll_offset = (app.chat.chat_scroll_offset + max_rows).min(max_scroll_offset);
+            
+            // Fetch more DM messages if needed
+            if crate::services::ChatService::should_fetch_more_messages(&app.chat, max_rows) {
+                if let Some(oldest) = app.chat.dm_messages.first() {
+                    app.send_to_server(ClientMessage::GetDirectMessages {
+                        user_id: *user_id,
+                        before: Some(oldest.timestamp),
+                    });
+                }
+            }
+        }
+        None => {}
+    }
+}
+
+fn handle_scroll_down(app: &mut App) {
+    let max_rows = app.chat.last_chat_rows.unwrap_or(20);
+    
+    if app.chat.chat_scroll_offset >= max_rows {
+        app.chat.chat_scroll_offset -= max_rows;
+    } else {
+        app.chat.chat_scroll_offset = 0;
+    }
+}
+
+fn move_server_selection(app: &mut App, direction: i32) {
+    // Implementation for server selection movement
+    // This is simplified - full implementation would handle nested server/channel navigation
+    if direction == 1 && !app.chat.servers.is_empty() {
+        let current = app.chat.selected_server.unwrap_or(0);
+        app.chat.selected_server = Some((current + 1) % app.chat.servers.len());
+    } else if direction == -1 && !app.chat.servers.is_empty() {
+        let current = app.chat.selected_server.unwrap_or(0);
+        app.chat.selected_server = Some((current + app.chat.servers.len() - 1) % app.chat.servers.len());
+    }
+}
+
+fn move_dm_selection(app: &mut App, direction: i32) {
+    if direction == 1 && !app.chat.dm_user_list.is_empty() {
+        let current = app.chat.selected_dm_user.unwrap_or(0);
+        app.chat.selected_dm_user = Some((current + 1) % app.chat.dm_user_list.len());
+    } else if direction == -1 && !app.chat.dm_user_list.is_empty() {
+        let current = app.chat.selected_dm_user.unwrap_or(0);
+        app.chat.selected_dm_user = Some((current + app.chat.dm_user_list.len() - 1) % app.chat.dm_user_list.len());
+    }
+}
+
+fn select_current_sidebar_target(app: &mut App) {
+    match app.chat.sidebar_tab {
+        crate::state::SidebarTab::Servers => {
+            if let (Some(s), Some(c)) = (app.chat.selected_server, app.chat.selected_channel) {
+                if let (Some(server), Some(channel)) = (
+                    app.chat.servers.get(s),
+                    app.chat.servers.get(s).and_then(|srv| srv.channels.get(c))
+                ) {
+                    let channel_id = channel.id;
+                    let server_id = channel.server_id; // Extract server_id before creating target
+                    let target = crate::state::ChatTarget::Channel { server_id, channel_id };
+                    app.set_current_chat_target(target);
+                    app.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: None });
+                    app.send_to_server(ClientMessage::GetChannelUserList { channel_id });
+                    app.chat.reset_scroll_offset();
+                }
+            }
+        }
+        crate::state::SidebarTab::DMs => {
+            if let Some(idx) = app.chat.selected_dm_user {
+                if let Some(user) = app.chat.dm_user_list.get(idx) {
+                    let user_id = user.id; // Extract the user_id before borrowing app mutably
+                    let target = crate::state::ChatTarget::DM { user_id };
+                    app.set_current_chat_target(target);
+                    app.send_to_server(ClientMessage::GetDirectMessages { user_id, before: None });
+                    app.chat.unread_dm_conversations.remove(&user_id);
+                    app.chat.reset_scroll_offset();
+                }
+            }
+        }
+    }
+}

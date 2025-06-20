@@ -7,21 +7,19 @@ use crate::ui::time_format::{format_message_timestamp, format_date_delimiter};
 use chrono::Local;
 
 pub fn draw_forum_list(f: &mut Frame, app: &mut App, area: Rect) {
-    let items: Vec<ListItem> = app.forums.iter().map(|forum| {
+    let items: Vec<ListItem> = app.forum.forums.iter().map(|forum| {
         ListItem::new(Line::from(vec![
             Span::styled(format!("{:<30}", forum.name), Style::default().fg(Color::Cyan)),
             Span::raw(forum.description.clone())
         ]))
     }).collect();
-    let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Forums"))
-        .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD))
-        .highlight_symbol(">> ");
-    f.render_stateful_widget(list, area, &mut app.forum_list_state);
+
+    let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Forums"));
+    f.render_stateful_widget(list, area, &mut app.forum.forum_list_state);
 }
 
 pub fn draw_thread_list(f: &mut Frame, app: &mut App, area: Rect) {
-    let forum = match app.current_forum_id.and_then(|id| app.forums.iter().find(|f| f.id == id)) {
+    let forum = match app.forum.current_forum_id.and_then(|id| app.forum.forums.iter().find(|f| f.id == id)) {
         Some(f) => f,
         None => {
             f.render_widget(Paragraph::new("Forum not found..."), area);
@@ -83,7 +81,7 @@ pub fn draw_thread_list(f: &mut Frame, app: &mut App, area: Rect) {
                 width: inner_area.width,
                 height: row_height,
             });
-        let is_selected = app.thread_list_state.selected() == Some(i);
+        let is_selected = app.forum.thread_list_state.selected() == Some(i);
         let bg_style = if is_selected {
             Style::default().bg(Color::Cyan)
         } else {
@@ -120,8 +118,8 @@ pub fn draw_thread_list(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 pub fn draw_post_view(f: &mut Frame, app: &mut App, area: Rect) {
-    let thread = match (app.current_forum_id, app.current_thread_id) {
-        (Some(fid), Some(tid)) => app.forums.iter().find(|f| f.id == fid)
+    let thread = match (app.forum.current_forum_id, app.forum.current_thread_id) {
+        (Some(fid), Some(tid)) => app.forum.forums.iter().find(|f| f.id == fid)
             .and_then(|f| f.threads.iter().find(|t| t.id == tid)),
         _ => None,
     };

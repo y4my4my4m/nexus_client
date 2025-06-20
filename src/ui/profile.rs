@@ -1,0 +1,1 @@
+    app.update_profile_banner_composite();

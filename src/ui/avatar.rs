@@ -7,7 +7,7 @@ use crate::app::App;
 // Returns a mutable reference to a cached StatefulProtocol for the user's avatar, creating it if needed.
 pub fn get_avatar_protocol<'a>(app: &'a mut App, user: &common::User, size: u32) -> Option<&'a mut ratatui_image::protocol::StatefulProtocol> {
     let key = (user.id, size);
-    if !app.avatar_protocol_cache.contains_key(&key) {
+    if !app.profile.avatar_protocol_cache.contains_key(&key) {
         let pic = user.profile_pic.as_ref()?;
         let b64 = if let Some(idx) = pic.find(',') {
             if idx + 1 >= pic.len() { return None; }
@@ -26,10 +26,10 @@ pub fn get_avatar_protocol<'a>(app: &'a mut App, user: &common::User, size: u32)
         let cropped = image::imageops::crop_imm(&resized, x_offset, y_offset, size, size).to_image();
         let mut square = cropped;
         apply_circular_mask(&mut square);
-        let protocol = app.picker.new_resize_protocol(DynamicImage::ImageRgba8(square));
-        app.avatar_protocol_cache.insert(key, protocol);
+        let protocol = app.profile.picker.new_resize_protocol(DynamicImage::ImageRgba8(square));
+        app.profile.avatar_protocol_cache.insert(key, protocol);
     }
-    app.avatar_protocol_cache.get_mut(&key)
+    app.profile.avatar_protocol_cache.get_mut(&key)
 }
 
 // Helper: Apply a circular alpha mask to an RgbaImage in-place

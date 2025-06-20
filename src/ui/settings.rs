@@ -7,15 +7,17 @@ use base64::Engine;
 use crate::global_prefs;
 
 pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
-    let items = vec![
-        ListItem::new("Change Password"),
-        ListItem::new("Change User Color"),
-        ListItem::new("Edit Profile"),
-        ListItem::new("Preferences"),
-    ];
-    let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Settings"))
-        .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black)).highlight_symbol(">> ");
-    f.render_stateful_widget(list, area, &mut app.settings_list_state);
+    let items: Vec<ListItem> = ["Change Password", "Change Color", "Edit Profile", "Parameters"].iter().enumerate().map(|(i, &item)| {
+        let style = if Some(i) == app.ui.settings_list_state.selected() {
+            Style::default().bg(Color::LightCyan).fg(Color::Black)
+        } else {
+            Style::default()
+        };
+        ListItem::new(Span::styled(item, style))
+    }).collect();
+
+    let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Settings"));
+    f.render_stateful_widget(list, area, &mut app.ui.settings_list_state);
 }
 
 pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
@@ -99,32 +101,34 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
         // Section header
         f.render_widget(Paragraph::new(Span::styled("Personal Info", Style::default().fg(Color::LightCyan).add_modifier(Modifier::BOLD))).alignment(Alignment::Left), left[0]);
         // Bio
-        let bio_style = if app.profile_edit_focus == Bio {
-            Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
-        } else { Style::default().bg(Color::DarkGray) };
+        let bio_style = if app.profile.profile_edit_focus == Bio {
+            Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
         f.render_widget(
-            Paragraph::new(app.edit_bio.as_str())
+            Paragraph::new(app.profile.edit_bio.as_str())
                 .block(Block::default().borders(Borders::ALL).title("📝 Bio").border_style(bio_style))
                 .style(bio_style)
                 .wrap(Wrap { trim: false }),
             left[2],
         );
         // Location
-        let location_style = if app.profile_edit_focus == Location {
+        let location_style = if app.profile.profile_edit_focus == Location {
             Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
         } else { Style::default().bg(Color::DarkGray) };
         f.render_widget(
-            Paragraph::new(app.edit_location.clone())
+            Paragraph::new(app.profile.edit_location.clone())
                 .block(Block::default().borders(Borders::ALL).title("📍 Location").border_style(location_style))
                 .style(location_style),
             left[4],
         );
         // URLs
         let url_titles = ["🔗 URL1", "🔗 URL2", "🔗 URL3"];
-        let url_fields = [&app.edit_url1, &app.edit_url2, &app.edit_url3];
+        let url_fields = [&app.profile.edit_url1, &app.profile.edit_url2, &app.profile.edit_url3];
         let url_focus = [Url1, Url2, Url3];
         for i in 0..3 {
-            let style = if app.profile_edit_focus == url_focus[i] {
+            let style = if app.profile.profile_edit_focus == url_focus[i] {
                 Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
             } else { Style::default().bg(Color::DarkGray) };
             f.render_widget(
@@ -142,14 +146,14 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC)
         )).alignment(Alignment::Left), right[1]);
         // Profile Pic preview
-        let pic_style = if app.profile_edit_focus == ProfilePic {
+        let pic_style = if app.profile.profile_edit_focus == ProfilePic {
             Style::default().fg(Color::Black).bg(Color::LightMagenta).add_modifier(Modifier::BOLD)
         } else { Style::default().bg(Color::DarkGray) };
-        if !app.edit_profile_pic.trim().is_empty() {
+        if !app.profile.edit_profile_pic.trim().is_empty() {
             let mut show_placeholder = true;
-            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.edit_profile_pic.trim()) {
+            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.profile.edit_profile_pic.trim()) {
                 if let Ok(img) = image::load_from_memory(&bytes) {
-                    let mut protocol = app.picker.new_resize_protocol(img);
+                    let mut protocol = app.profile.picker.new_resize_protocol(img);
                     let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
                     f.render_stateful_widget(image_widget, right[3], &mut protocol);
                     show_placeholder = false;
@@ -169,12 +173,12 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             .constraints([Constraint::Percentage(75), Constraint::Percentage(25)])
             .split(right[5]);
         f.render_widget(
-            Paragraph::new(app.edit_profile_pic.clone())
+            Paragraph::new(app.profile.edit_profile_pic.clone())
                 .block(Block::default().borders(Borders::ALL).title("🖼️ Path/Base64").border_style(pic_style))
                 .style(pic_style),
             row[0],
         );
-        let del_style = if app.profile_edit_focus == ProfilePicDelete {
+        let del_style = if app.profile.profile_edit_focus == ProfilePicDelete {
             Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
         } else { Style::default().fg(Color::Red) };
         f.render_widget(
@@ -182,14 +186,14 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             row[1],
         );
         // Banner preview
-        let banner_style = if app.profile_edit_focus == CoverBanner {
+        let banner_style = if app.profile.profile_edit_focus == CoverBanner {
             Style::default().fg(Color::Black).bg(Color::LightMagenta).add_modifier(Modifier::BOLD)
         } else { Style::default().bg(Color::DarkGray) };
-        if !app.edit_cover_banner.trim().is_empty() {
+        if !app.profile.edit_cover_banner.trim().is_empty() {
             let mut show_placeholder = true;
-            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.edit_cover_banner.trim()) {
+            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.profile.edit_cover_banner.trim()) {
                 if let Ok(img) = image::load_from_memory(&bytes) {
-                    let mut protocol = app.picker.new_resize_protocol(img);
+                    let mut protocol = app.profile.picker.new_resize_protocol(img);
                     let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
                     f.render_stateful_widget(image_widget, right[7], &mut protocol);
                     show_placeholder = false;
@@ -209,12 +213,12 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             .constraints([Constraint::Percentage(75), Constraint::Percentage(25)])
             .split(right[9]);
         f.render_widget(
-            Paragraph::new(app.edit_cover_banner.clone())
+            Paragraph::new(app.profile.edit_cover_banner.clone())
                 .block(Block::default().borders(Borders::ALL).title("🖼️ Path/Base64").border_style(banner_style))
                 .style(banner_style),
             row[0],
         );
-        let del_style = if app.profile_edit_focus == CoverBannerDelete {
+        let del_style = if app.profile.profile_edit_focus == CoverBannerDelete {
             Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
         } else { Style::default().fg(Color::Red) };
         f.render_widget(
@@ -222,12 +226,12 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             row[1],
         );
         // Save/Cancel buttons
-        let save_style = if app.profile_edit_focus == Save {
+        let save_style = if app.profile.profile_edit_focus == Save {
             Style::default().fg(Color::Black).bg(Color::Green).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Green)
         };
-        let cancel_style = if app.profile_edit_focus == Cancel {
+        let cancel_style = if app.profile.profile_edit_focus == Cancel {
             Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Red)
@@ -239,26 +243,26 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
         ]);
         f.render_widget(Paragraph::new(buttons).alignment(Alignment::Center), right[11]);
         // Error message with extra padding
-        if let Some(err) = &app.profile_edit_error {
+        if let Some(err) = &app.profile.profile_edit_error {
             f.render_widget(Paragraph::new(err.as_str()).style(Style::default().fg(Color::Red)), right[13]);
         }
         // Set cursor for focused field (moved inside this block)
-        let cursor = match app.profile_edit_focus {
+        let cursor = match app.profile.profile_edit_focus {
             Bio => {
-                let lines: Vec<&str> = app.edit_bio.split('\n').collect();
+                let lines: Vec<&str> = app.profile.edit_bio.split('\n').collect();
                 let y = left[2].y + lines.len() as u16 - 1 + 1;
                 let x = left[2].x + lines.last().map(|l| l.len()).unwrap_or(0) as u16 + 1;
                 (x, y)
             },
-            Location => (left[4].x + app.edit_location.len() as u16 + 1, left[4].y + 1),
-            Url1 => (left[6].x + app.edit_url1.len() as u16 + 1, left[6].y + 1),
-            Url2 => (left[8].x + app.edit_url2.len() as u16 + 1, left[8].y + 1),
-            Url3 => (left[10].x + app.edit_url3.len() as u16 + 1, left[10].y + 1),
-            ProfilePic => (row[0].x + app.edit_profile_pic.len() as u16 + 1, row[0].y + 1),
-            CoverBanner => (row[0].x + app.edit_cover_banner.len() as u16 + 1, row[0].y + 1),
+            Location => (left[4].x + app.profile.edit_location.len() as u16 + 1, left[4].y + 1),
+            Url1 => (left[6].x + app.profile.edit_url1.len() as u16 + 1, left[6].y + 1),
+            Url2 => (left[8].x + app.profile.edit_url2.len() as u16 + 1, left[8].y + 1),
+            Url3 => (left[10].x + app.profile.edit_url3.len() as u16 + 1, left[10].y + 1),
+            ProfilePic => (row[0].x + app.profile.edit_profile_pic.len() as u16 + 1, row[0].y + 1),
+            CoverBanner => (row[0].x + app.profile.edit_cover_banner.len() as u16 + 1, row[0].y + 1),
             _ => (0, 0),
         };
-        if matches!(app.profile_edit_focus, Bio|Location|Url1|Url2|Url3|ProfilePic|CoverBanner) {
+        if matches!(app.profile.profile_edit_focus, Bio|Location|Url1|Url2|Url3|ProfilePic|CoverBanner) {
             f.set_cursor_position(cursor);
         }
     } else {
@@ -296,32 +300,34 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
         // Section header
         f.render_widget(Paragraph::new(Span::styled("Personal Info", Style::default().fg(Color::LightCyan).add_modifier(Modifier::BOLD))).alignment(Alignment::Left), fields[0]);
         // Bio
-        let bio_style = if app.profile_edit_focus == Bio {
-            Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
-        } else { Style::default().bg(Color::DarkGray) };
+        let bio_style = if app.profile.profile_edit_focus == Bio {
+            Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
         f.render_widget(
-            Paragraph::new(app.edit_bio.as_str())
+            Paragraph::new(app.profile.edit_bio.as_str())
                 .block(Block::default().borders(Borders::ALL).title("📝 Bio").border_style(bio_style))
                 .style(bio_style)
                 .wrap(Wrap { trim: false }),
             fields[2],
         );
         // Location
-        let location_style = if app.profile_edit_focus == Location {
+        let location_style = if app.profile.profile_edit_focus == Location {
             Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
         } else { Style::default().bg(Color::DarkGray) };
         f.render_widget(
-            Paragraph::new(app.edit_location.clone())
+            Paragraph::new(app.profile.edit_location.clone())
                 .block(Block::default().borders(Borders::ALL).title("📍 Location").border_style(location_style))
                 .style(location_style),
             fields[4],
         );
         // URLs
         let url_titles = ["🔗 URL1", "🔗 URL2", "🔗 URL3"];
-        let url_fields = [&app.edit_url1, &app.edit_url2, &app.edit_url3];
+        let url_fields = [&app.profile.edit_url1, &app.profile.edit_url2, &app.profile.edit_url3];
         let url_focus = [Url1, Url2, Url3];
         for i in 0..3 {
-            let style = if app.profile_edit_focus == url_focus[i] {
+            let style = if app.profile.profile_edit_focus == url_focus[i] {
                 Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
             } else { Style::default().bg(Color::DarkGray) };
             f.render_widget(
@@ -339,14 +345,14 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC)
         )).alignment(Alignment::Left), fields[13]);
         // Profile Pic preview
-        let pic_style = if app.profile_edit_focus == ProfilePic {
+        let pic_style = if app.profile.profile_edit_focus == ProfilePic {
             Style::default().fg(Color::Black).bg(Color::LightMagenta).add_modifier(Modifier::BOLD)
         } else { Style::default().bg(Color::DarkGray) };
-        if !app.edit_profile_pic.trim().is_empty() {
+        if !app.profile.edit_profile_pic.trim().is_empty() {
             let mut show_placeholder = true;
-            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.edit_profile_pic.trim()) {
+            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.profile.edit_profile_pic.trim()) {
                 if let Ok(img) = image::load_from_memory(&bytes) {
-                    let mut protocol = app.picker.new_resize_protocol(img);
+                    let mut protocol = app.profile.picker.new_resize_protocol(img);
                     let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
                     f.render_stateful_widget(image_widget, fields[15], &mut protocol);
                     show_placeholder = false;
@@ -366,12 +372,12 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             .constraints([Constraint::Percentage(75), Constraint::Percentage(25)])
             .split(fields[17]);
         f.render_widget(
-            Paragraph::new(app.edit_profile_pic.clone())
+            Paragraph::new(app.profile.edit_profile_pic.clone())
                 .block(Block::default().borders(Borders::ALL).title("🖼️ Path/Base64").border_style(pic_style))
                 .style(pic_style),
             row[0],
         );
-        let del_style = if app.profile_edit_focus == ProfilePicDelete {
+        let del_style = if app.profile.profile_edit_focus == ProfilePicDelete {
             Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
         } else { Style::default().fg(Color::Red) };
         f.render_widget(
@@ -379,14 +385,14 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             row[1],
         );
         // Banner preview
-        let banner_style = if app.profile_edit_focus == CoverBanner {
+        let banner_style = if app.profile.profile_edit_focus == CoverBanner {
             Style::default().fg(Color::Black).bg(Color::LightMagenta).add_modifier(Modifier::BOLD)
         } else { Style::default().bg(Color::DarkGray) };
-        if !app.edit_cover_banner.trim().is_empty() {
+        if !app.profile.edit_cover_banner.trim().is_empty() {
             let mut show_placeholder = true;
-            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.edit_cover_banner.trim()) {
+            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.profile.edit_cover_banner.trim()) {
                 if let Ok(img) = image::load_from_memory(&bytes) {
-                    let mut protocol = app.picker.new_resize_protocol(img);
+                    let mut protocol = app.profile.picker.new_resize_protocol(img);
                     let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
                     f.render_stateful_widget(image_widget, fields[19], &mut protocol);
                     show_placeholder = false;
@@ -406,12 +412,12 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             .constraints([Constraint::Percentage(75), Constraint::Percentage(25)])
             .split(fields[21]);
         f.render_widget(
-            Paragraph::new(app.edit_cover_banner.clone())
+            Paragraph::new(app.profile.edit_cover_banner.clone())
                 .block(Block::default().borders(Borders::ALL).title("🖼️ Path/Base64").border_style(banner_style))
                 .style(banner_style),
             row[0],
         );
-        let del_style = if app.profile_edit_focus == CoverBannerDelete {
+        let del_style = if app.profile.profile_edit_focus == CoverBannerDelete {
             Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
         } else { Style::default().fg(Color::Red) };
         f.render_widget(
@@ -419,12 +425,12 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             row[1],
         );
         // Save/Cancel buttons
-        let save_style = if app.profile_edit_focus == Save {
+        let save_style = if app.profile.profile_edit_focus == Save {
             Style::default().fg(Color::Black).bg(Color::Green).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Green)
         };
-        let cancel_style = if app.profile_edit_focus == Cancel {
+        let cancel_style = if app.profile.profile_edit_focus == Cancel {
             Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Red)
@@ -436,88 +442,97 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
         ]);
         f.render_widget(Paragraph::new(buttons).alignment(Alignment::Center), fields[23]);
         // Error message with extra padding
-        if let Some(err) = &app.profile_edit_error {
+        if let Some(err) = &app.profile.profile_edit_error {
             f.render_widget(Paragraph::new(err.as_str()).style(Style::default().fg(Color::Red)), fields[25]);
         }
-    }
-}
-
-pub fn draw_color_picker_page(f: &mut Frame, app: &mut App, area: Rect) {
-    let colors = [
-        Color::Cyan, Color::Green, Color::Yellow, Color::Red, Color::Magenta, Color::Blue, Color::White, Color::LightCyan, Color::LightGreen, Color::LightYellow, Color::LightRed, Color::LightMagenta, Color::LightBlue, Color::Gray, Color::DarkGray, Color::Black
-    ];
-    let color_names = [
-        "Cyan", "Green", "Yellow", "Red", "Magenta", "Blue", "White", "LightCyan", "LightGreen", "LightYellow", "LightRed", "LightMagenta", "LightBlue", "Gray", "DarkGray", "Black"
-    ];
-    let block = Block::default().title("Pick a Username Color").borders(Borders::ALL).border_type(BorderType::Double);
-    f.render_widget(block, area);
-    let inner = Layout::default()
-        .direction(Direction::Vertical)
-        .margin(2)
-        .constraints([
-            Constraint::Length(3), // Preview
-            Constraint::Length(colors.len() as u16 + 2), // Palette
-            Constraint::Min(0),
-        ])
-        .split(area);
-    // Username preview
-    let username = app.current_user.as_ref().map(|u| u.username.as_str()).unwrap_or("your_username");
-    let preview_color = colors[app.color_picker_selected];
-    let preview = Paragraph::new(Span::styled(
-        format!("Preview: {}", username),
-        Style::default().fg(preview_color).add_modifier(Modifier::BOLD),
-    ))
-    .alignment(Alignment::Center)
-    .block(Block::default().borders(Borders::ALL).title("Preview"));
-    f.render_widget(preview, inner[0]);
-    // Palette
-    let mut palette_lines: Vec<Line> = Vec::new();
-    let mut current_line: Vec<Span> = Vec::new();
-    let mut current_width = 0u16;
-    let max_width = inner[1].width.saturating_sub(4); // account for borders/margins
-    for (i, &color) in colors.iter().enumerate() {
-        let label = format!(" {} ", color_names[i]);
-        let label_width = label.chars().count() as u16;
-        let style = if i == app.color_picker_selected {
-            Style::default().fg(Color::Black).bg(color).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(color)
+        
+        // Set cursor for focused field in single-column layout
+        let cursor = match app.profile.profile_edit_focus {
+            Bio => {
+                let lines: Vec<&str> = app.profile.edit_bio.split('\n').collect();
+                let y = fields[2].y + lines.len() as u16 - 1 + 1;
+                let x = fields[2].x + lines.last().map(|l| l.len()).unwrap_or(0) as u16 + 1;
+                (x, y)
+            },
+            Location => (fields[4].x + app.profile.edit_location.len() as u16 + 1, fields[4].y + 1),
+            Url1 => (fields[6].x + app.profile.edit_url1.len() as u16 + 1, fields[6].y + 1),
+            Url2 => (fields[8].x + app.profile.edit_url2.len() as u16 + 1, fields[8].y + 1),
+            Url3 => (fields[10].x + app.profile.edit_url3.len() as u16 + 1, fields[10].y + 1),
+            ProfilePic => (fields[17].x + app.profile.edit_profile_pic.len() as u16 + 1, fields[17].y + 1),
+            CoverBanner => (fields[21].x + app.profile.edit_cover_banner.len() as u16 + 1, fields[21].y + 1),
+            _ => (0, 0),
         };
-        if current_width + label_width > max_width && !current_line.is_empty() {
-            palette_lines.push(Line::from(current_line));
-            current_line = Vec::new();
-            current_width = 0;
+        if matches!(app.profile.profile_edit_focus, Bio|Location|Url1|Url2|Url3|ProfilePic|CoverBanner) {
+            f.set_cursor_position(cursor);
         }
-        current_line.push(Span::styled(label, style));
-        current_width += label_width;
     }
-    if !current_line.is_empty() {
-        palette_lines.push(Line::from(current_line));
-    }
-    let palette = Paragraph::new(palette_lines)
-        .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).title("Colors (←/→ to pick, Enter=Save, Esc=Cancel)"));
-    f.render_widget(palette, inner[1]);
 }
 
-pub fn draw_parameters_page(f: &mut Frame, _app: &mut App, area: Rect) {
-    use ratatui::widgets::{Block, Borders, Paragraph};
-    use ratatui::text::{Span, Line};
-    use ratatui::style::{Style, Color, Modifier};
-    let block = Block::default().title("Parameters").borders(Borders::ALL);
-    f.render_widget(block, area);
-    let inner = Layout::default()
-        .direction(Direction::Vertical)
-        .margin(2)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Min(0),
-        ])
-        .split(area);
-    let checked = if global_prefs::global_prefs().sound_effects_enabled { "[x]" } else { "[ ]" };
-    let line = Line::from(vec![
-        Span::raw("Sound Effects "),
-        Span::styled(checked, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-    ]);
-    f.render_widget(Paragraph::new(line), inner[0]);
+pub fn draw_color_picker(f: &mut Frame, app: &mut App, area: Rect) {
+    let palette = [
+        Color::Cyan, Color::Green, Color::Yellow, Color::Red,
+        Color::Magenta, Color::Blue, Color::White, Color::LightCyan,
+        Color::LightGreen, Color::LightYellow, Color::LightRed,
+        Color::LightMagenta, Color::LightBlue, Color::Gray,
+        Color::DarkGray, Color::Black
+    ];
+    
+    let block = Block::default().borders(Borders::ALL).title("Choose Your Color");
+    f.render_widget(&block, area);
+    let inner = block.inner(area);
+    
+    let items_per_row = 4;
+    let rows = (palette.len() + items_per_row - 1) / items_per_row;
+    let item_width = inner.width / items_per_row as u16;
+    let item_height = 3;
+    
+    for (i, &color) in palette.iter().enumerate() {
+        let row = i / items_per_row;
+        let col = i % items_per_row;
+        
+        if row >= rows {
+            break;
+        }
+        
+        let x = inner.x + col as u16 * item_width;
+        let y = inner.y + row as u16 * item_height;
+        let width = item_width;
+        let height = item_height;
+        
+        let item_area = ratatui::layout::Rect { x, y, width, height };
+        
+        let style = if i == app.ui.color_picker_selected {
+            Style::default().bg(color).fg(Color::Black).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().bg(color)
+        };
+        
+        let text = if i == app.ui.color_picker_selected {
+            "[ SELECTED ]"
+        } else {
+            "         "
+        };
+        
+        f.render_widget(
+            Paragraph::new(text)
+                .style(style)
+                .alignment(Alignment::Center)
+                .block(Block::default().borders(Borders::ALL)),
+            item_area,
+        );
+    }
+}
+
+pub fn draw_parameters(f: &mut Frame, _app: &mut App, area: Rect) {
+    let prefs = global_prefs::global_prefs();
+    let sound_status = if prefs.sound_effects_enabled { "ON" } else { "OFF" };
+    
+    let text = format!("Sound Effects: {} (Press SPACE to toggle)", sound_status);
+    
+    f.render_widget(
+        Paragraph::new(text)
+            .block(Block::default().borders(Borders::ALL).title("Parameters"))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
 }
