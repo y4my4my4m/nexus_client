@@ -19,15 +19,64 @@ pub fn draw_centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
 
 pub fn draw_dm_input_popup(f: &mut Frame, app: &App) {
     let username = app.dm_target.and_then(|uid| app.channel_userlist.iter().find(|u| u.id == uid)).map(|u| u.username.as_str()).unwrap_or("");
-    let area = draw_centered_rect(f.area(), 50, 20);
+    
+    // Calculate popup size based on content
+    let input_str = &app.dm_input;
+    let base_area = draw_centered_rect(f.area(), 50, 20);
+    let input_inner_width = base_area.width.saturating_sub(2); // Account for borders
+    
+    // Simple estimation for height calculation
+    let estimated_lines = if input_inner_width > 0 && !input_str.is_empty() {
+        let char_lines = (input_str.len() as u16 + input_inner_width - 1) / input_inner_width;
+        let newline_count = input_str.matches('\n').count() as u16;
+        (char_lines + newline_count).max(1)
+    } else {
+        1
+    };
+    
+    // Adjust popup height if needed for multiline content
+    let min_height = (estimated_lines + 4).clamp(8, 25); // +4 for borders and title
+    let height_percent = if base_area.height < min_height {
+        ((min_height as f32 / f.area().height as f32) * 100.0).min(80.0) as u16
+    } else {
+        20
+    };
+    
+    let area = draw_centered_rect(f.area(), 50, height_percent);
     let block = Block::default().title(Line::from(vec![
         Span::raw("Send Direct Message to "),
         Span::styled(username, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
     ])).borders(Borders::ALL).border_type(BorderType::Double);
+    
     let input_field = Paragraph::new(app.dm_input.as_str()).wrap(Wrap { trim: true }).block(block);
     f.render_widget(Clear, area);
     f.render_widget(input_field, area);
-    f.set_cursor_position((area.x + app.dm_input.len() as u16 + 1, area.y + 1));
+    
+    // Calculate cursor position for multiline input
+    let inner_area = Block::default().borders(Borders::ALL).inner(area);
+    if inner_area.width > 0 && !app.dm_input.is_empty() {
+        let cursor_pos = app.dm_input.len();
+        let text_up_to_cursor = &app.dm_input[..cursor_pos];
+        
+        // Count newlines and estimate position
+        let newlines = text_up_to_cursor.matches('\n').count() as u16;
+        let last_line = text_up_to_cursor.split('\n').last().unwrap_or("");
+        let col_in_line = last_line.len() as u16;
+        let estimated_col = col_in_line % inner_area.width;
+        let estimated_line = newlines + (col_in_line / inner_area.width);
+        
+        let cursor_y = inner_area.y + estimated_line;
+        let cursor_x = inner_area.x + estimated_col;
+        
+        // Ensure cursor is within bounds
+        if cursor_y < inner_area.y + inner_area.height && cursor_x < inner_area.x + inner_area.width {
+            f.set_cursor_position((cursor_x, cursor_y));
+        }
+    } else {
+        // Empty input - place cursor at start
+        f.set_cursor_position((inner_area.x, inner_area.y));
+    }
+    
     // Draw mention suggestions popup if present
     crate::ui::chat::draw_mention_suggestion_popup(f, app, area, f.area());
 }
@@ -40,15 +89,69 @@ pub fn draw_input_popup(f: &mut Frame, app: &App) {
         Some(crate::app::InputMode::UpdatePassword) => "New Password",
         _ => "Input"
     };
-    let area = draw_centered_rect(f.area(), 60, 25);
-    let block = Block::default().title(title).borders(Borders::ALL).border_type(BorderType::Double);
-    let text_to_render = if matches!(app.input_mode, Some(crate::app::InputMode::UpdatePassword)) {
+    
+    // Calculate popup size based on content
+    let input_str = if matches!(app.input_mode, Some(crate::app::InputMode::UpdatePassword)) {
         "*".repeat(app.current_input.len())
-    } else { app.current_input.clone() };
-    let input_field = Paragraph::new(text_to_render).wrap(Wrap { trim: true }).block(block);
+    } else { 
+        app.current_input.clone() 
+    };
+    
+    let base_area = draw_centered_rect(f.area(), 60, 25);
+    let input_inner_width = base_area.width.saturating_sub(2); // Account for borders
+    
+    // Simple estimation for height calculation 
+    let estimated_lines = if input_inner_width > 0 && !input_str.is_empty() {
+        let char_lines = (input_str.len() as u16 + input_inner_width - 1) / input_inner_width;
+        let newline_count = input_str.matches('\n').count() as u16;
+        (char_lines + newline_count).max(1)
+    } else {
+        1
+    };
+    
+    // Adjust popup height if needed for multiline content
+    let min_height = (estimated_lines + 4).clamp(8, 30); // +4 for borders and title
+    let height_percent = if base_area.height < min_height {
+        ((min_height as f32 / f.area().height as f32) * 100.0).min(80.0) as u16
+    } else {
+        25
+    };
+    
+    let area = draw_centered_rect(f.area(), 60, height_percent);
+    let block = Block::default().title(title).borders(Borders::ALL).border_type(BorderType::Double);
+    let input_field = Paragraph::new(input_str.clone()).wrap(Wrap { trim: true }).block(block);
     f.render_widget(Clear, area);
     f.render_widget(input_field, area);
-    f.set_cursor_position((area.x + app.current_input.len() as u16 + 1, area.y + 1));
+    
+    // Calculate cursor position for multiline input
+    let inner_area = Block::default().borders(Borders::ALL).inner(area);
+    if inner_area.width > 0 && !app.current_input.is_empty() {
+        let cursor_pos = app.current_input.len();
+        let display_text = if matches!(app.input_mode, Some(crate::app::InputMode::UpdatePassword)) {
+            "*".repeat(cursor_pos)
+        } else {
+            app.current_input[..cursor_pos].to_string()
+        };
+        
+        // Count newlines and estimate position
+        let newlines = display_text.matches('\n').count() as u16;
+        let last_line = display_text.split('\n').last().unwrap_or("");
+        let col_in_line = last_line.len() as u16;
+        let estimated_col = col_in_line % inner_area.width;
+        let estimated_line = newlines + (col_in_line / inner_area.width);
+        
+        let cursor_y = inner_area.y + estimated_line;
+        let cursor_x = inner_area.x + estimated_col;
+        
+        // Ensure cursor is within bounds
+        if cursor_y < inner_area.y + inner_area.height && cursor_x < inner_area.x + inner_area.width {
+            f.set_cursor_position((cursor_x, cursor_y));
+        }
+    } else {
+        // Empty input - place cursor at start
+        let inner_area = Block::default().borders(Borders::ALL).inner(area);
+        f.set_cursor_position((inner_area.x, inner_area.y));
+    }
 }
 
 pub fn draw_notification_popup(f: &mut Frame, text: String) {

@@ -205,24 +205,77 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
     let (font_w, font_h) = if font_w == 0 || font_h == 0 { (8, 16) } else { (font_w, font_h) };
     let avatar_cell_width = (AVATAR_PIXEL_SIZE as f32 / font_w as f32).ceil() as u16;
     let avatar_cell_height = (AVATAR_PIXEL_SIZE as f32 / font_h as f32).ceil() as u16;
-    let row_height = avatar_cell_height.max(2);
+    let min_row_height = avatar_cell_height.max(2);
 
     let messages = app.get_current_message_list();
-    let max_rows = (inner_area.height as usize) / (row_height as usize + 1);
-    app.last_chat_rows = Some(max_rows); // Store for scroll calculations
+    
+    // Calculate how many messages we can fit by working backwards from the bottom
+    // For scrolling calculation, use average row height estimation
+    let estimated_avg_row_height = min_row_height + 2; // +2 for spacing and potential wrapping
+    let max_rows_estimate = (inner_area.height as usize) / (estimated_avg_row_height as usize + 1);
+    app.last_chat_rows = Some(max_rows_estimate); // Store for scroll calculations
+    
     let total_msgs = messages.len();
-    let max_scroll = total_msgs.saturating_sub(max_rows);
+    let max_scroll = total_msgs.saturating_sub(max_rows_estimate);
     let scroll_offset = app.chat_scroll_offset.min(max_scroll);
     let end_idx = total_msgs.saturating_sub(scroll_offset);
-    let start_idx = end_idx.saturating_sub(max_rows);
-    let display_items = &messages[start_idx..end_idx];
+    let start_idx = end_idx.saturating_sub(max_rows_estimate * 2); // Get more messages than estimated to account for varying heights
+    let display_items = &messages[start_idx.max(0)..end_idx];
 
     let now = chrono::Local::now();
     let mut last_date: Option<chrono::NaiveDate> = None;
-    let mut current_y = inner_area.y;
+    let text_area_width = inner_area.width.saturating_sub(avatar_cell_width + 1);
+    
+    // Render messages from bottom up to handle dynamic heights properly
+    let mut message_heights = Vec::new();
+    
+    // First pass: calculate heights for all messages
     for msg in display_items.iter() {
-        if current_y + row_height > inner_area.y + inner_area.height { break; }
-        // Insert date delimiter only when the date changes (not for the first message)
+        // Calculate content height
+        let content_str = &msg.content;
+        let lines_needed = if text_area_width > 0 {
+            // Count explicit newlines
+            let explicit_lines = content_str.matches('\n').count() + 1;
+            // Calculate wrapped lines
+            let total_chars = content_str.len();
+            let wrapped_lines = (total_chars + text_area_width as usize - 1) / text_area_width as usize;
+            explicit_lines.max(wrapped_lines)
+        } else {
+            1
+        };
+        
+        // Message height = max(avatar_height, content_lines + header_line)
+        let content_height = (lines_needed + 1) as u16; // +1 for author/timestamp line
+        let message_height = content_height.max(min_row_height);
+        message_heights.push(message_height);
+    }
+    
+    // Find how many messages actually fit, working backwards
+    let mut total_height = 0u16;
+    let mut visible_count = 0;
+    for &height in message_heights.iter().rev() {
+        if total_height + height + 1 <= inner_area.height { // +1 for spacing
+            total_height += height + 1;
+            visible_count += 1;
+        } else {
+            break;
+        }
+    }
+    
+    // Render the visible messages
+    let visible_start = display_items.len().saturating_sub(visible_count);
+    let visible_messages = &display_items[visible_start..];
+    let visible_heights = &message_heights[visible_start..];
+    
+    // Start from bottom and work up
+    let mut current_y = inner_area.y + inner_area.height;
+    
+    for (msg, &msg_height) in visible_messages.iter().zip(visible_heights.iter()).rev() {
+        current_y = current_y.saturating_sub(msg_height + 1);
+        
+        if current_y < inner_area.y { break; }
+        
+        // Insert date delimiter only when the date changes
         if let Some(ts) = msg.timestamp {
             let dt = chrono::Local.timestamp_opt(ts, 0).single();
             if let Some(dt) = dt {
@@ -235,16 +288,20 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
                             .title(format_date_delimiter(ts))
                             .border_style(Style::default().fg(Color::DarkGray))
                             .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC));
-                        f.render_widget(header, Rect::new(inner_area.x, current_y, inner_area.width, row_height));
-                        current_y += row_height;
+                            // Use `min_row_height` to ensure consistent spacing for date headers.
+                            // This value should be verified to match the intended vertical spacing.
+                        f.render_widget(header, Rect::new(inner_area.x, current_y, inner_area.width, min_row_height));
+                        current_y = current_y.saturating_sub(min_row_height);
                     }
                 }
                 last_date = Some(msg_date);
             }
         }
-        let row_area = Rect::new(inner_area.x, current_y, inner_area.width, row_height);
+        
+        let row_area = Rect::new(inner_area.x, current_y, inner_area.width, msg_height);
         let avatar_area = Rect::new(row_area.x, row_area.y, avatar_cell_width, avatar_cell_height);
-        let text_area = Rect::new(row_area.x + avatar_cell_width + 1, row_area.y, row_area.width - avatar_cell_width - 1, row_height);
+        let text_area = Rect::new(row_area.x + avatar_cell_width + 1, row_area.y, text_area_width, msg_height);
+        
         // Avatar/profile pic rendering
         let user_for_avatar = match &app.current_chat_target {
             Some(crate::app::ChatTarget::Channel { .. }) => {
@@ -289,6 +346,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
             let fallback = Line::from(Span::styled("○", Style::default().fg(Color::Gray)));
             f.render_widget(Paragraph::new(fallback), avatar_area);
         }
+        
         // Mention parsing and coloring
         let mut spans = Vec::new();
         let mut last = 0;
@@ -312,6 +370,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
         if last < content_str.len() {
             spans.push(Span::raw(&content_str[last..]));
         }
+        
         let author = &msg.author;
         let timestamp_str = msg.timestamp.map(|ts| format_message_timestamp(ts, now.clone())).unwrap_or_default();
         let text = if !timestamp_str.is_empty() {
@@ -330,34 +389,131 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
             ]
         };
         f.render_widget(Paragraph::new(text).wrap(ratatui::widgets::Wrap { trim: true }), text_area);
-        current_y += row_height + 1;
     }
 }
 
 pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
+    let input_str = app.get_current_input().to_string(); // Clone to avoid borrow conflict
+    
+    // Calculate approximate input height based on content and available width
+    let input_inner_width = area.width.saturating_sub(2); // Account for borders
+    let estimated_lines = if input_inner_width > 0 && !input_str.is_empty() {
+        // Simple estimation: count characters and divide by width, plus count newlines
+        let char_lines = (input_str.len() as u16 + input_inner_width - 1) / input_inner_width;
+        let newline_count = input_str.matches('\n').count() as u16;
+        (char_lines + newline_count).max(1)
+    } else {
+        1
+    };
+    
+    // Constrain input height to reasonable bounds (min 3, max 8 lines + borders)
+    let input_height = (estimated_lines + 2).clamp(3, 10);
+    
     // Split area vertically: messages above, input below
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Min(3), // message list
-            Constraint::Length(3), // input box
+            Constraint::Length(input_height), // dynamic input box
         ])
         .split(area);
 
     draw_message_list(f, app, chunks[0], focused, "Chat");
 
-    let input_str = app.get_current_input();
-    let input = Paragraph::new(input_str)
-        .style(Style::default().fg(Color::Cyan))
-        .block(Block::default().borders(Borders::ALL).title("Input"));
-    f.render_widget(input, chunks[1]);
-    if focused {
-        f.set_cursor_position((chunks[1].x + input_str.len() as u16 + 1, chunks[1].y + 1));
+    // Create styled input text with white text and colored @mentions
+    let mut input_spans = Vec::new();
+    let mut last = 0;
+    let mention_re = regex::Regex::new(r"@([a-zA-Z0-9_]+)").unwrap();
+    
+    for m in mention_re.find_iter(&input_str) {
+        let start = m.start();
+        let end = m.end();
+        
+        // Add text before the mention in white
+        if start > last {
+            input_spans.push(Span::styled(&input_str[last..start], Style::default().fg(Color::White)));
+        }
+        
+        // Add the mention with user color or default styling
+        let mention = &input_str[start+1..end];
+        let mention_color = app.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color);
+        if let Some(mcolor) = mention_color {
+            input_spans.push(Span::styled(format!("@{}", mention), Style::default().fg(Color::Black).bg(mcolor).add_modifier(Modifier::BOLD)));
+        } else {
+            input_spans.push(Span::styled(format!("@{}", mention), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+        }
+        last = end;
     }
+    
+    // Add remaining text after last mention in white
+    if last < input_str.len() {
+        input_spans.push(Span::styled(&input_str[last..], Style::default().fg(Color::White)));
+    }
+    
+    // If no spans were created (no mentions), create a single white span
+    if input_spans.is_empty() && !input_str.is_empty() {
+        input_spans.push(Span::styled(&input_str, Style::default().fg(Color::White)));
+    }
+
+    let char_count = input_str.chars().count();
+    let input_title = format!("{} / 500", char_count);
+
+    let input = Paragraph::new(Line::from(input_spans))
+        .block(Block::default().borders(Borders::ALL).title(input_title).border_style(
+            if focused {
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            }
+        ))
+        .wrap(Wrap { trim: true });
+    f.render_widget(input, chunks[1]);
+    
+    if focused {
+        // Improved cursor positioning for multiline input
+        let input_area = chunks[1];
+        let inner_area = Block::default().borders(Borders::ALL).inner(input_area);
+        
+        if inner_area.width > 0 {
+            let cursor_pos = input_str.len();
+            let text_up_to_cursor = &input_str[..cursor_pos];
+            
+            // More accurate cursor positioning that accounts for wrapping
+            let mut current_line = 0u16;
+            let mut current_col = 0u16;
+            
+            for ch in text_up_to_cursor.chars() {
+                if ch == '\n' {
+                    current_line += 1;
+                    current_col = 0;
+                } else {
+                    current_col += 1;
+                    // Handle wrapping when line exceeds width
+                    if current_col >= inner_area.width {
+                        current_line += 1;
+                        current_col = 0;
+                    }
+                }
+            }
+            
+            let cursor_y = inner_area.y + current_line;
+            let cursor_x = inner_area.x + current_col;
+            
+            // Ensure cursor is within bounds
+            if cursor_y < inner_area.y + inner_area.height && cursor_x < inner_area.x + inner_area.width {
+                f.set_cursor_position((cursor_x, cursor_y));
+            }
+        } else {
+            // Empty input or no width - place cursor at start
+            f.set_cursor_position((inner_area.x, inner_area.y));
+        }
+    }
+    
     // Draw mention suggestions popup if present
     if focused {
         draw_mention_suggestion_popup(f, app, chunks[1], area);
     }
+    
     // Draw scrollbar if there are more messages than fit - use message area only
     let messages = app.get_current_message_list();
     let total_msgs = messages.len();

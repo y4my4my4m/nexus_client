@@ -691,11 +691,17 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         app.sound_manager.play(SoundType::Scroll);
                     }
                     KeyCode::Down => {
+                        // handle down arrow in the mention suggestions
                         if !app.mention_suggestions.is_empty() {
                             app.mention_selected = (app.mention_selected + 1) % app.mention_suggestions.len();
                         }
+                        // handle down arrow in the message list (scroll down by one)
+                        if app.chat_scroll_offset > 0 {
+                            app.chat_scroll_offset -= 1;
+                        }
                     },
                     KeyCode::Up => {
+                        // handle up arrow in the mention suggestions
                         if !app.mention_suggestions.is_empty() {
                             if app.mention_selected == 0 {
                                 app.mention_selected = app.mention_suggestions.len() - 1;
@@ -703,8 +709,19 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                                 app.mention_selected -= 1;
                             }
                         }
+                        // handle up arrow in the message list (scroll up by one)
+                        if app.chat_scroll_offset < app.get_current_message_list().len().saturating_sub(app.last_chat_rows.unwrap_or(20)) {
+                            app.chat_scroll_offset += 1;
+                        }
                     },
                     KeyCode::Enter => {
+                        // TODO: currently not working...
+                        // if key.modifiers.contains(KeyModifiers::ALT) || key.modifiers.contains(KeyModifiers::SHIFT) {
+                        //     let mut input = app.get_current_input().to_string();
+                        //     input.push('\n');
+                        //     app.set_current_input(input);
+                        //     return;
+                        // }
                         if !app.mention_suggestions.is_empty() {
                             // Insert selected mention using per-channel input draft
                             if let Some(prefix) = &app.mention_prefix {
@@ -722,24 +739,31 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         } else {
                             let content = app.get_current_input().to_string();
                             if !content.is_empty() {
+                                let final_content = if content.chars().count() > 500 {
+                                    app.set_notification("Message truncated to 500 characters", Some(2000), false);
+                                    content.chars().take(500).collect::<String>()
+                                } else {
+                                    content
+                                };
+                                
                                 if let Some(target) = &app.current_chat_target {
                                     match target {
                                         ChatTarget::Channel { channel_id, .. } => {
                                             app.send_to_server(ClientMessage::SendChannelMessage {
                                                 channel_id: *channel_id,
-                                                content: content.clone(),
+                                                content: final_content,
                                             });
                                             app.sound_manager.play(SoundType::SendChannelMessage);
                                         },
                                         ChatTarget::DM { user_id } => {
                                             // Check for /accept and /decline commands
-                                            if content.starts_with("/accept") {
+                                            if final_content.starts_with("/accept") {
                                                 app.send_to_server(ClientMessage::AcceptServerInviteFromUser { from_user_id: *user_id });
                                                 app.set_notification("Server invite accepted!", Some(2000), false);
                                                 app.sound_manager.play(SoundType::Select);
                                                 app.clear_current_input();
                                                 return;
-                                            } else if content.starts_with("/decline") {
+                                            } else if final_content.starts_with("/decline") {
                                                 app.send_to_server(ClientMessage::DeclineServerInviteFromUser { from_user_id: *user_id });
                                                 app.set_notification("Server invite declined.", Some(2000), false);
                                                 app.sound_manager.play(SoundType::Select);
@@ -749,7 +773,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                                             
                                             app.send_to_server(ClientMessage::SendDirectMessage {
                                                 to: *user_id,
-                                                content: content.clone(),
+                                                content: final_content,
                                             });
                                             app.sound_manager.play(SoundType::MessageSent);
                                         },
