@@ -156,7 +156,7 @@ pub fn draw_user_actions_popup(f: &mut Frame, app: &App) {
     f.render_widget(Clear, area);
     let user = app.user_actions_target.and_then(|idx| app.channel_userlist.get(idx));
     let username = user.map(|u| u.username.as_str()).unwrap_or("<unknown>");
-    let actions = ["Show Profile", "Send DM"];
+    let actions = ["Show Profile", "Send DM", "Invite to Server"];
     let mut lines = vec![];
     for (i, action) in actions.iter().enumerate() {
         let style = if app.user_actions_selected == i {
@@ -257,5 +257,38 @@ pub fn draw_quit_confirm_popup(f: &mut Frame, app: &App) {
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true });
     f.render_widget(Clear, area);
+    f.render_widget(para, area);
+}
+
+pub fn draw_server_invite_selection_popup(f: &mut Frame, app: &App) {
+    let area = draw_centered_rect(f.area(), 50, 30);
+    f.render_widget(Clear, area);
+    
+    let user = app.server_invite_target_user
+        .and_then(|uid| app.channel_userlist.iter().find(|u| u.id == uid));
+    let username = user.map(|u| u.username.as_str()).unwrap_or("<unknown>");
+    
+    let mut lines = vec![];
+    lines.push(Line::from(vec![
+        Span::raw("Select server to invite "),
+        Span::styled(username, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::raw(" to:"),
+    ]));
+    lines.push(Line::from(""));
+    
+    for (i, server) in app.servers.iter().enumerate() {
+        let style = if app.server_invite_selected == i {
+            Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        };
+        lines.push(Line::from(Span::styled(&server.name, style)));
+    }
+    
+    let block = Block::default()
+        .title("Invite to Server")
+        .style(Style::default())
+        .borders(Borders::ALL);
+    let para = Paragraph::new(lines).block(block).alignment(Alignment::Left);
     f.render_widget(para, area);
 }

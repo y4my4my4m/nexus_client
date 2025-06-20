@@ -168,6 +168,11 @@ pub struct App<'a> {
     // --- Chat input drafts ---
     pub chat_input_drafts: HashMap<ChatTarget, String>,
     pub current_chat_target: Option<ChatTarget>,
+
+    // --- Server invite selection fields ---
+    pub show_server_invite_selection: bool,
+    pub server_invite_selected: usize,
+    pub server_invite_target_user: Option<Uuid>,
 }
 
 impl<'a> App<'a> {
@@ -252,6 +257,9 @@ impl<'a> App<'a> {
             unread_dm_conversations: HashSet::new(),
             chat_input_drafts: HashMap::new(),
             current_chat_target: None,
+            show_server_invite_selection: false,
+            server_invite_selected: 0,
+            server_invite_target_user: None,
         }
     }
 
@@ -621,6 +629,44 @@ impl<'a> App<'a> {
                     n.read = read;
                 }
             }
+            ServerMessage::ServerInviteReceived(invite) => {
+                // Show notification for received server invite
+                self.set_notification(
+                    format!("{} invited you to join '{}'", invite.from_user.username, invite.server.name),
+                    Some(6000),
+                    true,
+                );
+                self.sound_manager.play(SoundType::DirectMessage); // Use DM sound for invites
+                
+                // Add to notifications list if not already there
+                if !self.notifications.iter().any(|n| n.related_id == invite.id) {
+                    let notification = common::Notification {
+                        id: uuid::Uuid::new_v4(),
+                        user_id: invite.to_user_id,
+                        notif_type: common::NotificationType::Other("ServerInvite".to_string()),
+                        related_id: invite.id,
+                        created_at: invite.timestamp,
+                        read: false,
+                        extra: Some(format!("{}|{}", invite.from_user.username, invite.server.name)),
+                    };
+                    self.notifications.insert(0, notification);
+                }
+            }
+            ServerMessage::ServerInviteResponse { invite_id: _, accepted, user } => {
+                if accepted {
+                    self.set_notification(
+                        format!("{} accepted your server invitation", user.username),
+                        Some(4000),
+                        false,
+                    );
+                } else {
+                    self.set_notification(
+                        format!("{} declined your server invitation", user.username),
+                        Some(4000),
+                        false,
+                    );
+                }
+            }
         }
     }
 
@@ -934,5 +980,38 @@ impl<'a> App<'a> {
             }
             None => vec![]
         }
+    }
+
+    /// Send a server invite to a user for the selected server
+    pub fn send_server_invite(&mut self, server_id: Uuid, user_id: Uuid) {
+        self.send_to_server(ClientMessage::SendServerInvite {
+            server_id,
+            to_user_id: user_id,
+        });
+        
+        // Find the server name for the notification
+        let server_name = self.servers.iter()
+            .find(|s| s.id == server_id)
+            .map(|s| s.name.clone())
+            .unwrap_or_else(|| "Unknown Server".to_string());
+        
+        // Find the user name from channel_userlist for the notification
+        let user_name = self.channel_userlist.iter()
+            .find(|u| u.id == user_id)
+            .map(|u| u.username.clone())
+            .unwrap_or_else(|| "Unknown User".to_string());
+        
+        self.set_notification(
+            format!("Server invite sent to {} for '{}'", user_name, server_name),
+            Some(3000),
+            false,
+        );
+        
+        self.sound_manager.play(SoundType::MessageSent);
+        
+        // Close the server invite selection popup
+        self.show_server_invite_selection = false;
+        self.server_invite_target_user = None;
+        self.server_invite_selected = 0;
     }
 }
