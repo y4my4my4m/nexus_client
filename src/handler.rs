@@ -978,34 +978,34 @@ fn move_sidebar_selection(app: &mut App, direction: i32) {
         app.selected_server = Some(0);
         app.selected_channel = None;
     }
-    // If a channel is selected, request latest messages for that channel
-    if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
-        app.chat_scroll_offset = 0; // Reset scroll when switching channels
-        if let Some(server) = app.servers.get(s) {
-            if let Some(channel) = server.channels.get(c) {
-                let channel_id = channel.id;
-                app.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: None });
-                app.send_to_server(ClientMessage::GetChannelUserList { channel_id });
-            }
-        } else {
-            // If server is not found, reset selection
-            app.selected_server = None;
-            app.selected_channel = None;
-        }
-    } else if app.selected_server.is_some() {
-        // If only server is selected, select first channel if exists
-        if let Some(s) = app.selected_server {
-            if let Some(server) = app.servers.get(s) {
-                if !server.channels.is_empty() {
-                    app.selected_channel = Some(0);
-                    let channel_id = server.channels[0].id;
-                    app.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: None });
-                    app.send_to_server(ClientMessage::GetChannelUserList { channel_id });
-                    app.user_list_state.select(Some(0)); // Reset user list selection
-                }
-            }
-        }
-    }
+    // // If a channel is selected, request latest messages for that channel
+    // if let (Some(s), Some(c)) = (app.selected_server, app.selected_channel) {
+    //     app.chat_scroll_offset = 0; // Reset scroll when switching channels
+    //     if let Some(server) = app.servers.get(s) {
+    //         if let Some(channel) = server.channels.get(c) {
+    //             let channel_id = channel.id;
+    //             app.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: None });
+    //             app.send_to_server(ClientMessage::GetChannelUserList { channel_id });
+    //         }
+    //     } else {
+    //         // If server is not found, reset selection
+    //         app.selected_server = None;
+    //         app.selected_channel = None;
+    //     }
+    // } else if app.selected_server.is_some() {
+    //     // If only server is selected, select first channel if exists
+    //     if let Some(s) = app.selected_server {
+    //         if let Some(server) = app.servers.get(s) {
+    //             if !server.channels.is_empty() {
+    //                 app.selected_channel = Some(0);
+    //                 let channel_id = server.channels[0].id;
+    //                 app.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: None });
+    //                 app.send_to_server(ClientMessage::GetChannelUserList { channel_id });
+    //                 app.user_list_state.select(Some(0)); // Reset user list selection
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 fn move_dm_selection(app: &mut App, direction: i32) {

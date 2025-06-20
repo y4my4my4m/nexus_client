@@ -539,7 +539,7 @@ impl<'a> App<'a> {
             ServerMessage::Servers(servers) => {
                 self.servers = servers;
                 // Default selection: first server and first channel
-                if self.mode == AppMode::Chat {
+                if self.mode == AppMode::Chat && self.sidebar_tab == SidebarTab::Servers {
                     self.select_and_load_first_chat();
                 }
             }
@@ -557,7 +557,7 @@ impl<'a> App<'a> {
             }
             ServerMessage::DMUserList(users) => {
                 self.dm_user_list = users;
-                if self.mode == AppMode::Chat {
+                if self.mode == AppMode::Chat && self.sidebar_tab == SidebarTab::DMs {
                     self.select_and_load_first_chat();
                 }
             }
