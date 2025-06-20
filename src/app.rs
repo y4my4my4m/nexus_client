@@ -484,13 +484,69 @@ impl<'a> App<'a> {
     }
 
     pub fn update_profile_banner_composite(&mut self) {
-        // This method updates the composite profile banner display
-        // Implementation depends on how you want to combine profile and banner data
-        // For now, we'll add a basic implementation
+        // Create composite banner + profile pic image for profile view popup
         if let Some(profile) = &self.profile.profile_view {
-            // Update any cached or computed banner data here
-            // This could involve combining profile pic and cover banner
-            // or updating display elements
+            // Check if we have both banner and profile pic data
+            let banner_data = ImageService::decode_image_bytes(&profile.cover_banner);
+            let pfp_data = ImageService::decode_image_bytes(&profile.profile_pic);
+            
+            if let (Some(banner_bytes), Some(pfp_bytes)) = (banner_data, pfp_data) {
+                // Create composite image: banner with profile pic overlaid
+                // Use dynamic sizing based on terminal width for better full-width display
+                let banner_size = (600, 120); // Larger banner for better quality
+                let pfp_size = (100, 100);    // Larger profile pic for better quality
+                let pfp_padding_left = 30;    // PFP position from left
+                
+                match ImageService::composite_banner_and_pfp(
+                    &banner_bytes,
+                    &pfp_bytes,
+                    banner_size,
+                    pfp_size,
+                    pfp_padding_left,
+                ) {
+                    Ok(composite_bytes) => {
+                        // Convert composite to image for rendering
+                        if let Ok(composite_img) = image::load_from_memory(&composite_bytes) {
+                            let protocol = self.profile.picker.new_resize_protocol(composite_img);
+                            self.profile.profile_banner_image_state = Some(protocol);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to create banner composite: {}", e);
+                        // Fallback to just banner if composite fails
+                        if let Ok(banner_img) = image::load_from_memory(&banner_bytes) {
+                            let protocol = self.profile.picker.new_resize_protocol(banner_img);
+                            self.profile.profile_banner_image_state = Some(protocol);
+                        }
+                    }
+                }
+            } else if let Some(banner_bytes) = ImageService::decode_image_bytes(&profile.cover_banner) {
+                // Just banner, no profile pic - still apply gradient overlay
+                if let Ok(mut banner_img) = image::load_from_memory(&banner_bytes) {
+                    // Apply black gradient overlay even for banner-only images
+                    let mut rgba_img = banner_img.to_rgba8();
+                    let (width, height) = rgba_img.dimensions();
+                    
+                    for y in 0..height {
+                        for x in 0..width {
+                            let pixel = rgba_img.get_pixel_mut(x, y);
+                            // Create a subtle black gradient from top to bottom
+                            let gradient_factor = (y as f32 / height as f32) * 0.4 + 0.1; // 0.1 to 0.5 opacity
+                            pixel[0] = (pixel[0] as f32 * (1.0 - gradient_factor)) as u8;
+                            pixel[1] = (pixel[1] as f32 * (1.0 - gradient_factor)) as u8;
+                            pixel[2] = (pixel[2] as f32 * (1.0 - gradient_factor)) as u8;
+                        }
+                    }
+                    
+                    let protocol = self.profile.picker.new_resize_protocol(image::DynamicImage::ImageRgba8(rgba_img));
+                    self.profile.profile_banner_image_state = Some(protocol);
+                }
+            } else {
+                // No images available
+                self.profile.profile_banner_image_state = None;
+            }
+        } else {
+            self.profile.profile_banner_image_state = None;
         }
     }
 }

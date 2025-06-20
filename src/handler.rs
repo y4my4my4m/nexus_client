@@ -56,9 +56,9 @@ pub fn handle_key_event(key: KeyEvent, app: &mut crate::app::App) {
     }
 
     // Close profile view popup on any key, and do nothing else
-    if app.show_profile_view_popup {
-        app.show_profile_view_popup = false;
-        app.profile_view = None;
+    if app.profile.show_profile_view_popup {
+        app.profile.close_profile_view();
+        app.sound_manager.play(SoundType::PopupClose);
         return;
     }
 

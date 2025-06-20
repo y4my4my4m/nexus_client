@@ -188,41 +188,46 @@ pub fn draw_minimal_notification_popup(f: &mut Frame, text: String) {
 pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::UserProfile) {
     let area = draw_centered_rect(f.area(), 70, 60);
     f.render_widget(Clear, area);
+    
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(7), // Banner
+            Constraint::Length(8), // Banner (increased height)
             Constraint::Min(0),    // Rest
         ])
         .split(area);
 
-    // --- Banner with PFP and Username ---
+    // --- Full-width banner with PFP and Username ---
     let banner_area = layout[0];
-    // Dynamically update the composite image to match the banner area
+    
+    // Update the composite image to match the banner area dimensions
     app.update_profile_banner_composite();
-    // Add a border to the top of the banner
-    let banner_border = Block::default()
-        .borders(Borders::TOP)
-        .border_type(BorderType::Double);
-    f.render_widget(banner_border, banner_area);
 
-    // --- Banner background: crop and stretch to fit ---
+    // --- Render banner background: full width, cropped to fill ---
     if let Some(state) = &mut app.profile.profile_banner_image_state {
-        let banner_block = Block::default()
-            .borders(Borders::ALL)
-            .title(Span::styled(&profile.username, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
-            .style(Style::default());
-        f.render_widget(banner_block, banner_area);
-        // Only render the composited image (banner + PFP)
-        let offset_area = Rect {
-            x: banner_area.x + 1,
-            y: banner_area.y + 1,
-            width: banner_area.width,
-            height: banner_area.height,
+        // Render image without borders to fill the entire banner area
+        let image_widget = ratatui_image::StatefulImage::default()
+            .resize(ratatui_image::Resize::Crop(None)); // Crop to fill instead of fit
+        f.render_stateful_widget(image_widget, banner_area, state);
+        
+        // Overlay username text with enhanced styling for better visibility
+        let username_area = Rect {
+            x: banner_area.x + banner_area.width.saturating_sub(profile.username.len() as u16 + 4),
+            y: banner_area.y + banner_area.height.saturating_sub(2),
+            width: profile.username.len() as u16 + 4,
+            height: 1,
         };
-        let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
-        f.render_stateful_widget(image_widget, offset_area, state);
+        
+        let username_text = Paragraph::new(Span::styled(
+            &profile.username, 
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD)
+        )).alignment(Alignment::Right);
+        
+        f.render_widget(username_text, username_area);
     } else {
+        // Fallback: solid color banner with username
         let banner_bg = Color::Blue;
         let banner_block = Block::default()
             .borders(Borders::ALL)
@@ -232,7 +237,9 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
     }
 
     // --- Rest of profile info below banner ---
+    let content_area = layout[1];
     let mut lines = vec![];
+    
     if let Some(bio) = &profile.bio {
         if !bio.is_empty() {
             let mut bio_lines: Vec<&str> = bio.lines().collect();
@@ -244,15 +251,55 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
             for line in bio_lines {
                 lines.push(Line::from(Span::raw(line)));
             }
+            lines.push(Line::from("")); // Add spacing
         }
     }
-    if let Some(loc) = &profile.location { if !loc.is_empty() { lines.push(Line::from(vec![Span::styled("Location: ", Style::default().fg(Color::Cyan)), Span::raw(loc)])); } }
-    if let Some(url1) = &profile.url1 { if !url1.is_empty() { lines.push(Line::from(vec![Span::styled("URL1: ", Style::default().fg(Color::Cyan)), Span::raw(url1)])); } }
-    if let Some(url2) = &profile.url2 { if !url2.is_empty() { lines.push(Line::from(vec![Span::styled("URL2: ", Style::default().fg(Color::Cyan)), Span::raw(url2)])); } }
-    if let Some(url3) = &profile.url3 { if !url3.is_empty() { lines.push(Line::from(vec![Span::styled("URL3: ", Style::default().fg(Color::Cyan)), Span::raw(url3)])); } }
-    lines.push(Line::from(vec![Span::styled("Role: ", Style::default().fg(Color::Cyan)), Span::raw(format!("{:?}", profile.role))]));
-    let rest = Paragraph::new(lines).wrap(Wrap { trim: true }).block(Block::default().borders(Borders::ALL));
-    f.render_widget(rest, layout[1]);
+    
+    if let Some(loc) = &profile.location { 
+        if !loc.is_empty() { 
+            lines.push(Line::from(vec![
+                Span::styled("📍 Location: ", Style::default().fg(Color::Cyan)), 
+                Span::raw(loc)
+            ])); 
+        } 
+    }
+    
+    if let Some(url1) = &profile.url1 { 
+        if !url1.is_empty() { 
+            lines.push(Line::from(vec![
+                Span::styled("🔗 URL1: ", Style::default().fg(Color::Cyan)), 
+                Span::raw(url1)
+            ])); 
+        } 
+    }
+    
+    if let Some(url2) = &profile.url2 { 
+        if !url2.is_empty() { 
+            lines.push(Line::from(vec![
+                Span::styled("🔗 URL2: ", Style::default().fg(Color::Cyan)), 
+                Span::raw(url2)
+            ])); 
+        } 
+    }
+    
+    if let Some(url3) = &profile.url3 { 
+        if !url3.is_empty() { 
+            lines.push(Line::from(vec![
+                Span::styled("🔗 URL3: ", Style::default().fg(Color::Cyan)), 
+                Span::raw(url3)
+            ])); 
+        } 
+    }
+    
+    lines.push(Line::from(vec![
+        Span::styled("👑 Role: ", Style::default().fg(Color::Cyan)), 
+        Span::styled(format!("{:?}", profile.role), Style::default().fg(Color::Yellow))
+    ]));
+    
+    let content = Paragraph::new(lines)
+        .wrap(Wrap { trim: true })
+        .block(Block::default().borders(Borders::ALL).title("Profile Details"));
+    f.render_widget(content, content_area);
 }
 
 pub fn draw_user_actions_popup(f: &mut Frame, app: &App) {
