@@ -1,10 +1,7 @@
-// client/src/banner.rs
-
 use figlet_rs::FIGfont;
 use rand::prelude::*;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
-use std::path::PathBuf;
 
 #[derive(Clone)]
 struct BufferChar {
@@ -12,15 +9,9 @@ struct BufferChar {
     style: Style,
 }
 
-const BASE_PATH: &str = env!("CARGO_MANIFEST_DIR");
-
 pub fn get_styled_banner_lines(width: u16, tick_count: u64) -> Vec<Line<'static>> {
-    // let standard_font = FIGfont::standard().unwrap();
-    // let figlet_text = standard_font.convert("NEXUS").unwrap();
-
-    // let custom_font = FIGfont::from_file(PathBuf::from(BASE_PATH).join("assets/fig/cosmike.flf").to_str().unwrap()).unwrap();
-    // let figlet_text = custom_font.convert("NEXUS").unwrap();
-
+    
+    // Load the FIGfont from file
     let font_data = include_str!("../assets/fig/alligator2.flf");
     let custom_font = FIGfont::from_content(font_data).unwrap();
     let figlet_text = custom_font.convert("NEXUS").unwrap();
