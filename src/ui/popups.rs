@@ -156,7 +156,7 @@ pub fn draw_user_actions_popup(f: &mut Frame, app: &App) {
     f.render_widget(Clear, area);
     let user = app.user_actions_target.and_then(|idx| app.channel_userlist.get(idx));
     let username = user.map(|u| u.username.as_str()).unwrap_or("<unknown>");
-    let actions = ["Show Profile", "Send DM"];
+    let actions = ["Show Profile", "Send DM", "Invite to Server"];
     let mut lines = vec![];
     for (i, action) in actions.iter().enumerate() {
         let style = if app.user_actions_selected == i {

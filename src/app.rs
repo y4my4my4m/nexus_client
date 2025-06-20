@@ -621,6 +621,44 @@ impl<'a> App<'a> {
                     n.read = read;
                 }
             }
+            ServerMessage::ServerInviteReceived(invite) => {
+                // Show notification for received server invite
+                self.set_notification(
+                    format!("{} invited you to join '{}'", invite.from_user.username, invite.server.name),
+                    Some(6000),
+                    true,
+                );
+                self.sound_manager.play(SoundType::DirectMessage); // Use DM sound for invites
+                
+                // Add to notifications list if not already there
+                if !self.notifications.iter().any(|n| n.related_id == invite.id) {
+                    let notification = common::Notification {
+                        id: uuid::Uuid::new_v4(),
+                        user_id: invite.to_user_id,
+                        notif_type: common::NotificationType::Other("ServerInvite".to_string()),
+                        related_id: invite.id,
+                        created_at: invite.timestamp,
+                        read: false,
+                        extra: Some(format!("{}|{}", invite.from_user.username, invite.server.name)),
+                    };
+                    self.notifications.insert(0, notification);
+                }
+            }
+            ServerMessage::ServerInviteResponse { invite_id: _, accepted, user } => {
+                if accepted {
+                    self.set_notification(
+                        format!("{} accepted your server invitation", user.username),
+                        Some(4000),
+                        false,
+                    );
+                } else {
+                    self.set_notification(
+                        format!("{} declined your server invitation", user.username),
+                        Some(4000),
+                        false,
+                    );
+                }
+            }
         }
     }
 

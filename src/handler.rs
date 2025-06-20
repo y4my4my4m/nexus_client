@@ -491,7 +491,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                     },
                     KeyCode::Down => {
                         app.sound_manager.play(SoundType::Scroll);
-                        if app.user_actions_selected < 1 {
+                        if app.user_actions_selected < 2 {
                             app.user_actions_selected += 1;
                         }
                     },
@@ -511,6 +511,20 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                                         app.dm_target = Some(user.id);
                                         app.dm_input.clear();
                                         app.chat_focus = crate::app::ChatFocus::DMInput;
+                                    }
+                                },
+                                2 => { // Invite to Server
+                                    if let Some(user) = user {
+                                        let username = user.username.clone(); // Clone the username first
+                                        if let Some(server_idx) = app.selected_server {
+                                            if let Some(server) = app.servers.get(server_idx) {
+                                                app.send_to_server(ClientMessage::SendServerInvite {
+                                                    to_user_id: user.id,
+                                                    server_id: server.id,
+                                                });
+                                                app.set_notification(&format!("Server invite sent to {}", username), Some(2000), false);
+                                            }
+                                        }
                                     }
                                 },
                                 _ => {}
@@ -628,13 +642,13 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                                      total_msgs <= max_rows * 2);
                                 
                                 if should_fetch {
-                                    let oldest_msg_id = app.servers.iter()
+                                    let oldest_msg_timestamp = app.servers.iter()
                                         .find(|s| &s.id == server_id)
                                         .and_then(|server| server.channels.iter().find(|c| &c.id == channel_id))
                                         .and_then(|channel| channel.messages.first())
-                                        .map(|msg| msg.id);
+                                        .map(|msg| msg.timestamp);
                                     
-                                    if let Some(before) = oldest_msg_id {
+                                    if let Some(before) = oldest_msg_timestamp {
                                         app.send_to_server(ClientMessage::GetChannelMessages { channel_id: *channel_id, before: Some(before) });
                                     }
                                 }
