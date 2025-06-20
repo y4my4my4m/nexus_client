@@ -705,6 +705,13 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         }
                     },
                     KeyCode::Enter => {
+                        // TODO: currently not working...
+                        // if key.modifiers.contains(KeyModifiers::ALT) || key.modifiers.contains(KeyModifiers::SHIFT) {
+                        //     let mut input = app.get_current_input().to_string();
+                        //     input.push('\n');
+                        //     app.set_current_input(input);
+                        //     return;
+                        // }
                         if !app.mention_suggestions.is_empty() {
                             // Insert selected mention using per-channel input draft
                             if let Some(prefix) = &app.mention_prefix {
