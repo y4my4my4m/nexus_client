@@ -515,16 +515,10 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                                 },
                                 2 => { // Invite to Server
                                     if let Some(user) = user {
-                                        let username = user.username.clone(); // Clone the username first
-                                        if let Some(server_idx) = app.selected_server {
-                                            if let Some(server) = app.servers.get(server_idx) {
-                                                app.send_to_server(ClientMessage::SendServerInvite {
-                                                    to_user_id: user.id,
-                                                    server_id: server.id,
-                                                });
-                                                app.set_notification(&format!("Server invite sent to {}", username), Some(2000), false);
-                                            }
-                                        }
+                                        // Show server selection popup instead of immediately sending invite
+                                        app.show_server_invite_selection = true;
+                                        app.server_invite_selected = 0;
+                                        app.server_invite_target_user = Some(user.id);
                                     }
                                 },
                                 _ => {}
@@ -539,31 +533,43 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                 }
                 return;
             }
-            if app.show_server_actions {
+            // Handle server invite selection popup
+            if app.show_server_invite_selection {
                 match key.code {
-                    KeyCode::Up => {
-                        app.sound_manager.play(SoundType::Scroll);
-                        if app.server_actions_selected > 0 {
-                            app.server_actions_selected -= 1;
-                        }
-                    },
-                    KeyCode::Down => {
-                        let max = if let Some(s) = app.selected_server {
-                            let is_owner = app.current_user.as_ref().map(|u| u.id) == app.servers.get(s).map(|srv| srv.owner);
-                            if is_owner { 3 } else { 2 }
-                        } else { 2 };
-                        if app.server_actions_selected + 1 < max {
-                            app.server_actions_selected += 1;
-                            app.sound_manager.play(SoundType::Scroll);
-                        }
-                    },
-                    KeyCode::Enter => {
-                        // TODO: Implement server action logic here
-                        app.show_server_actions = false;
-                    },
                     KeyCode::Esc => {
-                        app.show_server_actions = false;
-                    },
+                        app.show_server_invite_selection = false;
+                        app.server_invite_target_user = None;
+                        app.server_invite_selected = 0;
+                    }
+                    KeyCode::Up => {
+                        if app.server_invite_selected > 0 {
+                            app.server_invite_selected -= 1;
+                        }
+                    }
+                    KeyCode::Down => {
+                        if app.server_invite_selected < app.servers.len().saturating_sub(1) {
+                            app.server_invite_selected += 1;
+                        }
+                    }
+                    KeyCode::Enter => {
+                        if let Some(target_user_id) = app.server_invite_target_user {
+                            if let Some(server) = app.servers.get(app.server_invite_selected) {
+                                let server_id = server.id;
+                                app.send_server_invite(server_id, target_user_id);
+                                
+                                // Find username for notification
+                                let username = app.channel_userlist.iter()
+                                    .find(|u| u.id == target_user_id)
+                                    .map(|u| u.username.clone())
+                                    .unwrap_or_else(|| "User".to_string());
+                                
+                                app.set_notification(&format!("Sent server invite to {}!", username), Some(2000), false);
+                            }
+                        }
+                        app.show_server_invite_selection = false;
+                        app.server_invite_target_user = None;
+                        app.server_invite_selected = 0;
+                    }
                     _ => {}
                 }
                 return;

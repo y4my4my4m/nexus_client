@@ -168,6 +168,11 @@ pub struct App<'a> {
     // --- Chat input drafts ---
     pub chat_input_drafts: HashMap<ChatTarget, String>,
     pub current_chat_target: Option<ChatTarget>,
+
+    // --- Server invite selection fields ---
+    pub show_server_invite_selection: bool,
+    pub server_invite_selected: usize,
+    pub server_invite_target_user: Option<Uuid>,
 }
 
 impl<'a> App<'a> {
@@ -252,6 +257,9 @@ impl<'a> App<'a> {
             unread_dm_conversations: HashSet::new(),
             chat_input_drafts: HashMap::new(),
             current_chat_target: None,
+            show_server_invite_selection: false,
+            server_invite_selected: 0,
+            server_invite_target_user: None,
         }
     }
 
@@ -972,5 +980,38 @@ impl<'a> App<'a> {
             }
             None => vec![]
         }
+    }
+
+    /// Send a server invite to a user for the selected server
+    pub fn send_server_invite(&mut self, server_id: Uuid, user_id: Uuid) {
+        self.send_to_server(ClientMessage::SendServerInvite {
+            server_id,
+            to_user_id: user_id,
+        });
+        
+        // Find the server name for the notification
+        let server_name = self.servers.iter()
+            .find(|s| s.id == server_id)
+            .map(|s| s.name.clone())
+            .unwrap_or_else(|| "Unknown Server".to_string());
+        
+        // Find the user name from channel_userlist for the notification
+        let user_name = self.channel_userlist.iter()
+            .find(|u| u.id == user_id)
+            .map(|u| u.username.clone())
+            .unwrap_or_else(|| "Unknown User".to_string());
+        
+        self.set_notification(
+            format!("Server invite sent to {} for '{}'", user_name, server_name),
+            Some(3000),
+            false,
+        );
+        
+        self.sound_manager.play(SoundType::MessageSent);
+        
+        // Close the server invite selection popup
+        self.show_server_invite_selection = false;
+        self.server_invite_target_user = None;
+        self.server_invite_selected = 0;
     }
 }
