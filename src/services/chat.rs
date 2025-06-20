@@ -76,6 +76,27 @@ impl ChatService {
         result
     }
     
+    /// Check if input contains a complete emoji shortcode and return the emoji
+    pub fn check_for_exact_emoji_match(input: &str) -> Option<(String, usize, usize)> {
+        // Look for pattern :emoji_name: (complete with closing colon)
+        if let Some(end_pos) = input.rfind(':') {
+            if let Some(start_pos) = input[..end_pos].rfind(':') {
+                let emoji_name = &input[(start_pos + 1)..end_pos];
+                if !emoji_name.is_empty() && emoji_name.chars().all(|ch| ch.is_alphabetic() || ch == '_') {
+                    // Check if this matches any emoji shortcode exactly
+                    for emoji in emojis::iter() {
+                        for shortcode in emoji.shortcodes() {
+                            if shortcode.to_lowercase() == emoji_name.to_lowercase() {
+                                return Some((emoji.as_str().to_string(), start_pos, end_pos + 1));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+    
     pub fn build_message_list(
         chat_state: &ChatState,
         current_user: Option<&User>,

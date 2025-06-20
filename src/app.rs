@@ -487,6 +487,17 @@ impl<'a> App<'a> {
     
     pub fn update_emoji_suggestions(&mut self) {
         let input = self.get_current_input().to_string();
+        
+        // First check for exact emoji matches and auto-transform them
+        if let Some((emoji, start_pos, end_pos)) = ChatService::check_for_exact_emoji_match(&input) {
+            let mut new_input = input.clone();
+            new_input.replace_range(start_pos..end_pos, &emoji);
+            self.set_current_input(new_input);
+            self.chat.clear_emoji_suggestions();
+            return;
+        }
+        
+        // If no exact match, show suggestions
         let suggestions = ChatService::get_emoji_suggestions(&input);
         
         if !suggestions.is_empty() {

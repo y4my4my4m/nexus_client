@@ -698,7 +698,7 @@ pub fn draw_mention_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect,
     f.render_widget(para, popup_area);
 }
 
-/// Draw the emoji suggestion popup below (or above) the input area.
+/// Draw the emoji suggestion popup above the input area.
 pub fn draw_emoji_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect, chat_area: Rect) {
     if app.chat.emoji_suggestions.is_empty() { return; }
     
@@ -719,16 +719,8 @@ pub fn draw_emoji_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect, c
     let popup_width = (GRID_COLS * cell_width + 2) as u16; // +2 for borders
     let popup_height = (GRID_ROWS * cell_height + 2) as u16; // +2 for borders
     
-    // Position popup
-    let mut popup_y = input_area.y + input_area.height;
-    if popup_y + popup_height > chat_area.y + chat_area.height {
-        if chat_area.y >= popup_height {
-            popup_y = input_area.y.saturating_sub(popup_height);
-        } else {
-            popup_y = chat_area.y;
-        }
-    }
-    if popup_y < chat_area.y { popup_y = chat_area.y; }
+    // Position popup directly above the input area
+    let popup_y = input_area.y.saturating_sub(popup_height);
     
     let popup_area = Rect::new(
         input_area.x,
