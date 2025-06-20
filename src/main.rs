@@ -102,7 +102,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 // Handle outgoing messages to server
                 msg = rx_from_ui.recv() => {
                     if let Some(msg) = msg {
-                        let serialized = serde_json::to_vec(&msg).unwrap();
+                        let serialized = bincode::serialize(&msg).unwrap();
                         if framed.send(serialized.into()).await.is_err() {
                             break;
                         }
@@ -115,7 +115,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 result = framed.next() => {
                     match result {
                         Some(Ok(bytes)) => {
-                            if let Ok(msg) = serde_json::from_slice::<ServerMessage>(&bytes) {
+                            if let Ok(msg) = bincode::deserialize::<ServerMessage>(&bytes) {
                                 if tx_to_ui.send(msg).is_err() {
                                     break;
                                 }
