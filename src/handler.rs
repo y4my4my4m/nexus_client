@@ -732,6 +732,21 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                                             app.sound_manager.play(SoundType::SendChannelMessage);
                                         },
                                         ChatTarget::DM { user_id } => {
+                                            // Check for /accept and /decline commands
+                                            if content.starts_with("/accept") {
+                                                app.send_to_server(ClientMessage::AcceptServerInviteFromUser { from_user_id: *user_id });
+                                                app.set_notification("Server invite accepted!", Some(2000), false);
+                                                app.sound_manager.play(SoundType::Select);
+                                                app.clear_current_input();
+                                                return;
+                                            } else if content.starts_with("/decline") {
+                                                app.send_to_server(ClientMessage::DeclineServerInviteFromUser { from_user_id: *user_id });
+                                                app.set_notification("Server invite declined.", Some(2000), false);
+                                                app.sound_manager.play(SoundType::Select);
+                                                app.clear_current_input();
+                                                return;
+                                            }
+                                            
                                             app.send_to_server(ClientMessage::SendDirectMessage {
                                                 to: *user_id,
                                                 content: content.clone(),
