@@ -377,14 +377,58 @@ fn handle_scroll_down(app: &mut App) {
 }
 
 fn move_server_selection(app: &mut App, direction: i32) {
-    // Implementation for server selection movement
-    // This is simplified - full implementation would handle nested server/channel navigation
-    if direction == 1 && !app.chat.servers.is_empty() {
-        let current = app.chat.selected_server.unwrap_or(0);
-        app.chat.selected_server = Some((current + 1) % app.chat.servers.len());
-    } else if direction == -1 && !app.chat.servers.is_empty() {
-        let current = app.chat.selected_server.unwrap_or(0);
-        app.chat.selected_server = Some((current + app.chat.servers.len() - 1) % app.chat.servers.len());
+    if app.chat.servers.is_empty() {
+        return;
+    }
+
+    let current_server_idx = app.chat.selected_server.unwrap_or(0);
+    let current_channel_idx = app.chat.selected_channel.unwrap_or(0);
+    
+    if let Some(current_server) = app.chat.servers.get(current_server_idx) {
+        if current_server.channels.is_empty() {
+            // No channels in this server, just move to next/prev server
+            if direction == 1 {
+                app.chat.selected_server = Some((current_server_idx + 1) % app.chat.servers.len());
+            } else {
+                app.chat.selected_server = Some((current_server_idx + app.chat.servers.len() - 1) % app.chat.servers.len());
+            }
+            app.chat.selected_channel = Some(0);
+            return;
+        }
+
+        if direction == 1 {
+            // Moving down
+            if current_channel_idx < current_server.channels.len() - 1 {
+                // Move to next channel in same server
+                app.chat.selected_channel = Some(current_channel_idx + 1);
+            } else {
+                // At last channel, move to next server's first channel
+                let next_server_idx = (current_server_idx + 1) % app.chat.servers.len();
+                app.chat.selected_server = Some(next_server_idx);
+                app.chat.selected_channel = Some(0);
+            }
+        } else {
+            // Moving up (direction == -1)
+            if current_channel_idx > 0 {
+                // Move to previous channel in same server
+                app.chat.selected_channel = Some(current_channel_idx - 1);
+            } else {
+                // At first channel, move to previous server's last channel
+                let prev_server_idx = (current_server_idx + app.chat.servers.len() - 1) % app.chat.servers.len();
+                app.chat.selected_server = Some(prev_server_idx);
+                
+                // Select the last channel of the previous server
+                if let Some(prev_server) = app.chat.servers.get(prev_server_idx) {
+                    if !prev_server.channels.is_empty() {
+                        app.chat.selected_channel = Some(prev_server.channels.len() - 1);
+                    } else {
+                        app.chat.selected_channel = Some(0);
+                    }
+                } else {
+                    app.chat.selected_channel = Some(0);
+                }
+            }
+        }
     }
 }
 
