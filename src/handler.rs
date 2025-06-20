@@ -722,24 +722,31 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         } else {
                             let content = app.get_current_input().to_string();
                             if !content.is_empty() {
+                                let final_content = if content.len() > 4000 {
+                                    app.set_notification("Message truncated to 4000 characters", Some(2000), false);
+                                    content[..4000].to_string()
+                                } else {
+                                    content
+                                };
+                                
                                 if let Some(target) = &app.current_chat_target {
                                     match target {
                                         ChatTarget::Channel { channel_id, .. } => {
                                             app.send_to_server(ClientMessage::SendChannelMessage {
                                                 channel_id: *channel_id,
-                                                content: content.clone(),
+                                                content: final_content,
                                             });
                                             app.sound_manager.play(SoundType::SendChannelMessage);
                                         },
                                         ChatTarget::DM { user_id } => {
                                             // Check for /accept and /decline commands
-                                            if content.starts_with("/accept") {
+                                            if final_content.starts_with("/accept") {
                                                 app.send_to_server(ClientMessage::AcceptServerInviteFromUser { from_user_id: *user_id });
                                                 app.set_notification("Server invite accepted!", Some(2000), false);
                                                 app.sound_manager.play(SoundType::Select);
                                                 app.clear_current_input();
                                                 return;
-                                            } else if content.starts_with("/decline") {
+                                            } else if final_content.starts_with("/decline") {
                                                 app.send_to_server(ClientMessage::DeclineServerInviteFromUser { from_user_id: *user_id });
                                                 app.set_notification("Server invite declined.", Some(2000), false);
                                                 app.sound_manager.play(SoundType::Select);
@@ -749,7 +756,7 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                                             
                                             app.send_to_server(ClientMessage::SendDirectMessage {
                                                 to: *user_id,
-                                                content: content.clone(),
+                                                content: final_content,
                                             });
                                             app.sound_manager.play(SoundType::MessageSent);
                                         },
