@@ -701,36 +701,71 @@ pub fn draw_mention_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect,
 /// Draw the emoji suggestion popup below (or above) the input area.
 pub fn draw_emoji_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect, chat_area: Rect) {
     if app.chat.emoji_suggestions.is_empty() { return; }
-    let max_emoji_len = app.chat.emoji_suggestions.iter().map(|emoji| emoji.chars().count()).max().unwrap_or(3).max(8);
-    let popup_width = (max_emoji_len + 10).min(chat_area.width as usize) as u16;
-    let mut lines = vec![];
-    for (i, emoji) in app.chat.emoji_suggestions.iter().enumerate() {
-        let style = if i == app.chat.emoji_selected {
-            Style::default().fg(Color::Black).bg(Color::Yellow).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(Color::White).bg(Color::Black)
-        };
-        lines.push(Line::from(Span::styled(format!("{}", emoji), style)));
-    }
-    let popup_height = (lines.len() as u16).saturating_add(2);
-    // Default: below input
+    
+    const GRID_COLS: usize = 4;
+    const GRID_ROWS: usize = 5;
+    const ITEMS_PER_PAGE: usize = GRID_COLS * GRID_ROWS;
+    
+    // Calculate which page we're on and visible emojis
+    let selected_index = app.chat.emoji_selected;
+    let page = selected_index / ITEMS_PER_PAGE;
+    let start_idx = page * ITEMS_PER_PAGE;
+    let end_idx = (start_idx + ITEMS_PER_PAGE).min(app.chat.emoji_suggestions.len());
+    let visible_emojis = &app.chat.emoji_suggestions[start_idx..end_idx];
+    
+    // Calculate popup size - wider to accommodate 4 columns
+    let cell_width = 8; // Width per emoji cell
+    let cell_height = 1; // Height per emoji cell
+    let popup_width = (GRID_COLS * cell_width + 2) as u16; // +2 for borders
+    let popup_height = (GRID_ROWS * cell_height + 2) as u16; // +2 for borders
+    
+    // Position popup
     let mut popup_y = input_area.y + input_area.height;
-    // If overflow, move above input
     if popup_y + popup_height > chat_area.y + chat_area.height {
         if chat_area.y >= popup_height {
             popup_y = input_area.y.saturating_sub(popup_height);
         } else {
-            popup_y = chat_area.y; // Clamp to top
+            popup_y = chat_area.y;
         }
     }
     if popup_y < chat_area.y { popup_y = chat_area.y; }
+    
     let popup_area = Rect::new(
         input_area.x,
         popup_y,
-        popup_width,
+        popup_width.min(chat_area.width),
         popup_height
     );
+    
+    // Create the popup block
     let block = Block::default().borders(Borders::ALL).title("Emojis");
-    let para = Paragraph::new(lines).block(block).wrap(Wrap { trim: true });
-    f.render_widget(para, popup_area);
+    let inner_area = block.inner(popup_area);
+    f.render_widget(block, popup_area);
+    
+    // Draw the emoji grid
+    for (i, emoji) in visible_emojis.iter().enumerate() {
+        let row = i / GRID_COLS;
+        let col = i % GRID_COLS;
+        
+        let x = inner_area.x + (col * cell_width) as u16;
+        let y = inner_area.y + (row * cell_height) as u16;
+        let cell_area = Rect::new(x, y, cell_width as u16, cell_height as u16);
+        
+        // Check if this is the selected emoji
+        let global_index = start_idx + i;
+        let is_selected = global_index == selected_index;
+        
+        let style = if is_selected {
+            Style::default().fg(Color::Black).bg(Color::Yellow).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White).bg(Color::Black)
+        };
+        
+        // Center the emoji in its cell
+        let emoji_text = format!("{:^width$}", emoji, width = cell_width);
+        f.render_widget(
+            Paragraph::new(emoji_text).style(style),
+            cell_area
+        );
+    }
 }

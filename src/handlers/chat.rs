@@ -166,7 +166,29 @@ fn handle_message_input(key: KeyEvent, app: &mut App) {
             if !app.chat.mention_suggestions.is_empty() {
                 app.chat.mention_selected = (app.chat.mention_selected + 1) % app.chat.mention_suggestions.len();
             } else if !app.chat.emoji_suggestions.is_empty() {
-                app.chat.emoji_selected = (app.chat.emoji_selected + 1) % app.chat.emoji_suggestions.len();
+                // Grid navigation: move down one row (add 4 to index)
+                const GRID_COLS: usize = 4;
+                const GRID_ROWS: usize = 5;
+                const ITEMS_PER_PAGE: usize = GRID_COLS * GRID_ROWS;
+                
+                let current_row = (app.chat.emoji_selected % ITEMS_PER_PAGE) / GRID_COLS;
+                let current_col = (app.chat.emoji_selected % ITEMS_PER_PAGE) % GRID_COLS;
+                let current_page = app.chat.emoji_selected / ITEMS_PER_PAGE;
+                
+                if current_row < GRID_ROWS - 1 {
+                    // Move down within current page
+                    let new_index = current_page * ITEMS_PER_PAGE + (current_row + 1) * GRID_COLS + current_col;
+                    if new_index < app.chat.emoji_suggestions.len() {
+                        app.chat.emoji_selected = new_index;
+                    }
+                } else {
+                    // Move to next page, first row
+                    let next_page_start = (current_page + 1) * ITEMS_PER_PAGE;
+                    if next_page_start < app.chat.emoji_suggestions.len() {
+                        let new_index = next_page_start + current_col;
+                        app.chat.emoji_selected = new_index.min(app.chat.emoji_suggestions.len() - 1);
+                    }
+                }
             } else if app.chat.chat_scroll_offset > 0 {
                 app.chat.chat_scroll_offset -= 1;
             }
@@ -180,10 +202,24 @@ fn handle_message_input(key: KeyEvent, app: &mut App) {
                     app.chat.mention_selected -= 1;
                 }
             } else if !app.chat.emoji_suggestions.is_empty() {
-                if app.chat.emoji_selected == 0 {
-                    app.chat.emoji_selected = app.chat.emoji_suggestions.len() - 1;
-                } else {
-                    app.chat.emoji_selected -= 1;
+                // Grid navigation: move up one row (subtract 4 from index)
+                const GRID_COLS: usize = 4;
+                const GRID_ROWS: usize = 5;
+                const ITEMS_PER_PAGE: usize = GRID_COLS * GRID_ROWS;
+                
+                let current_row = (app.chat.emoji_selected % ITEMS_PER_PAGE) / GRID_COLS;
+                let current_col = (app.chat.emoji_selected % ITEMS_PER_PAGE) % GRID_COLS;
+                let current_page = app.chat.emoji_selected / ITEMS_PER_PAGE;
+                
+                if current_row > 0 {
+                    // Move up within current page
+                    let new_index = current_page * ITEMS_PER_PAGE + (current_row - 1) * GRID_COLS + current_col;
+                    app.chat.emoji_selected = new_index;
+                } else if current_page > 0 {
+                    // Move to previous page, last row
+                    let prev_page_start = (current_page - 1) * ITEMS_PER_PAGE;
+                    let new_index = prev_page_start + (GRID_ROWS - 1) * GRID_COLS + current_col;
+                    app.chat.emoji_selected = new_index.min(app.chat.emoji_suggestions.len() - 1);
                 }
             } else {
                 let max_rows = app.chat.last_chat_rows.unwrap_or(20);
@@ -191,6 +227,51 @@ fn handle_message_input(key: KeyEvent, app: &mut App) {
                 let max_scroll = total_msgs.saturating_sub(max_rows);
                 if app.chat.chat_scroll_offset < max_scroll {
                     app.chat.chat_scroll_offset += 1;
+                }
+            }
+        }
+        KeyCode::Left => {
+            // Handle emoji grid navigation
+            if !app.chat.emoji_suggestions.is_empty() {
+                const GRID_COLS: usize = 4;
+                const ITEMS_PER_PAGE: usize = GRID_COLS * 5;
+                
+                let current_col = (app.chat.emoji_selected % ITEMS_PER_PAGE) % GRID_COLS;
+                let current_page = app.chat.emoji_selected / ITEMS_PER_PAGE;
+                let current_row = (app.chat.emoji_selected % ITEMS_PER_PAGE) / GRID_COLS;
+                
+                if current_col > 0 {
+                    // Move left within current row
+                    app.chat.emoji_selected -= 1;
+                } else {
+                    // Wrap to rightmost column of same row
+                    let new_index = current_page * ITEMS_PER_PAGE + current_row * GRID_COLS + (GRID_COLS - 1);
+                    if new_index < app.chat.emoji_suggestions.len() {
+                        app.chat.emoji_selected = new_index;
+                    }
+                }
+            }
+        }
+        KeyCode::Right => {
+            // Handle emoji grid navigation
+            if !app.chat.emoji_suggestions.is_empty() {
+                const GRID_COLS: usize = 4;
+                const ITEMS_PER_PAGE: usize = GRID_COLS * 5;
+                
+                let current_col = (app.chat.emoji_selected % ITEMS_PER_PAGE) % GRID_COLS;
+                let current_page = app.chat.emoji_selected / ITEMS_PER_PAGE;
+                let current_row = (app.chat.emoji_selected % ITEMS_PER_PAGE) / GRID_COLS;
+                
+                if current_col < GRID_COLS - 1 {
+                    // Move right within current row
+                    let new_index = app.chat.emoji_selected + 1;
+                    if new_index < app.chat.emoji_suggestions.len() {
+                        app.chat.emoji_selected = new_index;
+                    }
+                } else {
+                    // Wrap to leftmost column of same row
+                    let new_index = current_page * ITEMS_PER_PAGE + current_row * GRID_COLS;
+                    app.chat.emoji_selected = new_index;
                 }
             }
         }
