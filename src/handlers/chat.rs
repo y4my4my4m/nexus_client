@@ -446,29 +446,45 @@ fn select_current_sidebar_target(app: &mut App) {
     match app.chat.sidebar_tab {
         crate::state::SidebarTab::Servers => {
             if let (Some(s), Some(c)) = (app.chat.selected_server, app.chat.selected_channel) {
-                if let (Some(server), Some(channel)) = (
+                if let (Some(_server), Some(channel)) = (
                     app.chat.servers.get(s),
                     app.chat.servers.get(s).and_then(|srv| srv.channels.get(c))
                 ) {
                     let channel_id = channel.id;
-                    let server_id = channel.server_id; // Extract server_id before creating target
+                    let server_id = channel.server_id;
                     let target = crate::state::ChatTarget::Channel { server_id, channel_id };
+                    
+                    // Clear old messages and set new target
+                    app.chat.chat_messages.clear();
                     app.set_current_chat_target(target);
+                    app.chat.reset_scroll_offset();
+                    
+                    // Request new data
                     app.send_to_server(ClientMessage::GetChannelMessages { channel_id, before: None });
                     app.send_to_server(ClientMessage::GetChannelUserList { channel_id });
-                    app.chat.reset_scroll_offset();
+                    
+                    // Play sound feedback
+                    app.sound_manager.play(SoundType::ChangeChannel);
                 }
             }
         }
         crate::state::SidebarTab::DMs => {
             if let Some(idx) = app.chat.selected_dm_user {
                 if let Some(user) = app.chat.dm_user_list.get(idx) {
-                    let user_id = user.id; // Extract the user_id before borrowing app mutably
+                    let user_id = user.id;
                     let target = crate::state::ChatTarget::DM { user_id };
+                    
+                    // Clear old messages and set new target
+                    app.chat.dm_messages.clear();
                     app.set_current_chat_target(target);
+                    app.chat.reset_scroll_offset();
+                    
+                    // Request new data
                     app.send_to_server(ClientMessage::GetDirectMessages { user_id, before: None });
                     app.chat.unread_dm_conversations.remove(&user_id);
-                    app.chat.reset_scroll_offset();
+                    
+                    // Play sound feedback
+                    app.sound_manager.play(SoundType::ChangeChannel);
                 }
             }
         }
