@@ -691,17 +691,27 @@ fn handle_main_app_mode(key: KeyEvent, app: &mut App) {
                         app.sound_manager.play(SoundType::Scroll);
                     }
                     KeyCode::Down => {
+                        // handle down arrow in the mention suggestions
                         if !app.mention_suggestions.is_empty() {
                             app.mention_selected = (app.mention_selected + 1) % app.mention_suggestions.len();
                         }
+                        // handle down arrow in the message list (scroll down by one)
+                        if app.chat_scroll_offset > 0 {
+                            app.chat_scroll_offset -= 1;
+                        }
                     },
                     KeyCode::Up => {
+                        // handle up arrow in the mention suggestions
                         if !app.mention_suggestions.is_empty() {
                             if app.mention_selected == 0 {
                                 app.mention_selected = app.mention_suggestions.len() - 1;
                             } else {
                                 app.mention_selected -= 1;
                             }
+                        }
+                        // handle up arrow in the message list (scroll up by one)
+                        if app.chat_scroll_offset < app.get_current_message_list().len().saturating_sub(app.last_chat_rows.unwrap_or(20)) {
+                            app.chat_scroll_offset += 1;
                         }
                     },
                     KeyCode::Enter => {
