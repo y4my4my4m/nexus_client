@@ -238,15 +238,28 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
     
     // First pass: calculate heights for all messages
     for msg in display_items.iter() {
-        // Calculate content height
+        // Calculate content height more accurately
         let content_str = &msg.content;
         let lines_needed = if text_area_width > 0 {
-            // Count explicit newlines
-            let explicit_lines = content_str.matches('\n').count() + 1;
-            // Calculate wrapped lines
-            let total_chars = content_str.len();
-            let wrapped_lines = (total_chars + text_area_width as usize - 1) / text_area_width as usize;
-            explicit_lines.max(wrapped_lines)
+            // Split content by explicit newlines first
+            let content_lines: Vec<&str> = content_str.split('\n').collect();
+            let mut total_lines = 0;
+            
+            for line in content_lines {
+                if line.is_empty() {
+                    total_lines += 1; // Empty lines still take space
+                } else {
+                    // Calculate how many wrapped lines this content line will take
+                    let line_len = line.chars().count();
+                    let wrapped_lines = if line_len == 0 {
+                        1
+                    } else {
+                        (line_len + text_area_width as usize - 1) / text_area_width as usize
+                    };
+                    total_lines += wrapped_lines;
+                }
+            }
+            total_lines
         } else {
             1
         };
@@ -274,35 +287,45 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
     let visible_messages = &display_items[visible_start..];
     let visible_heights = &message_heights[visible_start..];
     
-    // Start from bottom and work up
-    let mut current_y = inner_area.y + inner_area.height;
+    // Pre-calculate date delimiter positions to avoid interrupting message rendering
+    let mut date_delimiters = Vec::new();
+    let mut last_date: Option<chrono::NaiveDate> = None;
     
-    for (msg, &msg_height) in visible_messages.iter().zip(visible_heights.iter()).rev() {
-        current_y = current_y.saturating_sub(msg_height + 1);
-        
-        if current_y < inner_area.y { break; }
-        
-        // Insert date delimiter only when the date changes
+    // First pass: identify where date delimiters should go (in forward order)
+    // Only show delimiters if there are actually multiple dates in the visible messages
+    for (i, msg) in visible_messages.iter().enumerate() {
         if let Some(ts) = msg.timestamp {
-            let dt = chrono::Local.timestamp_opt(ts, 0).single();
-            if let Some(dt) = dt {
+            if let Some(dt) = chrono::Local.timestamp_opt(ts, 0).single() {
                 let msg_date = dt.date_naive();
                 if let Some(last) = last_date {
                     if last != msg_date {
-                        let header = Block::default()
-                            .borders(Borders::TOP)
-                            .title_alignment(ratatui::layout::Alignment::Center)
-                            .title(format_date_delimiter(ts))
-                            .border_style(Style::default().fg(Color::DarkGray))
-                            .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC));
-                            // Use `min_row_height` to ensure consistent spacing for date headers.
-                            // This value should be verified to match the intended vertical spacing.
-                        f.render_widget(header, Rect::new(inner_area.x, current_y, inner_area.width, min_row_height));
-                        current_y = current_y.saturating_sub(min_row_height);
+                        // Mark this position for a date delimiter before this message
+                        date_delimiters.push((i, ts));
                     }
                 }
                 last_date = Some(msg_date);
             }
+        }
+    }
+    
+    // Start from bottom and work up
+    let mut current_y = inner_area.y + inner_area.height;
+    
+    for (msg_idx, (msg, &msg_height)) in visible_messages.iter().zip(visible_heights.iter()).enumerate().rev() {
+        current_y = current_y.saturating_sub(msg_height + 1);
+        
+        if current_y < inner_area.y { break; }
+        
+        // Check if we need to render a date delimiter before this message
+        if let Some(&(delimiter_idx, delimiter_ts)) = date_delimiters.iter().find(|&&(idx, _)| idx == msg_idx) {
+            let header = Block::default()
+                .borders(Borders::TOP)
+                .title_alignment(ratatui::layout::Alignment::Center)
+                .title(format_date_delimiter(delimiter_ts))
+                .border_style(Style::default().fg(Color::DarkGray))
+                .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC));
+            f.render_widget(header, Rect::new(inner_area.x, current_y, inner_area.width, min_row_height));
+            current_y = current_y.saturating_sub(min_row_height + 1);
         }
         
         let row_area = Rect::new(inner_area.x, current_y, inner_area.width, msg_height);
