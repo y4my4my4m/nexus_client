@@ -646,7 +646,7 @@ impl<'a> App<'a> {
         }
     }
 
-    pub fn update_profile_banner_composite(&mut self) {
+    pub fn update_profile_banner_composite(&mut self, banner_area_width_cells: u16, banner_area_height_cells: u16) {
         // Create composite banner + profile pic image for profile view popup
         if let Some(profile) = &self.profile.profile_view {
             // Check if we have both banner and profile pic data
@@ -656,8 +656,13 @@ impl<'a> App<'a> {
             if let (Some(banner_bytes), Some(pfp_bytes)) = (banner_data, pfp_data) {
                 // Create composite image: banner with profile pic overlaid
                 // Use dynamic sizing based on terminal width for better full-width display
-                let banner_size = (600, 120); // Larger banner for better quality
-                let pfp_size = (100, 100);    // Larger profile pic for better quality
+                let font_size = self.profile.picker.font_size();
+                let banner_px_w = banner_area_width_cells as u32 * font_size.0 as u32;
+                let banner_px_h = banner_area_height_cells as u32 * font_size.1 as u32;
+                let banner_size = (banner_px_w, banner_px_h);
+                // let banner_size = (1280, 160);
+                // let banner_size = (600, 120); // Larger banner for better quality
+                let pfp_size = (64, 64);    // Larger profile pic for better quality
                 let pfp_padding_left = 30;    // PFP position from left
                 
                 match ImageService::composite_banner_and_pfp(

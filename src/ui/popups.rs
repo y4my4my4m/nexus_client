@@ -201,7 +201,7 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
     let banner_area = layout[0];
     
     // Update the composite image to match the banner area dimensions
-    app.update_profile_banner_composite();
+    app.update_profile_banner_composite(banner_area.width - 2, banner_area.height - 2);
 
     // --- Render banner background: full width, cropped to fill ---
     if let Some(state) = &mut app.profile.profile_banner_image_state {
@@ -216,10 +216,9 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
         
         // Render the block first
         f.render_widget(banner_block, banner_area);
-        
         // Render image to fill the inner area completely
         let image_widget = ratatui_image::StatefulImage::default()
-            .resize(ratatui_image::Resize::Crop(None)); // Crop to fill instead of fit
+            .resize(ratatui_image::Resize::Fit(None));
         f.render_stateful_widget(image_widget, image_area, state);
         
         // Overlay username text with enhanced styling for better visibility
