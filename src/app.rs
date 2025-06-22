@@ -238,12 +238,28 @@ impl<'a> App<'a> {
                 self.set_notification(message, Some(3000), false);
             }
             ServerMessage::UserJoined(user) => {
-                if !self.chat.channel_userlist.iter().any(|u| u.id == user.id) {
-                    self.chat.channel_userlist.push(user);
+                // Update existing user or add new user to channel userlist
+                if let Some(existing) = self.chat.channel_userlist.iter_mut().find(|u| u.id == user.id) {
+                    existing.status = user.status.clone();
+                } else {
+                    self.chat.channel_userlist.push(user.clone());
+                }
+                
+                // Also update in DM user list if present
+                if let Some(existing_dm) = self.chat.dm_user_list.iter_mut().find(|u| u.id == user.id) {
+                    existing_dm.status = user.status;
                 }
             }
             ServerMessage::UserLeft(user_id) => {
-                self.chat.channel_userlist.retain(|u| u.id != user_id);
+                // Update status to offline instead of removing from list
+                if let Some(existing) = self.chat.channel_userlist.iter_mut().find(|u| u.id == user_id) {
+                    existing.status = common::UserStatus::Offline;
+                }
+                
+                // Also update in DM user list if present
+                if let Some(existing_dm) = self.chat.dm_user_list.iter_mut().find(|u| u.id == user_id) {
+                    existing_dm.status = common::UserStatus::Offline;
+                }
             }
             ServerMessage::NewChannelMessage(msg) => {
                 let current_target = &self.chat.current_chat_target;
