@@ -777,7 +777,7 @@ impl<'a> App<'a> {
                 for y in 0..banner_size.1 {
                     for x in 0..banner_size.0 {
                         // Create a subtle dark gradient from dark gray to black
-                        let gradient_factor = (y as f32 / banner_size.1 as f32);
+                        let gradient_factor = y as f32 / banner_size.1 as f32;
                         let gray_value = (64.0 * (1.0 - gradient_factor * 0.5)) as u8; // 64 to 32
                         default_banner.put_pixel(x, y, image::Rgba([gray_value, gray_value, gray_value, 255]));
                     }

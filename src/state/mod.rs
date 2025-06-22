@@ -12,8 +12,6 @@ pub use auth::{AuthState, InputMode};
 pub use notification::NotificationState;
 pub use ui::{UiState, AppMode};
 
-use uuid::Uuid;
-use ratatui::widgets::ListState;
 
 /// Configuration constants for the application
 pub struct AppConfig {

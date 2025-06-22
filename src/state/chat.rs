@@ -1,4 +1,4 @@
-use common::{User, DirectMessage, Server, Channel, ChannelMessage};
+use common::{User, DirectMessage, Server, ChannelMessage};
 use uuid::Uuid;
 use std::collections::{HashMap, HashSet};
 use ratatui::widgets::ListState;

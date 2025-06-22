@@ -1,4 +1,4 @@
-use common::{User, UserProfile};
+use common::UserProfile;
 use uuid::Uuid;
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
 use std::collections::HashMap;

@@ -1,5 +1,4 @@
 use common::Notification;
-use uuid::Uuid;
 
 /// State management for notifications
 pub struct NotificationState {

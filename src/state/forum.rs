@@ -1,4 +1,4 @@
-use common::{Forum, Thread, User};
+use common::{Forum, Thread};
 use uuid::Uuid;
 use ratatui::widgets::ListState;
 

@@ -1,7 +1,6 @@
 use crate::state::{ChatState, ChatTarget};
 use crate::model::ChatMessageWithMeta;
-use crate::services::ImageService;
-use crate::services::image::{ImageCache, ImageCacheKey, CachedImage, ImageFormat, ImageCacheStats};
+use crate::services::image::{ImageCache, ImageCacheKey, CachedImage, ImageCacheStats};
 use common::User;
 use std::sync::Arc;
 

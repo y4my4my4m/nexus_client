@@ -1,5 +1,3 @@
-use common::UserProfile;
-use crate::state::AppResult;
 use std::fs;
 use std::path::Path;
 use base64::Engine;

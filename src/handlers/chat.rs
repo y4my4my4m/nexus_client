@@ -1,6 +1,5 @@
 use crate::app::App;
 use crate::sound::SoundType;
-use crate::services::ChatService;
 use common::ClientMessage;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 

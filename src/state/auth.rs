@@ -1,5 +1,4 @@
 use common::User;
-use ratatui::widgets::ListState;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum InputMode {
