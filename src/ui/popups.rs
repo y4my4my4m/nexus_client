@@ -205,16 +205,28 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
 
     // --- Render banner background: full width, cropped to fill ---
     if let Some(state) = &mut app.profile.profile_banner_image_state {
-        // Render image without borders to fill the entire banner area
+        // Create a block with borders for the banner
+        let banner_block = Block::default()
+            .borders(Borders::ALL)
+            .title(Span::styled(&profile.username, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
+            .style(Style::default());
+        
+        // Get the inner area (excluding borders) for the image
+        let image_area = banner_block.inner(banner_area);
+        
+        // Render the block first
+        f.render_widget(banner_block, banner_area);
+        
+        // Render image to fill the inner area completely
         let image_widget = ratatui_image::StatefulImage::default()
             .resize(ratatui_image::Resize::Crop(None)); // Crop to fill instead of fit
-        f.render_stateful_widget(image_widget, banner_area, state);
+        f.render_stateful_widget(image_widget, image_area, state);
         
         // Overlay username text with enhanced styling for better visibility
         let username_area = Rect {
-            x: banner_area.x + banner_area.width.saturating_sub(profile.username.len() as u16 + 4),
-            y: banner_area.y + banner_area.height.saturating_sub(2),
-            width: profile.username.len() as u16 + 4,
+            x: image_area.x + image_area.width.saturating_sub(profile.username.len() as u16 + 2),
+            y: image_area.y + image_area.height.saturating_sub(1),
+            width: profile.username.len() as u16 + 2,
             height: 1,
         };
         
