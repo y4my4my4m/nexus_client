@@ -9,6 +9,12 @@ use crossterm::event::KeyEvent;
 
 /// Main input handler dispatcher
 pub fn handle_key_event(key: KeyEvent, app: &mut App) {
+    // Handle quit confirmation dialog first
+    if app.ui.show_quit_confirm {
+        handle_quit_confirm_input(key, app);
+        return;
+    }
+
     // Handle global shortcuts first
     if navigation::handle_global_shortcuts(key, app) {
         return;
@@ -39,5 +45,38 @@ pub fn handle_key_event(key: KeyEvent, app: &mut App) {
         _ => {
             navigation::handle_general_navigation(key, app);
         }
+    }
+}
+
+fn handle_quit_confirm_input(key: KeyEvent, app: &mut App) {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    match key.code {
+        KeyCode::Left | KeyCode::Right => {
+            app.sound_manager.play(crate::sound::SoundType::Scroll);
+            app.ui.quit_confirm_selected = if app.ui.quit_confirm_selected == 0 { 1 } else { 0 };
+        }
+        KeyCode::Enter => {
+            if app.ui.quit_confirm_selected == 0 {
+                // Yes - quit the application
+                app.sound_manager.play(crate::sound::SoundType::PopupClose);
+                app.ui.quit();
+            } else {
+                // No - cancel quit
+                app.sound_manager.play(crate::sound::SoundType::PopupClose);
+            }
+            app.ui.show_quit_confirm = false;
+        }
+        KeyCode::Esc => {
+            // Cancel quit
+            app.sound_manager.play(crate::sound::SoundType::PopupClose);
+            app.ui.show_quit_confirm = false;
+        }
+        // Handle Ctrl+C again to close the dialog
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.sound_manager.play(crate::sound::SoundType::PopupClose);
+            app.ui.show_quit_confirm = false;
+        }
+        _ => {}
     }
 }

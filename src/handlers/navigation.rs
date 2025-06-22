@@ -2,12 +2,19 @@ use crate::app::App;
 use crate::sound::SoundType;
 use crate::global_prefs::global_prefs_mut;
 use common::{ClientMessage, UserColor};
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::Color;
 
 /// Handle global shortcuts that work across all modes
 pub fn handle_global_shortcuts(key: KeyEvent, app: &mut App) -> bool {
     match key.code {
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            // Show quit confirmation dialog
+            app.ui.show_quit_confirm = true;
+            app.ui.quit_confirm_selected = 1; // Default to "No"
+            app.sound_manager.play(SoundType::PopupOpen);
+            return true;
+        }
         KeyCode::F(5) => {
             if app.ui.mode == crate::state::AppMode::Chat {
                 app.ui.show_server_actions = true;
