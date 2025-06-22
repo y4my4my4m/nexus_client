@@ -9,12 +9,14 @@ use std::sync::RwLock;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GlobalPrefs {
     pub sound_effects_enabled: bool,
+    pub minimal_banner_glitch_enabled: bool,
 }
 
 impl Default for GlobalPrefs {
     fn default() -> Self {
         Self {
             sound_effects_enabled: true,
+            minimal_banner_glitch_enabled: true,
         }
     }
 }
