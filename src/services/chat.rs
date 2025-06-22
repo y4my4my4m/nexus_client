@@ -304,29 +304,28 @@ impl ChatService {
 
     /// Request avatars for users that don't have profile pictures loaded
     pub fn request_missing_avatars(&self, chat_state: &ChatState, to_server: &mpsc::UnboundedSender<ClientMessage>) {
-        let mut missing_user_ids = Vec::new();
+        let mut missing_user_ids = std::collections::HashSet::new();
         
         // Check channel users for missing avatars
         for user in &chat_state.channel_userlist {
             if user.profile_pic.is_none() {
-                missing_user_ids.push(user.id);
+                missing_user_ids.insert(user.id);
             }
         }
         
         // Check DM users for missing avatars
         for user in &chat_state.dm_user_list {
             if user.profile_pic.is_none() {
-                missing_user_ids.push(user.id);
+                missing_user_ids.insert(user.id);
             }
         }
         
-        // Remove duplicates and limit to reasonable batch size
-        missing_user_ids.sort();
-        missing_user_ids.dedup();
-        missing_user_ids.truncate(20); // Limit to prevent server overload
+        // Convert to Vec, limit to reasonable batch size, and send
+        let mut unique_user_ids: Vec<_> = missing_user_ids.into_iter().collect();
+        unique_user_ids.truncate(20); // Limit to prevent server overload
         
-        if !missing_user_ids.is_empty() {
-            let _ = to_server.send(ClientMessage::GetUserAvatars { user_ids: missing_user_ids });
+        if !unique_user_ids.is_empty() {
+            let _ = to_server.send(ClientMessage::GetUserAvatars { user_ids: unique_user_ids });
         }
     }
 }
