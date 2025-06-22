@@ -660,8 +660,6 @@ impl<'a> App<'a> {
                 let banner_px_w = banner_area_width_cells as u32 * font_size.0 as u32;
                 let banner_px_h = banner_area_height_cells as u32 * font_size.1 as u32;
                 let banner_size = (banner_px_w, banner_px_h);
-                // let banner_size = (1280, 160);
-                // let banner_size = (600, 120); // Larger banner for better quality
                 let pfp_size = (64, 64);    // Larger profile pic for better quality
                 let pfp_padding_left = 30;    // PFP position from left
                 
@@ -671,6 +669,7 @@ impl<'a> App<'a> {
                     banner_size,
                     pfp_size,
                     pfp_padding_left,
+                    &profile.username, // Pass the username for text rendering
                 ) {
                     Ok(composite_bytes) => {
                         // Convert composite to image for rendering

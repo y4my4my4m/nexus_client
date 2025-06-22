@@ -220,23 +220,6 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
         let image_widget = ratatui_image::StatefulImage::default()
             .resize(ratatui_image::Resize::Fit(None));
         f.render_stateful_widget(image_widget, image_area, state);
-        
-        // Overlay username text with enhanced styling for better visibility
-        let username_area = Rect {
-            x: image_area.x + image_area.width.saturating_sub(profile.username.len() as u16 + 2),
-            y: image_area.y + image_area.height.saturating_sub(1),
-            width: profile.username.len() as u16 + 2,
-            height: 1,
-        };
-        
-        let username_text = Paragraph::new(Span::styled(
-            &profile.username, 
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD)
-        )).alignment(Alignment::Right);
-        
-        f.render_widget(username_text, username_area);
     } else {
         // Fallback: solid color banner with username
         let banner_bg = Color::Blue;

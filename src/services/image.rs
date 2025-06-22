@@ -34,6 +34,7 @@ impl ImageService {
         banner_size: (u32, u32),
         pfp_size: (u32, u32),
         pfp_padding_left: u32,
+        username: &str,
     ) -> Result<Vec<u8>, AppError> {
         // Load images
         let banner_img = image::load_from_memory(banner_bytes)
@@ -74,6 +75,7 @@ impl ImageService {
                 let dx = x as f32 - center_x;
                 let dy = y as f32 - center_y;
                 let distance = (dx * dx + dy * dy).sqrt();
+                
                 let pixel = pfp_rgba.get_pixel_mut(x, y);
                 if distance > radius {
                     pixel[3] = 0;
@@ -119,6 +121,11 @@ impl ImageService {
             }
         }
 
+        // Render username text directly onto the composite image using simple bitmap approach
+        if !username.is_empty() {
+            Self::draw_simple_text(&mut composite, username, banner_size);
+        }
+
         // Convert to bytes
         let mut buffer = Vec::new();
         composite.write_to(&mut Cursor::new(&mut buffer), image::ImageFormat::Png)
@@ -140,6 +147,119 @@ impl ImageService {
         }
         
         Ok(())
+    }
+
+    /// Draw simple text on the image using a basic bitmap approach
+    fn draw_simple_text(image: &mut image::RgbaImage, text: &str, banner_size: (u32, u32)) {
+        if text.is_empty() {
+            return;
+        }
+
+        let char_width = 6;
+        let char_height = 8;
+        let text_padding = 10;
+        
+        // Calculate text dimensions
+        let text_width = text.len() as u32 * char_width;
+        let text_height = char_height;
+        
+        // Position text in bottom-right corner
+        let text_x = banner_size.0.saturating_sub(text_width + text_padding);
+        let text_y = banner_size.1.saturating_sub(text_height + text_padding);
+        
+        // Draw semi-transparent black background
+        let bg_padding = 4;
+        let bg_x = text_x.saturating_sub(bg_padding);
+        let bg_y = text_y.saturating_sub(bg_padding);
+        let bg_width = text_width + (bg_padding * 2);
+        let bg_height = text_height + (bg_padding * 2);
+        
+        // Fill background with semi-transparent black
+        for y in bg_y..bg_y + bg_height {
+            for x in bg_x..bg_x + bg_width {
+                if x < banner_size.0 && y < banner_size.1 {
+                    let pixel = image.get_pixel_mut(x, y);
+                    // Blend with semi-transparent black (70% opacity)
+                    let alpha = 0.7;
+                    let inv_alpha = 1.0 - alpha;
+                    pixel[0] = (0.0 * alpha + pixel[0] as f32 * inv_alpha) as u8;
+                    pixel[1] = (0.0 * alpha + pixel[1] as f32 * inv_alpha) as u8;
+                    pixel[2] = (0.0 * alpha + pixel[2] as f32 * inv_alpha) as u8;
+                }
+            }
+        }
+        
+        // Draw each character using a simple bitmap approach
+        for (i, ch) in text.chars().enumerate() {
+            let char_x = text_x + (i as u32 * char_width);
+            
+            // Get the bitmap pattern for this character
+            let bitmap = Self::get_char_bitmap(ch);
+            
+            // Draw the character bitmap
+            for (row, &pattern) in bitmap.iter().enumerate() {
+                for col in 0..char_width {
+                    if pattern & (1 << (char_width - 1 - col)) != 0 {
+                        let px = char_x + col;
+                        let py = text_y + row as u32;
+                        
+                        if px < banner_size.0 && py < banner_size.1 {
+                            let pixel = image.get_pixel_mut(px, py);
+                            pixel[0] = 255; // White
+                            pixel[1] = 255;
+                            pixel[2] = 255;
+                            pixel[3] = 255;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Get a simple bitmap pattern for a character (6x8 pixels)
+    fn get_char_bitmap(ch: char) -> [u8; 8] {
+        match ch {
+            'A' | 'a' => [0b011100, 0b100010, 0b100010, 0b111110, 0b100010, 0b100010, 0b100010, 0b000000],
+            'B' | 'b' => [0b111100, 0b100010, 0b100010, 0b111100, 0b100010, 0b100010, 0b111100, 0b000000],
+            'C' | 'c' => [0b011100, 0b100010, 0b100000, 0b100000, 0b100000, 0b100010, 0b011100, 0b000000],
+            'D' | 'd' => [0b111100, 0b100010, 0b100010, 0b100010, 0b100010, 0b100010, 0b111100, 0b000000],
+            'E' | 'e' => [0b111110, 0b100000, 0b100000, 0b111100, 0b100000, 0b100000, 0b111110, 0b000000],
+            'F' | 'f' => [0b111110, 0b100000, 0b100000, 0b111100, 0b100000, 0b100000, 0b100000, 0b000000],
+            'G' | 'g' => [0b011100, 0b100010, 0b100000, 0b101110, 0b100010, 0b100010, 0b011100, 0b000000],
+            'H' | 'h' => [0b100010, 0b100010, 0b100010, 0b111110, 0b100010, 0b100010, 0b100010, 0b000000],
+            'I' | 'i' => [0b111110, 0b001000, 0b001000, 0b001000, 0b001000, 0b001000, 0b111110, 0b000000],
+            'J' | 'j' => [0b111110, 0b000010, 0b000010, 0b000010, 0b000010, 0b100010, 0b011100, 0b000000],
+            'K' | 'k' => [0b100010, 0b100100, 0b101000, 0b110000, 0b101000, 0b100100, 0b100010, 0b000000],
+            'L' | 'l' => [0b100000, 0b100000, 0b100000, 0b100000, 0b100000, 0b100000, 0b111110, 0b000000],
+            'M' | 'm' => [0b100010, 0b110110, 0b101010, 0b101010, 0b100010, 0b100010, 0b100010, 0b000000],
+            'N' | 'n' => [0b100010, 0b110010, 0b101010, 0b101010, 0b100110, 0b100010, 0b100010, 0b000000],
+            'O' | 'o' => [0b011100, 0b100010, 0b100010, 0b100010, 0b100010, 0b100010, 0b011100, 0b000000],
+            'P' | 'p' => [0b111100, 0b100010, 0b100010, 0b111100, 0b100000, 0b100000, 0b100000, 0b000000],
+            'Q' | 'q' => [0b011100, 0b100010, 0b100010, 0b100010, 0b101010, 0b100100, 0b011010, 0b000000],
+            'R' | 'r' => [0b111100, 0b100010, 0b100010, 0b111100, 0b101000, 0b100100, 0b100010, 0b000000],
+            'S' | 's' => [0b011100, 0b100010, 0b100000, 0b011100, 0b000010, 0b100010, 0b011100, 0b000000],
+            'T' | 't' => [0b111110, 0b001000, 0b001000, 0b001000, 0b001000, 0b001000, 0b001000, 0b000000],
+            'U' | 'u' => [0b100010, 0b100010, 0b100010, 0b100010, 0b100010, 0b100010, 0b011100, 0b000000],
+            'V' | 'v' => [0b100010, 0b100010, 0b100010, 0b100010, 0b100010, 0b010100, 0b001000, 0b000000],
+            'W' | 'w' => [0b100010, 0b100010, 0b100010, 0b101010, 0b101010, 0b110110, 0b100010, 0b000000],
+            'X' | 'x' => [0b100010, 0b100010, 0b010100, 0b001000, 0b010100, 0b100010, 0b100010, 0b000000],
+            'Y' | 'y' => [0b100010, 0b100010, 0b100010, 0b010100, 0b001000, 0b001000, 0b001000, 0b000000],
+            'Z' | 'z' => [0b111110, 0b000010, 0b000100, 0b001000, 0b010000, 0b100000, 0b111110, 0b000000],
+            '0' => [0b011100, 0b100010, 0b100110, 0b101010, 0b110010, 0b100010, 0b011100, 0b000000],
+            '1' => [0b001000, 0b011000, 0b001000, 0b001000, 0b001000, 0b001000, 0b111110, 0b000000],
+            '2' => [0b011100, 0b100010, 0b000010, 0b000100, 0b001000, 0b010000, 0b111110, 0b000000],
+            '3' => [0b011100, 0b100010, 0b000010, 0b001100, 0b000010, 0b100010, 0b011100, 0b000000],
+            '4' => [0b000100, 0b001100, 0b010100, 0b100100, 0b111110, 0b000100, 0b000100, 0b000000],
+            '5' => [0b111110, 0b100000, 0b111100, 0b000010, 0b000010, 0b100010, 0b011100, 0b000000],
+            '6' => [0b011100, 0b100010, 0b100000, 0b111100, 0b100010, 0b100010, 0b011100, 0b000000],
+            '7' => [0b111110, 0b000010, 0b000100, 0b001000, 0b010000, 0b100000, 0b100000, 0b000000],
+            '8' => [0b011100, 0b100010, 0b100010, 0b011100, 0b100010, 0b100010, 0b011100, 0b000000],
+            '9' => [0b011100, 0b100010, 0b100010, 0b011110, 0b000010, 0b100010, 0b011100, 0b000000],
+            '_' => [0b000000, 0b000000, 0b000000, 0b000000, 0b000000, 0b000000, 0b111110, 0b000000],
+            '-' => [0b000000, 0b000000, 0b000000, 0b111110, 0b000000, 0b000000, 0b000000, 0b000000],
+            ' ' => [0b000000, 0b000000, 0b000000, 0b000000, 0b000000, 0b000000, 0b000000, 0b000000],
+            _ => [0b111110, 0b100010, 0b100010, 0b100010, 0b100010, 0b100010, 0b111110, 0b000000], // Default box for unknown chars
+        }
     }
 }
 
