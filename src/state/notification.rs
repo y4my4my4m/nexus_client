@@ -2,6 +2,7 @@ use common::Notification;
 use uuid::Uuid;
 
 /// State management for notifications
+#[derive(Clone)]
 pub struct NotificationState {
     pub notifications: Vec<Notification>,
     pub notification_history_complete: bool,

@@ -107,7 +107,7 @@ impl ChatService {
                     ChatMessageWithMeta {
                         author: msg.author_username.clone(),
                         content: msg.content.clone(),
-                        color: msg.author_color,
+                        color: msg.author_color.clone().into(),
                         profile_pic: msg.author_profile_pic.clone(),
                         timestamp: Some(msg.timestamp),
                     }
@@ -119,22 +119,22 @@ impl ChatService {
                         if msg.from != user.id {
                             // Find user in dm_user_list
                             if let Some(dm_user) = chat_state.dm_user_list.iter().find(|u| u.id == msg.from) {
-                                (dm_user.username.clone(), dm_user.color, dm_user.profile_pic.clone())
+                                (dm_user.username.clone(), dm_user.color.clone(), dm_user.profile_pic.clone())
                             } else {
-                                ("?".to_string(), ratatui::style::Color::Gray, None)
+                                ("?".to_string(), common::UserColor("Gray".to_string()), None)
                             }
                         } else {
                             // Current user
-                            (user.username.clone(), user.color, user.profile_pic.clone())
+                            (user.username.clone(), user.color.clone(), user.profile_pic.clone())
                         }
                     } else {
-                        ("?".to_string(), ratatui::style::Color::Gray, None)
+                        ("?".to_string(), common::UserColor("Gray".to_string()), None)
                     };
                     
                     ChatMessageWithMeta {
                         author,
                         content: msg.content.clone(),
-                        color,
+                        color: msg.author_color.clone().into(),
                         profile_pic,
                         timestamp: Some(msg.timestamp),
                     }

@@ -90,7 +90,7 @@ pub fn draw_thread_list(f: &mut Frame, app: &mut App, area: Rect) {
         let (title_fg, author_fg, date_fg) = if is_selected {
             (Color::Black, Color::Black, Color::Black)
         } else {
-            (Color::Cyan, thread.author.color, Color::Gray)
+            (Color::Cyan.into(), thread.author.color.clone().into(), Color::Gray.into())
         };
         // Title
         let title = thread.title.clone();
@@ -129,7 +129,7 @@ pub fn draw_post_view(f: &mut Frame, app: &mut App, area: Rect) {
         for post in &thread.posts {
             let ts_str = format_message_timestamp(post.timestamp, Local::now());
             text.push(Line::from(vec![
-                Span::styled(format!("From: {} ", post.author.username), Style::default().fg(post.author.color).add_modifier(Modifier::BOLD)),
+                Span::styled(format!("From: {} ", post.author.username), Style::default().fg(post.author.color.clone().into()).add_modifier(Modifier::BOLD)),
                 Span::raw(format!("({})", ts_str)),
             ]));
             text.push(Line::from(Span::raw("---------------------------------")));

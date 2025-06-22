@@ -38,9 +38,9 @@ pub struct ProfileState {
     
     // Image rendering
     pub picker: Picker,
-    pub profile_image_state: Option<StatefulProtocol>,
-    pub profile_banner_image_state: Option<StatefulProtocol>,
-    pub avatar_protocol_cache: HashMap<(Uuid, u32), StatefulProtocol>,
+    pub profile_image_state: Option<Box<dyn StatefulProtocol>>,
+    pub profile_banner_image_state: Option<Box<dyn StatefulProtocol>>,
+    pub avatar_protocol_cache: HashMap<(Uuid, u32), Box<dyn StatefulProtocol>>,
     
     // User actions
     pub show_user_actions: bool,
@@ -50,12 +50,8 @@ pub struct ProfileState {
 
 impl ProfileState {
     pub fn new() -> Self {
-        let picker = Picker::from_query_stdio().unwrap_or_else(|e| {
-            eprintln!(
-                "Failed to query terminal for graphics support: {}. Falling back to ASCII picker.",
-                e
-            );
-            Picker::from_fontsize((16, 16))
+        let picker = Picker::from_termios().unwrap_or_else(|_| {
+            Picker::new((16, 16))
         });
 
         Self {

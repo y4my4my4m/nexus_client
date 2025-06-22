@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let sound_manager = SoundManager::new();
 
     // Create app instance
-    let mut app = App::new(tx_to_server, &sound_manager);
+    let mut app = App::new(tx_to_server);
 
     // Get server address from command line or use default
     let server_addr = env::args().nth(1).unwrap_or_else(|| "127.0.0.1:8080".to_string());

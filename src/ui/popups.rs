@@ -206,8 +206,8 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
     // --- Render banner background: full width, cropped to fill ---
     if let Some(state) = &mut app.profile.profile_banner_image_state {
         // Render image without borders to fill the entire banner area
-        let image_widget = ratatui_image::StatefulImage::default()
-            .resize(ratatui_image::Resize::Crop(None)); // Crop to fill instead of fit
+        let image_widget = ratatui_image::StatefulImage::new(None)
+            .resize(ratatui_image::Resize::Crop(None));
         f.render_stateful_widget(image_widget, banner_area, state);
         
         // Overlay username text with enhanced styling for better visibility
@@ -226,6 +226,38 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
         )).alignment(Alignment::Right);
         
         f.render_widget(username_text, username_area);
+        
+        // Render profile picture as overlay in top-left corner of banner
+        if let Some(profile_pic) = &profile.profile_pic {
+            if !profile_pic.trim().is_empty() {
+                // Create a small area for the profile picture overlay
+                let pfp_size = 4; // Character cells
+                let pfp_area = Rect {
+                    x: banner_area.x + 1,
+                    y: banner_area.y + 1,
+                    width: pfp_size,
+                    height: pfp_size,
+                };
+                
+                // Create a temporary user for avatar rendering
+                let temp_user = common::User {
+                    id: uuid::Uuid::nil(),
+                    username: profile.username.clone(),
+                    color: common::UserColor("White".to_string()),
+                    role: profile.role.clone(),
+                    profile_pic: Some(profile_pic.clone()),
+                    cover_banner: None,
+                    status: common::UserStatus::Connected,
+                };
+                
+                // Render the avatar using the existing avatar system
+                if let Some(avatar_state) = crate::ui::avatar::get_avatar_protocol(app, &temp_user, 32) {
+                    let avatar_widget = ratatui_image::StatefulImage::new(None)
+                        .resize(ratatui_image::Resize::Fit(None));
+                    f.render_stateful_widget(avatar_widget, pfp_area, avatar_state);
+                }
+            }
+        }
     } else {
         // Fallback: solid color banner with username
         let banner_bg = Color::Blue;

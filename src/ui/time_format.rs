@@ -1,5 +1,4 @@
 use chrono::{DateTime, Local, Duration, Datelike};
-use chrono_humanize::HumanTime;
 use chrono::TimeZone;
 
 /// Format a message timestamp for chat display, Discord-style.
@@ -12,16 +11,18 @@ pub fn format_message_timestamp(ts: i64, now: DateTime<Local>) -> String {
     if let Some(dt) = dt {
         let duration = now.signed_duration_since(dt);
         if duration < Duration::minutes(5) {
-            HumanTime::from(dt).to_string()
-        } else if dt.date_naive() == now.date_naive() {
-            dt.format("%-I:%M %p").to_string()
-        } else if dt.date_naive() == (now - Duration::days(1)).date_naive() {
-            format!("Yesterday, {}", dt.format("%-I:%M %p"))
+            "now".to_string()
+        } else if duration.num_minutes() < 60 {
+            format!("{}m ago", duration.num_minutes())
+        } else if duration.num_hours() < 24 {
+            format!("{}h ago", duration.num_hours())
+        } else if duration.num_days() < 7 {
+            format!("{}d ago", duration.num_days())
         } else {
-            dt.format("%-m/%-d/%y, %-I:%M %p").to_string()
+            dt.format("%b %d").to_string()
         }
     } else {
-        "?".to_string()
+        "unknown".to_string()
     }
 }
 

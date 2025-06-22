@@ -9,9 +9,10 @@ use crate::state::{
 use crate::services::{ChatService, MessageService, ProfileService, ImageService, ImageCache};
 use crate::model::ChatMessageWithMeta;
 use tokio::sync::mpsc;
+use base64::Engine;
 
 /// Main application state and controller
-pub struct App<'a> {
+pub struct App {
     // State modules
     pub chat: ChatState,
     pub forum: ForumState,
@@ -30,7 +31,7 @@ pub struct App<'a> {
     pub sound_manager: SoundManager,
 }
 
-impl<'a> App<'a> {
+impl App {
     pub fn new(tx: mpsc::UnboundedSender<ClientMessage>) -> Self {
         // Load client configuration
         let config = ClientConfig::load_or_default(&ClientConfig::default_path());
@@ -461,7 +462,66 @@ impl<'a> App<'a> {
     }
     
     pub fn update_profile_banner_composite(&mut self) {
-        // Implementation would go here
+        // Clear existing banner state
+        self.profile.profile_banner_image_state = None;
+        
+        // Get the profile being viewed
+        if let Some(profile) = &self.profile.profile_view {
+            // Create composite banner image if we have a cover banner
+            if let Some(cover_banner) = &profile.cover_banner {
+                if !cover_banner.trim().is_empty() {
+                    // Use the improved composite creation function
+                    let banner_width = 80; // Terminal character width estimate
+                    let banner_height = 8;  // Banner area height
+                    let pfp_size = 32;      // Pixel size for profile picture overlay
+                    
+                    let composite_img = crate::ui::avatar::create_banner_composite(
+                        cover_banner,
+                        profile.profile_pic.as_deref(),
+                        banner_width,
+                        banner_height,
+                        pfp_size,
+                    );
+                    
+                    if let Some(img) = composite_img {
+                        let protocol = self.profile.picker.new_resize_protocol(img);
+                        self.profile.profile_banner_image_state = Some(protocol);
+                    }
+                }
+            }
+        }
+    }
+    
+    pub fn update_profile_image_preview(&mut self) {
+        // Clear existing profile image state
+        self.profile.profile_image_state = None;
+        
+        // Create preview for the profile picture being edited
+        if !self.profile.edit_profile_pic.trim().is_empty() {
+            // Try to decode the profile picture
+            let pic_data = if self.profile.edit_profile_pic.contains(',') {
+                // Handle data URL format
+                if let Some(idx) = self.profile.edit_profile_pic.find(',') {
+                    if idx + 1 < self.profile.edit_profile_pic.len() {
+                        &self.profile.edit_profile_pic[idx + 1..]
+                    } else {
+                        &self.profile.edit_profile_pic
+                    }
+                } else {
+                    &self.profile.edit_profile_pic
+                }
+            } else {
+                &self.profile.edit_profile_pic
+            };
+            
+            // Decode and create profile image protocol
+            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(pic_data.trim()) {
+                if let Ok(img) = image::load_from_memory(&bytes) {
+                    let protocol = self.profile.picker.new_resize_protocol(img);
+                    self.profile.profile_image_state = Some(protocol);
+                }
+            }
+        }
     }
 }
 

@@ -151,14 +151,18 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
         } else { Style::default().bg(Color::DarkGray) };
         if !app.profile.edit_profile_pic.trim().is_empty() {
             let mut show_placeholder = true;
-            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.profile.edit_profile_pic.trim()) {
-                if let Ok(img) = image::load_from_memory(&bytes) {
-                    let mut protocol = app.profile.picker.new_resize_protocol(img);
-                    let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
-                    f.render_stateful_widget(image_widget, right[3], &mut protocol);
-                    show_placeholder = false;
-                }
+            
+            // Update preview state if needed
+            app.update_profile_image_preview();
+            
+            // Try to render the image using the cached state
+            if let Some(state) = &mut app.profile.profile_image_state {
+                let image_widget = ratatui_image::StatefulImage::new(None)
+                    .resize(ratatui_image::Resize::Fit(None));
+                f.render_stateful_widget(image_widget, right[3], state);
+                show_placeholder = false;
             }
+            
             if show_placeholder {
                 let preview_block = Block::default().borders(Borders::ALL).title("Profile Pic Preview").style(pic_style);
                 f.render_widget(preview_block, right[3]);
@@ -194,7 +198,7 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.profile.edit_cover_banner.trim()) {
                 if let Ok(img) = image::load_from_memory(&bytes) {
                     let mut protocol = app.profile.picker.new_resize_protocol(img);
-                    let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
+                    let image_widget = ratatui_image::StatefulImage::new(None).resize(ratatui_image::Resize::Fit(None));
                     f.render_stateful_widget(image_widget, right[7], &mut protocol);
                     show_placeholder = false;
                 }
@@ -350,14 +354,18 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
         } else { Style::default().bg(Color::DarkGray) };
         if !app.profile.edit_profile_pic.trim().is_empty() {
             let mut show_placeholder = true;
-            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.profile.edit_profile_pic.trim()) {
-                if let Ok(img) = image::load_from_memory(&bytes) {
-                    let mut protocol = app.profile.picker.new_resize_protocol(img);
-                    let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
-                    f.render_stateful_widget(image_widget, fields[15], &mut protocol);
-                    show_placeholder = false;
-                }
+            
+            // Update preview state if needed
+            app.update_profile_image_preview();
+            
+            // Try to render the image using the cached state
+            if let Some(state) = &mut app.profile.profile_image_state {
+                let image_widget = ratatui_image::StatefulImage::new(None)
+                    .resize(ratatui_image::Resize::Fit(None));
+                f.render_stateful_widget(image_widget, fields[15], state);
+                show_placeholder = false;
             }
+            
             if show_placeholder {
                 let preview_block = Block::default().borders(Borders::ALL).title("Profile Pic Preview").style(pic_style);
                 f.render_widget(preview_block, fields[15]);
@@ -393,7 +401,7 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
             if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(app.profile.edit_cover_banner.trim()) {
                 if let Ok(img) = image::load_from_memory(&bytes) {
                     let mut protocol = app.profile.picker.new_resize_protocol(img);
-                    let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
+                    let image_widget = ratatui_image::StatefulImage::new(None).resize(ratatui_image::Resize::Fit(None));
                     f.render_stateful_widget(image_widget, fields[19], &mut protocol);
                     show_placeholder = false;
                 }

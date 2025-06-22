@@ -167,7 +167,7 @@ pub fn draw_sidebar_dms(f: &mut Frame, app: &mut App, area: Rect, focused: bool)
     indexed_users.sort_by_key(|(_, u)| (!app.chat.unread_dm_conversations.contains(&u.id), u.username.clone()));
     
     let items: Vec<ListItem> = indexed_users.iter().map(|(_original_idx, u)| {
-        let mut spans = vec![Span::styled(format!("{} {}", if u.status == common::UserStatus::Connected { "●" } else { "○" }, u.username), Style::default().fg(u.color))];
+        let mut spans = vec![Span::styled(format!("{} {}", if u.status == common::UserStatus::Connected { "●" } else { "○" }, u.username), Style::default().fg(u.color.clone().into()))];
         if app.chat.unread_dm_conversations.contains(&u.id) {
             spans.push(Span::raw(" "));
             spans.push(Span::styled("○", Style::default().fg(Color::Red)));
@@ -208,8 +208,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
     if inner_area.width == 0 || inner_area.height == 0 { return; }
 
     const AVATAR_PIXEL_SIZE: u32 = 32;
-    let (font_w, font_h) = app.profile.picker.font_size();
-    let (font_w, font_h) = if font_w == 0 || font_h == 0 { (8, 16) } else { (font_w, font_h) };
+    let (font_w, font_h) = (8u16, 16u16); // Default font size since font_size() method doesn't exist
     let avatar_cell_width = (AVATAR_PIXEL_SIZE as f32 / font_w as f32).ceil() as u16;
     let avatar_cell_height = (AVATAR_PIXEL_SIZE as f32 / font_h as f32).ceil() as u16;
     let min_row_height = avatar_cell_height.max(2);
@@ -332,7 +331,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
         };
         if let Some(user) = user_for_avatar {
             if let Some(state) = get_avatar_protocol(app, &user, AVATAR_PIXEL_SIZE) {
-                let image_widget = StatefulImage::default();
+                let image_widget = StatefulImage::new(None);
                 f.render_stateful_widget(image_widget, avatar_area, state);
             }
         } else if let Some(ref pic) = msg.profile_pic {
@@ -340,14 +339,14 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
             let fallback_user = common::User {
                 id: uuid::Uuid::nil(),
                 username: msg.author.clone(),
-                color: msg.color,
+                color: msg.color.into(),
                 role: common::UserRole::User,
                 profile_pic: Some(pic.clone()),
                 cover_banner: None,
                 status: common::UserStatus::Offline,
             };
             if let Some(state) = get_avatar_protocol(app, &fallback_user, AVATAR_PIXEL_SIZE) {
-                let image_widget = StatefulImage::default();
+                let image_widget = StatefulImage::new(None);
                 f.render_stateful_widget(image_widget, avatar_area, state);
             }
         } else {
@@ -367,9 +366,9 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
                 spans.push(Span::raw(&content_str[last..start]));
             }
             let mention = &content_str[start+1..end];
-            let mention_color = app.chat.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color);
+            let mention_color = app.chat.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color.clone());
             if let Some(mcolor) = mention_color {
-                spans.push(Span::styled(format!("@{}", mention), Style::default().fg(Color::Black).bg(mcolor).add_modifier(Modifier::BOLD)));
+                spans.push(Span::styled(format!("@{}", mention), Style::default().fg(Color::Black).bg(mcolor.into()).add_modifier(Modifier::BOLD)));
             } else {
                 spans.push(Span::styled(format!("@{}", mention), Style::default().add_modifier(Modifier::BOLD)));
             }
@@ -444,9 +443,9 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         
         // Add the mention with user color or default styling
         let mention = &input_str[start+1..end];
-        let mention_color = app.chat.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color);
+        let mention_color = app.chat.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color.clone());
         if let Some(mcolor) = mention_color {
-            input_spans.push(Span::styled(format!("@{}", mention), Style::default().fg(Color::Black).bg(mcolor).add_modifier(Modifier::BOLD)));
+            input_spans.push(Span::styled(format!("@{}", mention), Style::default().fg(Color::Black).bg(mcolor.into()).add_modifier(Modifier::BOLD)));
         } else {
             input_spans.push(Span::styled(format!("@{}", mention), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
         }
@@ -570,7 +569,7 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     if inner_area.width == 0 || inner_area.height == 0 { return; }
 
     const AVATAR_PIXEL_SIZE: u32 = 16;
-    let (font_w, font_h) = app.profile.picker.font_size();
+    let (font_w, font_h) = app.profile.picker.font_size;
     let (font_w, font_h) = if font_w == 0 || font_h == 0 { (8, 16) } else { (font_w, font_h) };
     let avatar_cell_width = (AVATAR_PIXEL_SIZE as f32 / font_w as f32).ceil() as u16;
     let avatar_cell_height = (AVATAR_PIXEL_SIZE as f32 / font_h as f32).ceil() as u16;
@@ -611,7 +610,7 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
             let text_style = if is_selected {
                 Style::default().fg(Color::Black).add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(user.color)
+                Style::default().fg(user.color.clone().into())
             };
             if is_selected {
                 f.render_widget(Block::default().style(Style::default().bg(Color::Cyan)), row_area);
@@ -633,7 +632,7 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
                     .direction(Direction::Horizontal)
                     .constraints([Constraint::Length(avatar_cell_width), Constraint::Min(0)])
                     .split(row_area);
-                let image_widget = StatefulImage::default();
+                let image_widget = StatefulImage::new(None);
                 f.render_stateful_widget(image_widget, row_chunks[0], state);
                 let text = Line::from(vec![
                     Span::styled(format!(" {} ", status_symbol), Style::default().fg(status_color)),
@@ -671,7 +670,7 @@ pub fn draw_mention_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect,
         let style = if i == app.chat.mention_selected {
             Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(user.color).bg(Color::Black)
+            Style::default().fg(user.color.clone().into()).bg(Color::Black)
         };
         lines.push(Line::from(Span::styled(format!("{}", user.username), style)));
     }

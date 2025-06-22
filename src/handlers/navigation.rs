@@ -1,7 +1,7 @@
 use crate::app::App;
 use crate::sound::SoundType;
 use crate::global_prefs::global_prefs_mut;
-use common::{ClientMessage, SerializableColor};
+use common::{ClientMessage, UserColor};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::style::Color;
 
@@ -198,7 +198,7 @@ fn handle_settings_input(key: KeyEvent, app: &mut App) {
                                 Color::DarkGray, Color::Black
                             ];
                             app.ui.color_picker_selected = palette.iter()
-                                .position(|&c| c == user.color)
+                                .position(|&c| c == user.color.clone().into())
                                 .unwrap_or(0);
                         } else {
                             app.ui.color_picker_selected = 0;
@@ -255,8 +255,8 @@ fn handle_color_picker_input(key: KeyEvent, app: &mut App) {
             let new_color = palette[app.ui.color_picker_selected];
             
             if let Some(user) = &mut app.auth.current_user {
-                user.color = new_color;
-                app.send_to_server(ClientMessage::UpdateColor(SerializableColor(new_color)));
+                user.color = UserColor::from(new_color);
+                app.send_to_server(ClientMessage::UpdateColor(UserColor::from(new_color)));
                 app.sound_manager.play(SoundType::Save);
             }
             app.ui.set_mode(crate::state::AppMode::Settings);
