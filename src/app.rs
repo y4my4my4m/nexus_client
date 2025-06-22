@@ -222,6 +222,14 @@ impl<'a> App<'a> {
             ServerMessage::Notification(text, is_error) => {
                 let prefix = if is_error { "Error: " } else { "Info: " };
                 self.set_notification(format!("{}{}", prefix, text), Some(2000), false);
+                
+                // If this is a profile update success notification, play save sound and return to settings
+                if !is_error && text.contains("Profile updated successfully") {
+                    self.sound_manager.play(SoundType::Save);
+                    if self.ui.mode == crate::state::AppMode::EditProfile {
+                        self.ui.set_mode(crate::state::AppMode::Settings);
+                    }
+                }
             }
             ServerMessage::Notifications { notifications, history_complete } => {
                 self.notifications.notifications = notifications;
@@ -554,8 +562,25 @@ impl<'a> App<'a> {
         ImageService::validate_image_data(&self.profile.edit_profile_pic)?;
         ImageService::validate_image_data(&self.profile.edit_cover_banner)?;
         
-        let profile_pic = ProfileService::file_or_url_to_base64(&self.profile.edit_profile_pic);
-        let cover_banner = ProfileService::file_or_url_to_base64(&self.profile.edit_cover_banner);
+        // Process images with proper error handling
+        let profile_pic = match ProfileService::file_or_url_to_base64(&self.profile.edit_profile_pic) {
+            Ok(result) => result,
+            Err(e) => {
+                self.profile.profile_edit_error = Some(format!("Profile pic error: {}", e));
+                return Err(AppError::Validation(e));
+            }
+        };
+        
+        let cover_banner = match ProfileService::file_or_url_to_base64(&self.profile.edit_cover_banner) {
+            Ok(result) => result,
+            Err(e) => {
+                self.profile.profile_edit_error = Some(format!("Cover banner error: {}", e));
+                return Err(AppError::Validation(e));
+            }
+        };
+        
+        // Clear any previous errors
+        self.profile.profile_edit_error = None;
         
         self.send_to_server(ClientMessage::UpdateProfile {
             bio: Some(self.profile.edit_bio.clone()),
@@ -567,8 +592,8 @@ impl<'a> App<'a> {
             cover_banner,
         });
         
-        self.sound_manager.play(SoundType::Save);
-        self.ui.set_mode(crate::state::AppMode::Settings);
+        // Don't play success sound or change mode here - wait for server response
+        // The server will send a success notification when the profile is actually saved
         
         Ok(())
     }

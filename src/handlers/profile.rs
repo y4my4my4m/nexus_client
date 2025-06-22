@@ -40,11 +40,13 @@ pub fn handle_profile_edit_input(key: KeyEvent, app: &mut App) {
         KeyCode::Enter => {
             match app.profile.profile_edit_focus {
                 Save => {
-                    app.sound_manager.play(SoundType::Save);
                     if let Err(e) = app.save_profile() {
                         app.profile.profile_edit_error = Some(e.to_string());
+                        app.sound_manager.play(SoundType::Error);
+                    } else {
+                        // Don't change mode here - wait for server response
+                        // The server will send a notification when the profile is saved
                     }
-                    app.ui.set_mode(crate::state::AppMode::Settings);
                 }
                 Cancel => {
                     app.ui.set_mode(crate::state::AppMode::Settings);

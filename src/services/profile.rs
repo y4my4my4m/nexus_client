@@ -36,35 +36,40 @@ impl ProfileService {
         url.starts_with("http://") || url.starts_with("https://")
     }
     
-    pub fn file_or_url_to_base64(val: &str) -> Option<String> {
+    pub fn file_or_url_to_base64(val: &str) -> Result<Option<String>, String> {
         if val.trim().is_empty() {
-            return None;
+            return Ok(None);
         }
         
         let trimmed = val.trim();
         
         // If it's already base64 or a URL, return as-is
         if trimmed.starts_with("data:") || trimmed.starts_with("http") {
-            return Some(trimmed.to_string());
+            return Ok(Some(trimmed.to_string()));
         }
         
-        // Try to read as file path
+        // Try to read as file path first
         if Path::new(trimmed).exists() {
-            if let Ok(bytes) = fs::read(trimmed) {
-                if bytes.len() > 1024 * 1024 {
-                    return None; // File too large (>1MB)
+            match fs::read(trimmed) {
+                Ok(bytes) => {
+                    if bytes.len() > 1024 * 1024 {
+                        return Err(format!("File '{}' is too large (>1MB)", trimmed));
+                    }
+                    
+                    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                    Ok(Some(format!("data:image/png;base64,{}", b64)))
                 }
-                
-                let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-                return Some(format!("data:image/png;base64,{}", b64));
+                Err(e) => Err(format!("Failed to read file '{}': {}", trimmed, e))
             }
-        }
-        
-        // Try to decode as base64 to validate
-        if base64::engine::general_purpose::STANDARD.decode(trimmed).is_ok() {
-            Some(trimmed.to_string())
         } else {
-            None
+            // If not a file path, try to decode as raw base64 to validate
+            match base64::engine::general_purpose::STANDARD.decode(trimmed) {
+                Ok(_) => {
+                    // If it's valid base64 but missing data URL prefix, add it
+                    Ok(Some(format!("data:image/png;base64,{}", trimmed)))
+                }
+                Err(_) => Err(format!("'{}' is not a valid file path, URL, or base64 data", trimmed))
+            }
         }
     }
 }

@@ -138,12 +138,43 @@ impl ImageService {
             return Ok(());
         }
         
-        // Try to decode and validate as image
-        if let Some(bytes) = Self::decode_image_bytes(&Some(data.to_string())) {
-            image::load_from_memory(&bytes)
-                .map_err(|e| AppError::Image(format!("Invalid image data: {}", e)))?;
+        let trimmed = data.trim();
+        
+        // If it's a file path, check if the file exists and is readable
+        if !trimmed.starts_with("data:") && !trimmed.starts_with("http") {
+            // It's likely a file path
+            if std::path::Path::new(trimmed).exists() {
+                // Try to read and validate the file
+                match std::fs::read(trimmed) {
+                    Ok(bytes) => {
+                        if bytes.len() > 1024 * 1024 {
+                            return Err(AppError::Image(format!("File '{}' is too large (>1MB)", trimmed)));
+                        }
+                        // Try to load as image to validate format
+                        image::load_from_memory(&bytes)
+                            .map_err(|e| AppError::Image(format!("Invalid image file '{}': {}", trimmed, e)))?;
+                    }
+                    Err(e) => {
+                        return Err(AppError::Image(format!("Cannot read file '{}': {}", trimmed, e)));
+                    }
+                }
+            } else {
+                // Check if it might be raw base64 (without data URL prefix)
+                if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(trimmed) {
+                    image::load_from_memory(&bytes)
+                        .map_err(|e| AppError::Image(format!("Invalid base64 image data: {}", e)))?;
+                } else {
+                    return Err(AppError::Image(format!("'{}' is not a valid file path, URL, or base64 data", trimmed)));
+                }
+            }
         } else {
-            return Err(AppError::Image("Failed to decode image data".to_string()));
+            // It's a data URL or HTTP URL - try to decode and validate
+            if let Some(bytes) = Self::decode_image_bytes(&Some(trimmed.to_string())) {
+                image::load_from_memory(&bytes)
+                    .map_err(|e| AppError::Image(format!("Invalid image data: {}", e)))?;
+            } else {
+                return Err(AppError::Image("Failed to decode image data".to_string()));
+            }
         }
         
         Ok(())
