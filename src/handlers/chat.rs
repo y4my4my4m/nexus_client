@@ -538,12 +538,31 @@ fn move_server_selection(app: &mut App, direction: i32) {
 }
 
 fn move_dm_selection(app: &mut App, direction: i32) {
-    if direction == 1 && !app.chat.dm_user_list.is_empty() {
-        let current = app.chat.selected_dm_user.unwrap_or(0);
-        app.chat.selected_dm_user = Some((current + 1) % app.chat.dm_user_list.len());
-    } else if direction == -1 && !app.chat.dm_user_list.is_empty() {
-        let current = app.chat.selected_dm_user.unwrap_or(0);
-        app.chat.selected_dm_user = Some((current + app.chat.dm_user_list.len() - 1) % app.chat.dm_user_list.len());
+    if app.chat.dm_user_list.is_empty() {
+        return;
+    }
+
+    // Create the same sorted list as the UI to get the display order
+    let mut indexed_users: Vec<(usize, &common::User)> = app.chat.dm_user_list.iter().enumerate().collect();
+    indexed_users.sort_by_key(|(_, u)| (!app.chat.unread_dm_conversations.contains(&u.id), u.username.clone()));
+    
+    // Find current display index
+    let current_display_idx = if let Some(selected_original_idx) = app.chat.selected_dm_user {
+        indexed_users.iter().position(|(original_idx, _)| *original_idx == selected_original_idx).unwrap_or(0)
+    } else {
+        0
+    };
+    
+    // Calculate new display index
+    let new_display_idx = if direction == 1 {
+        (current_display_idx + 1) % indexed_users.len()
+    } else {
+        (current_display_idx + indexed_users.len() - 1) % indexed_users.len()
+    };
+    
+    // Convert back to original index
+    if let Some((original_idx, _)) = indexed_users.get(new_display_idx) {
+        app.chat.selected_dm_user = Some(*original_idx);
     }
 }
 
