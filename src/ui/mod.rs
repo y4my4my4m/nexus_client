@@ -112,7 +112,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         }
         AppMode::EditProfile => draw_profile_edit_page(f, app, main_area),
         AppMode::ColorPicker => draw_color_picker(f, app, main_area),
-        AppMode::Parameters => crate::ui::settings::draw_parameters(f, app, main_area),
+        AppMode::Preferences => crate::ui::settings::draw_preferences(f, app, main_area),
     }
 
     if let Some((notification, _, minimal)) = &app.notifications.current_notification {

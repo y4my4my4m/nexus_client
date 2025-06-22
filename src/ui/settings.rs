@@ -7,7 +7,7 @@ use base64::Engine;
 use crate::global_prefs;
 
 pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
-    let items: Vec<ListItem> = ["Change Password", "Change Color", "Edit Profile", "Parameters"].iter().enumerate().map(|(i, &item)| {
+    let items: Vec<ListItem> = ["Change Password", "Change Color", "Edit Profile", "Preferences"].iter().enumerate().map(|(i, &item)| {
         let style = if Some(i) == app.ui.settings_list_state.selected() {
             Style::default().bg(Color::LightCyan).fg(Color::Black)
         } else {
@@ -523,16 +523,65 @@ pub fn draw_color_picker(f: &mut Frame, app: &mut App, area: Rect) {
     }
 }
 
-pub fn draw_parameters(f: &mut Frame, _app: &mut App, area: Rect) {
+pub fn draw_preferences(f: &mut Frame, app: &mut App, area: Rect) {
     let prefs = global_prefs::global_prefs();
-    let sound_status = if prefs.sound_effects_enabled { "ON" } else { "OFF" };
     
-    let text = format!("Sound Effects: {} (Press SPACE to toggle)", sound_status);
+    let block = Block::default().borders(Borders::ALL).title("Preferences");
+    f.render_widget(&block, area);
+    let inner = block.inner(area);
+    
+    // Create layout for preferences items
+    let items_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Sound Effects
+            Constraint::Length(3), // Glitch Effects
+            Constraint::Min(0),    // Remaining space
+        ])
+        .split(inner);
+    
+    // Sound Effects preference
+    let sound_status = if prefs.sound_effects_enabled { "ON" } else { "OFF" };
+    let sound_style = if app.ui.preferences_selected == 0 {
+        Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::White)
+    };
     
     f.render_widget(
-        Paragraph::new(text)
-            .block(Block::default().borders(Borders::ALL).title("Parameters"))
-            .wrap(Wrap { trim: true }),
-        area,
+        Paragraph::new(format!("🔊 Sound Effects: {}", sound_status))
+            .style(sound_style)
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center),
+        items_layout[0],
+    );
+    
+    // Glitch Effects preference
+    let glitch_status = if prefs.minimal_banner_glitch_enabled { "ON" } else { "OFF" };
+    let glitch_style = if app.ui.preferences_selected == 1 {
+        Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::White)
+    };
+    
+    f.render_widget(
+        Paragraph::new(format!("✨ Glitch Effects: {}", glitch_status))
+            .style(glitch_style)
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center),
+        items_layout[1],
+    );
+    
+    // Help text
+    let help_area = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(2)])
+        .split(inner)[1];
+        
+    f.render_widget(
+        Paragraph::new("Use ↑↓ to navigate, SPACE/ENTER to toggle, ESC to go back")
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(Alignment::Center),
+        help_area,
     );
 }

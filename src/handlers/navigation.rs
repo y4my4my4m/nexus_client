@@ -17,7 +17,7 @@ pub fn handle_global_shortcuts(key: KeyEvent, app: &mut App) -> bool {
         }
         KeyCode::F(2) => {
             // open the preferences menu
-            app.ui.set_mode(crate::state::AppMode::Parameters);
+            app.ui.set_mode(crate::state::AppMode::Preferences);
             app.sound_manager.play(SoundType::PopupOpen);
             return true;
         }
@@ -46,7 +46,7 @@ pub fn handle_general_navigation(key: KeyEvent, app: &mut App) {
         crate::state::AppMode::MainMenu => handle_main_menu_input(key, app),
         crate::state::AppMode::Settings => handle_settings_input(key, app),
         crate::state::AppMode::ColorPicker => handle_color_picker_input(key, app),
-        crate::state::AppMode::Parameters => handle_parameters_input(key, app),
+        crate::state::AppMode::Preferences => handle_preferences_input(key, app),
         _ => {}
     }
 }
@@ -256,7 +256,7 @@ fn handle_settings_input(key: KeyEvent, app: &mut App) {
                         }
                     }
                     3 => {
-                        app.ui.set_mode(crate::state::AppMode::Parameters);
+                        app.ui.set_mode(crate::state::AppMode::Preferences);
                     }
                     _ => {}
                 }
@@ -266,7 +266,7 @@ fn handle_settings_input(key: KeyEvent, app: &mut App) {
             app.ui.set_mode(crate::state::AppMode::MainMenu);
         }
         KeyCode::Char('p') => {
-            app.ui.set_mode(crate::state::AppMode::Parameters);
+            app.ui.set_mode(crate::state::AppMode::Preferences);
         }
         _ => {}
     }
@@ -310,11 +310,30 @@ fn handle_color_picker_input(key: KeyEvent, app: &mut App) {
     }
 }
 
-fn handle_parameters_input(key: KeyEvent, app: &mut App) {
+fn handle_preferences_input(key: KeyEvent, app: &mut App) {
     match key.code {
+        KeyCode::Down => {
+            app.sound_manager.play(SoundType::Scroll);
+            app.ui.preferences_selected = (app.ui.preferences_selected + 1) % 2; // 2 preferences total
+        }
+        KeyCode::Up => {
+            app.sound_manager.play(SoundType::Scroll);
+            app.ui.preferences_selected = if app.ui.preferences_selected == 0 { 1 } else { 0 }; // Go to previous item (wrap around)
+        }
         KeyCode::Char(' ') | KeyCode::Enter => {
+            app.sound_manager.play(SoundType::Save);
             let mut prefs = global_prefs_mut();
-            prefs.sound_effects_enabled = !prefs.sound_effects_enabled;
+            match app.ui.preferences_selected {
+                0 => {
+                    // Toggle sound effects
+                    prefs.sound_effects_enabled = !prefs.sound_effects_enabled;
+                }
+                1 => {
+                    // Toggle glitch effects
+                    prefs.minimal_banner_glitch_enabled = !prefs.minimal_banner_glitch_enabled;
+                }
+                _ => {}
+            }
             prefs.save();
         }
         KeyCode::Esc => {

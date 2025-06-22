@@ -14,7 +14,7 @@ pub enum AppMode {
     Input, 
     EditProfile, 
     ColorPicker, 
-    Parameters,
+    Preferences,
 }
 
 /// State management for UI-specific state
@@ -29,6 +29,9 @@ pub struct UiState {
     
     // Color picker
     pub color_picker_selected: usize,
+    
+    // Preferences navigation
+    pub preferences_selected: usize,
     
     // Server actions
     pub show_server_actions: bool,
@@ -56,6 +59,7 @@ impl Default for UiState {
             main_menu_state: ListState::default(),
             settings_list_state: ListState::default(),
             color_picker_selected: 0,
+            preferences_selected: 0,
             show_server_actions: false,
             server_actions_selected: 0,
             show_server_invite_selection: false,
