@@ -140,6 +140,9 @@ fn handle_sidebar_input(key: KeyEvent, app: &mut App) {
             }
             select_current_sidebar_target(app);
         }
+        KeyCode::Enter => {
+            app.chat.chat_focus = crate::state::ChatFocus::Messages;
+        }
         KeyCode::Esc => {
             app.ui.set_mode(crate::state::AppMode::MainMenu);
         }
