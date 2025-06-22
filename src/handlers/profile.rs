@@ -44,6 +44,7 @@ pub fn handle_profile_edit_input(key: KeyEvent, app: &mut App) {
                     if let Err(e) = app.save_profile() {
                         app.profile.profile_edit_error = Some(e.to_string());
                     }
+                    app.ui.set_mode(crate::state::AppMode::Settings);
                 }
                 Cancel => {
                     app.ui.set_mode(crate::state::AppMode::Settings);

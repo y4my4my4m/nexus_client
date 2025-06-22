@@ -25,7 +25,6 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
     let min_two_col_width = 110; // Increased for more breathing room
     let is_narrow = area.width < min_two_col_width;
     // Outer card with more margin
-    let outer_margin = 2;
     let block = Block::default()
         .title(Span::styled("✦ Edit Your Profile ✦", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)))
         .borders(Borders::ALL)
@@ -33,7 +32,6 @@ pub fn draw_profile_edit_page(f: &mut Frame, app: &mut App, area: Rect) {
         .style(Style::default().bg(Color::Black));
     let card_area = Layout::default()
         .direction(Direction::Vertical)
-        .margin(outer_margin)
         .constraints([Constraint::Min(0)])
         .split(area)[0];
     f.render_widget(&block, card_area);
