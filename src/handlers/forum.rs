@@ -39,6 +39,27 @@ fn handle_forum_list_input(key: KeyEvent, app: &mut App) {
                 }
             }
         }
+        KeyCode::Char('n') | KeyCode::Char('N') => {
+            // Admin-only: Create new forum
+            if let Some(user) = &app.auth.current_user {
+                if user.role == common::UserRole::Admin {
+                    app.enter_input_mode(crate::state::InputMode::NewForumName);
+                }
+            }
+        }
+        KeyCode::Char('d') | KeyCode::Char('D') => {
+            // Admin-only: Delete selected forum
+            if let Some(user) = &app.auth.current_user {
+                if user.role == common::UserRole::Admin {
+                    if let Some(idx) = app.forum.forum_list_state.selected() {
+                        if let Some(forum) = app.forum.forums.get(idx) {
+                            app.send_to_server(ClientMessage::DeleteForum { forum_id: forum.id });
+                            app.set_notification("Forum deletion requested", Some(2000), false);
+                        }
+                    }
+                }
+            }
+        }
         KeyCode::Esc => {
             app.ui.set_mode(crate::state::AppMode::MainMenu);
         }
@@ -47,6 +68,8 @@ fn handle_forum_list_input(key: KeyEvent, app: &mut App) {
 }
 
 fn handle_thread_list_input(key: KeyEvent, app: &mut App) {
+    use crossterm::event::KeyModifiers;
+    
     match key.code {
         KeyCode::Down => {
             if let Some(forum) = app.forum.get_current_forum() {
@@ -81,6 +104,21 @@ fn handle_thread_list_input(key: KeyEvent, app: &mut App) {
         KeyCode::Char('n') | KeyCode::Char('N') => {
             app.enter_input_mode(crate::state::InputMode::NewThreadTitle);
         }
+        KeyCode::Char('d') | KeyCode::Char('D') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            // Admin-only: Delete selected thread
+            if let Some(user) = &app.auth.current_user {
+                if user.role == common::UserRole::Admin {
+                    if let Some(idx) = app.forum.thread_list_state.selected() {
+                        if let Some(forum) = app.forum.get_current_forum() {
+                            if let Some(thread) = forum.threads.get(idx) {
+                                app.send_to_server(ClientMessage::DeleteThread(thread.id));
+                                app.set_notification("Thread deletion requested", Some(2000), false);
+                            }
+                        }
+                    }
+                }
+            }
+        }
         KeyCode::Esc => {
             app.ui.set_mode(crate::state::AppMode::ForumList);
         }
@@ -89,9 +127,24 @@ fn handle_thread_list_input(key: KeyEvent, app: &mut App) {
 }
 
 fn handle_post_view_input(key: KeyEvent, app: &mut App) {
+    use crossterm::event::KeyModifiers;
+    
     match key.code {
         KeyCode::Char('r') | KeyCode::Char('R') => {
             app.enter_input_mode(crate::state::InputMode::NewPostContent);
+        }
+        KeyCode::Char('d') | KeyCode::Char('D') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            // Admin-only: Delete first post in thread (for now, we'll need to add post selection later)
+            if let Some(user) = &app.auth.current_user {
+                if user.role == common::UserRole::Admin {
+                    if let Some(thread) = app.forum.get_current_thread() {
+                        if let Some(post) = thread.posts.first() {
+                            app.send_to_server(ClientMessage::DeletePost(post.id));
+                            app.set_notification("Post deletion requested", Some(2000), false);
+                        }
+                    }
+                }
+            }
         }
         KeyCode::Esc => {
             app.ui.set_mode(crate::state::AppMode::ThreadList);

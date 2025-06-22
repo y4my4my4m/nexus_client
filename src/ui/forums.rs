@@ -14,7 +14,20 @@ pub fn draw_forum_list(f: &mut Frame, app: &mut App, area: Rect) {
         ]))
     }).collect();
 
-    let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Forums"));
+    let title = if let Some(user) = &app.auth.current_user {
+        if user.role == common::UserRole::Admin {
+            "Forums | [N]ew Forum | [D]elete Forum"
+        } else {
+            "Forums"
+        }
+    } else {
+        "Forums"
+    };
+
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title(title))
+        .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD))
+        .highlight_symbol(">> ");
     f.render_stateful_widget(list, area, &mut app.forum.forum_list_state);
 }
 
@@ -28,7 +41,18 @@ pub fn draw_thread_list(f: &mut Frame, app: &mut App, area: Rect) {
     };
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(format!("Threads in '{}' | [N]ew Thread", forum.name));
+        .title(format!("Threads in '{}' | [N]ew Thread{}", 
+            forum.name,
+            if let Some(user) = &app.auth.current_user {
+                if user.role == common::UserRole::Admin {
+                    " | [Ctrl+D]elete Thread"
+                } else {
+                    ""
+                }
+            } else {
+                ""
+            }
+        ));
     f.render_widget(&block, area);
     let inner_area = block.inner(area);
 
@@ -124,7 +148,18 @@ pub fn draw_post_view(f: &mut Frame, app: &mut App, area: Rect) {
         _ => None,
     };
     if let Some(thread) = thread {
-        let title = format!("Reading: {} | [R]eply", thread.title);
+        let title = format!("Reading: {} | [R]eply{}", 
+            thread.title,
+            if let Some(user) = &app.auth.current_user {
+                if user.role == common::UserRole::Admin {
+                    " | [Ctrl+D]elete Post"
+                } else {
+                    ""
+                }
+            } else {
+                ""
+            }
+        );
         let mut text: Vec<Line> = Vec::new();
         for post in &thread.posts {
             let ts_str = format_message_timestamp(post.timestamp, Local::now());

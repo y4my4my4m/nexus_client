@@ -68,6 +68,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         AppMode::Chat => draw_chat(f, app, main_area),
         AppMode::Input => {
             let underlying_mode = match app.auth.input_mode {
+                Some(InputMode::NewForumName) | Some(InputMode::NewForumDescription) => Some(AppMode::ForumList),
                 Some(InputMode::NewThreadTitle) | Some(InputMode::NewThreadContent) => Some(AppMode::ForumList),
                 Some(InputMode::NewPostContent) => Some(AppMode::PostView),
                 Some(InputMode::UpdatePassword) => Some(AppMode::Settings),

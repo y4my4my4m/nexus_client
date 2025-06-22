@@ -84,6 +84,8 @@ pub fn draw_dm_input_popup(f: &mut Frame, app: &App) {
 
 pub fn draw_input_popup(f: &mut Frame, app: &App) {
     let title = match app.auth.input_mode {
+        Some(crate::state::InputMode::NewForumName) => "New Forum Name",
+        Some(crate::state::InputMode::NewForumDescription) => "New Forum Description",
         Some(crate::state::InputMode::NewThreadTitle) => "New Thread Title",
         Some(crate::state::InputMode::NewThreadContent) => "New Thread Content",
         Some(crate::state::InputMode::NewPostContent) => "Reply Content",

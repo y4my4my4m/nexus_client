@@ -12,6 +12,8 @@ pub enum InputMode {
     NewThreadTitle,
     NewThreadContent,
     NewPostContent,
+    NewForumName,
+    NewForumDescription,
     UpdatePassword,
 }
 

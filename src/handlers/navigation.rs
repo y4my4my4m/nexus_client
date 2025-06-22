@@ -50,6 +50,35 @@ pub fn handle_input_mode(key: KeyEvent, app: &mut App) {
             
             if let Some(im) = app.auth.input_mode.take() {
                 match im {
+                    NewForumName => {
+                        app.sound_manager.play(SoundType::PopupOpen);
+                        if input.trim().is_empty() {
+                            app.set_notification("Forum name cannot be empty.", None, false);
+                            app.auth.set_input_mode(NewForumName);
+                            return;
+                        }
+                        app.enter_input_mode(NewForumDescription);
+                        app.auth.password_input = input;
+                    }
+                    NewForumDescription => {
+                        let name = prev_input;
+                        let description = input;
+                        app.sound_manager.play(SoundType::PopupOpen);
+                        
+                        if name.trim().is_empty() || description.trim().is_empty() {
+                            app.set_notification("Forum name and description cannot be empty.", None, false);
+                            app.auth.set_input_mode(NewForumName);
+                            app.auth.password_input = name;
+                            return;
+                        }
+                        
+                        app.send_to_server(ClientMessage::CreateForum {
+                            name: name.clone(),
+                            description: description.clone(),
+                        });
+                        app.set_notification("Forum creation requested!", Some(1500), false);
+                        app.ui.set_mode(crate::state::AppMode::ForumList);
+                    }
                     NewThreadTitle => {
                         app.sound_manager.play(SoundType::PopupOpen);
                         if input.trim().is_empty() {
