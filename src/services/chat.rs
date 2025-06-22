@@ -1,8 +1,9 @@
 use crate::state::{ChatState, ChatTarget};
 use crate::model::ChatMessageWithMeta;
 use crate::services::image::{ImageCache, ImageCacheKey, CachedImage, ImageCacheStats};
-use common::User;
+use common::{User, ClientMessage};
 use std::sync::Arc;
+use tokio::sync::mpsc;
 
 /// Enhanced chat service with pagination and caching capabilities
 pub struct ChatService {
@@ -299,5 +300,32 @@ impl ChatService {
         max_rows: usize,
     ) -> bool {
         Self::should_fetch_more_messages_enhanced(chat_state, max_rows, 10)
+    }
+
+    /// Request avatars for users that don't have profile pictures loaded
+    pub fn request_missing_avatars(&self, chat_state: &ChatState, to_server: &mpsc::UnboundedSender<ClientMessage>) {
+        let mut missing_user_ids = std::collections::HashSet::new();
+        
+        // Check channel users for missing avatars
+        for user in &chat_state.channel_userlist {
+            if user.profile_pic.is_none() {
+                missing_user_ids.insert(user.id);
+            }
+        }
+        
+        // Check DM users for missing avatars
+        for user in &chat_state.dm_user_list {
+            if user.profile_pic.is_none() {
+                missing_user_ids.insert(user.id);
+            }
+        }
+        
+        // Convert to Vec, limit to reasonable batch size, and send
+        let mut unique_user_ids: Vec<_> = missing_user_ids.into_iter().collect();
+        unique_user_ids.truncate(20); // Limit to prevent server overload
+        
+        if !unique_user_ids.is_empty() {
+            let _ = to_server.send(ClientMessage::GetUserAvatars { user_ids: unique_user_ids });
+        }
     }
 }

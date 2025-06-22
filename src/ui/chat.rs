@@ -167,7 +167,19 @@ pub fn draw_sidebar_dms(f: &mut Frame, app: &mut App, area: Rect, focused: bool)
     indexed_users.sort_by_key(|(_, u)| (!app.chat.unread_dm_conversations.contains(&u.id), u.username.clone()));
     
     let items: Vec<ListItem> = indexed_users.iter().map(|(_original_idx, u)| {
-            let mut spans = vec![Span::styled(format!("{} {}", if u.status == common::UserStatus::Connected { "●" } else { "○" }, u.username), Style::default().fg(u.color.clone().into()))];
+            let status_symbol = if u.status == common::UserStatus::Connected { "●" } else { "○" };
+            let status_color = match u.status {
+                common::UserStatus::Connected => Color::Green,
+                common::UserStatus::Away => Color::Yellow,
+                common::UserStatus::Busy => Color::Red,
+                common::UserStatus::Offline => Color::DarkGray,
+            };
+            
+            let mut spans = vec![
+                Span::styled(status_symbol, Style::default().fg(status_color)),
+                Span::raw(" "),
+                Span::styled(&u.username, Style::default().fg(u.color.clone().into()))
+            ];
             if app.chat.unread_dm_conversations.contains(&u.id) {
                 spans.push(Span::raw(" "));
                 spans.push(Span::styled("○", Style::default().fg(Color::Red)));
