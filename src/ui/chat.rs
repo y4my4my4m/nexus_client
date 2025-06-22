@@ -58,7 +58,7 @@ pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
         .select(tab_idx)
         .block(Block::default().borders(Borders::ALL).border_style(tabs_border_style))
         .highlight_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-        .style(Style::default().fg(Color::Gray));
+        .style(Style::default());
     // Layout: Tabs (1 row), then content
     let sidebar_chunks = Layout::default()
         .direction(Direction::Vertical)
