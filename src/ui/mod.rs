@@ -1,6 +1,6 @@
 //! Main UI module. Re-exports submodules and provides the main entry point.
 
-pub mod banner;
+pub mod banners;
 pub mod auth;
 pub mod main_menu;
 pub mod forums;
@@ -13,7 +13,7 @@ pub mod time_format;
 use ratatui::Frame;
 use common::UserRole;
 use crate::app::{App, AppMode, InputMode};
-use crate::ui::banner::{draw_full_banner, draw_min_banner};
+use crate::ui::banners::{draw_full_banner, draw_min_banner};
 use crate::ui::auth::{draw_login, draw_register};
 use crate::ui::main_menu::draw_main_menu;
 use crate::ui::forums::{draw_forum_list, draw_thread_list, draw_post_view};

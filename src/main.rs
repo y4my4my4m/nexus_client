@@ -3,7 +3,6 @@ mod handlers;
 mod services;
 mod state;
 mod ui;
-mod banner;
 mod sound;
 mod global_prefs;
 mod model;
