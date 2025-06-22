@@ -789,6 +789,30 @@ impl<'a> App<'a> {
             self.profile.profile_banner_image_state = None;
         }
     }
+
+    pub fn get_current_chat_title(&self) -> String {
+        match &self.chat.current_chat_target {
+            Some(crate::state::ChatTarget::Channel { .. }) => {
+                let channel_name = self.chat.selected_server
+                    .and_then(|server_idx| self.chat.servers.get(server_idx))
+                    .and_then(|server| self.chat.selected_channel
+                        .and_then(|channel_idx| server.channels.get(channel_idx))
+                        .map(|channel| channel.name.as_str()))
+                    .unwrap_or("unknown");
+                
+                format!("Channel // #{}", channel_name)
+            }
+            Some(crate::state::ChatTarget::DM { .. }) => {
+                let username = self.chat.selected_dm_user
+                    .and_then(|dm_idx| self.chat.dm_user_list.get(dm_idx))
+                    .map(|user| user.username.as_str())
+                    .unwrap_or("unknown");
+                
+                format!("Conversation // @{}", username)
+            }
+            None => "Chat".to_string()
+        }
+    }
 }
 
 // Re-export commonly used types for backward compatibility

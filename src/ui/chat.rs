@@ -426,7 +426,10 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         ])
         .split(area);
 
-    draw_message_list(f, app, chunks[0], focused, "Chat");
+    // Use the clean helper method to get the title
+    let title = app.get_current_chat_title();
+
+    draw_message_list(f, app, chunks[0], focused, &title);
 
     // Create styled input text with white text and colored @mentions
     let mut input_spans = Vec::new();
