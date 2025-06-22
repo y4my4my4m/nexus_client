@@ -284,6 +284,9 @@ fn handle_message_input(key: KeyEvent, app: &mut App) {
                 app.set_notification(format!("Failed to send message: {}", e), Some(2000), false);
             }
         }
+        KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
+            app.chat.show_user_list = !app.chat.show_user_list;
+        }
         KeyCode::Char(c) => {
             if key.modifiers.contains(KeyModifiers::CONTROL) {
                 return;
