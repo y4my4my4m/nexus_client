@@ -292,15 +292,18 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
     let mut last_date: Option<chrono::NaiveDate> = None;
     
     // First pass: identify where date delimiters should go (in forward order)
-    // Only show delimiters if there are actually multiple dates in the visible messages
+    // Only show delimiters if there are actually messages after them in the visible range
     for (i, msg) in visible_messages.iter().enumerate() {
         if let Some(ts) = msg.timestamp {
             if let Some(dt) = chrono::Local.timestamp_opt(ts, 0).single() {
                 let msg_date = dt.date_naive();
                 if let Some(last) = last_date {
                     if last != msg_date {
-                        // Mark this position for a date delimiter before this message
-                        date_delimiters.push((i, ts));
+                        // Only add delimiter if this is NOT the last message in visible range
+                        // (i.e., there are messages after this delimiter)
+                        if i < visible_messages.len() - 1 {
+                            date_delimiters.push((i, ts));
+                        }
                     }
                 }
                 last_date = Some(msg_date);
