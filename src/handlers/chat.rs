@@ -431,7 +431,7 @@ fn handle_scroll_up(app: &mut App) {
     let max_rows = app.chat.last_chat_rows.unwrap_or(20);
     
     match &app.chat.current_chat_target {
-        Some(crate::state::ChatTarget::Channel { server_id, channel_id }) => {
+        Some(crate::state::ChatTarget::Channel { server_id: _, channel_id }) => {
             let total_msgs = app.get_current_message_list().len();
             let max_scroll_offset = total_msgs.saturating_sub(max_rows);
             
@@ -439,15 +439,12 @@ fn handle_scroll_up(app: &mut App) {
             
             // Fetch more messages if needed
             if crate::services::ChatService::should_fetch_more_messages(&app.chat, max_rows) {
-                if let Some(server) = app.chat.servers.iter().find(|s| s.channels.iter().any(|c| &c.id == channel_id)) {
-                    if let Some(channel) = server.channels.iter().find(|c| &c.id == channel_id) {
-                        if let Some(oldest_msg) = channel.messages.first() {
-                            app.send_to_server(ClientMessage::GetChannelMessages {
-                                channel_id: *channel_id,
-                                before: Some(oldest_msg.timestamp),
-                            });
-                        }
-                    }
+                // Look for the oldest message in the actual chat messages, not channel.messages
+                if let Some(oldest_msg) = app.chat.chat_messages.first() {
+                    app.send_to_server(ClientMessage::GetChannelMessages {
+                        channel_id: *channel_id,
+                        before: Some(oldest_msg.timestamp),
+                    });
                 }
             }
         }
