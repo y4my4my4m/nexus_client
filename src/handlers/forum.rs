@@ -104,7 +104,7 @@ fn handle_thread_list_input(key: KeyEvent, app: &mut App) {
         KeyCode::Char('n') | KeyCode::Char('N') => {
             app.enter_input_mode(crate::state::InputMode::NewThreadTitle);
         }
-        KeyCode::Char('d') | KeyCode::Char('D') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+        KeyCode::Char('d') | KeyCode::Char('D') if key.modifiers.contains(KeyModifiers::ALT) => {
             // Admin-only: Delete selected thread
             if let Some(user) = &app.auth.current_user {
                 if user.role == common::UserRole::Admin {
@@ -133,7 +133,7 @@ fn handle_post_view_input(key: KeyEvent, app: &mut App) {
         KeyCode::Char('r') | KeyCode::Char('R') => {
             app.enter_input_mode(crate::state::InputMode::NewPostContent);
         }
-        KeyCode::Char('d') | KeyCode::Char('D') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+        KeyCode::Char('d') | KeyCode::Char('D') if key.modifiers.contains(KeyModifiers::ALT) => {
             // Admin-only: Delete first post in thread (for now, we'll need to add post selection later)
             if let Some(user) = &app.auth.current_user {
                 if user.role == common::UserRole::Admin {

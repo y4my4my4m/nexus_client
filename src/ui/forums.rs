@@ -45,7 +45,7 @@ pub fn draw_thread_list(f: &mut Frame, app: &mut App, area: Rect) {
             forum.name,
             if let Some(user) = &app.auth.current_user {
                 if user.role == common::UserRole::Admin {
-                    " | [Ctrl+D]elete Thread"
+                    " | [Alt+D]elete Thread"
                 } else {
                     ""
                 }
@@ -152,7 +152,7 @@ pub fn draw_post_view(f: &mut Frame, app: &mut App, area: Rect) {
             thread.title,
             if let Some(user) = &app.auth.current_user {
                 if user.role == common::UserRole::Admin {
-                    " | [Ctrl+D]elete Post"
+                    " | [Alt+D]elete Post"
                 } else {
                     ""
                 }
