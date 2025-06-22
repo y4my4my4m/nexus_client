@@ -155,32 +155,34 @@ impl ImageService {
             return;
         }
 
-        let char_width = 6;
-        let char_height = 8;
-        let text_padding = 10;
+        let char_width = 8;  // Keep at 8 for good visibility
+        let char_height = 8; // Reduce back to 8 to fix vertical stretching
+        let text_padding = 20; // Move text higher up
         
         // Calculate text dimensions
         let text_width = text.len() as u32 * char_width;
         let text_height = char_height;
         
-        // Position text in bottom-right corner
-        let text_x = banner_size.0.saturating_sub(text_width + text_padding);
-        let text_y = banner_size.1.saturating_sub(text_height + text_padding);
+        // Position text higher up (closer to middle rather than bottom)
+        let pfp_width: u32 = 64; // Same as pfp_size in composite function
+        let pfp_padding_left: u32 = 30;
+        let text_x: u32 = pfp_padding_left + pfp_width + 20; // 20 pixels after profile pic
+        let text_y: u32 = (banner_size.1 / 2).saturating_sub(text_height / 2); // Center vertically
         
-        // Draw semi-transparent black background
-        let bg_padding = 4;
-        let bg_x = text_x.saturating_sub(bg_padding);
-        let bg_y = text_y.saturating_sub(bg_padding);
-        let bg_width = text_width + (bg_padding * 2);
-        let bg_height = text_height + (bg_padding * 2);
+        // Draw more opaque black background for better contrast
+        let bg_padding: u32 = 6; // Increased padding
+        let bg_x: u32 = text_x.saturating_sub(bg_padding);
+        let bg_y: u32 = text_y.saturating_sub(bg_padding);
+        let bg_width: u32 = text_width + (bg_padding * 2);
+        let bg_height: u32 = text_height + (bg_padding * 2);
         
-        // Fill background with semi-transparent black
+        // Fill background with more opaque black (85% opacity)
         for y in bg_y..bg_y + bg_height {
             for x in bg_x..bg_x + bg_width {
                 if x < banner_size.0 && y < banner_size.1 {
                     let pixel = image.get_pixel_mut(x, y);
-                    // Blend with semi-transparent black (70% opacity)
-                    let alpha = 0.7;
+                    // Blend with more opaque black (85% opacity)
+                    let alpha = 0.85;
                     let inv_alpha = 1.0 - alpha;
                     pixel[0] = (0.0 * alpha + pixel[0] as f32 * inv_alpha) as u8;
                     pixel[1] = (0.0 * alpha + pixel[1] as f32 * inv_alpha) as u8;
@@ -196,12 +198,12 @@ impl ImageService {
             // Get the bitmap pattern for this character
             let bitmap = Self::get_char_bitmap(ch);
             
-            // Draw the character bitmap
+            // Draw the character bitmap (no scaling to fix stretching)
             for (row, &pattern) in bitmap.iter().enumerate() {
-                for col in 0..char_width {
-                    if pattern & (1 << (char_width - 1 - col)) != 0 {
+                for col in 0..8 { // Use full 8 bits for wider characters
+                    if pattern & (1 << (7 - col)) != 0 { // Adjust bit order for 8-bit width
                         let px = char_x + col;
-                        let py = text_y + row as u32;
+                        let py = text_y + row as u32; // No vertical scaling
                         
                         if px < banner_size.0 && py < banner_size.1 {
                             let pixel = image.get_pixel_mut(px, py);
@@ -260,6 +262,102 @@ impl ImageService {
             ' ' => [0b000000, 0b000000, 0b000000, 0b000000, 0b000000, 0b000000, 0b000000, 0b000000],
             _ => [0b111110, 0b100010, 0b100010, 0b100010, 0b100010, 0b100010, 0b111110, 0b000000], // Default box for unknown chars
         }
+    }
+
+    /// Create a profile pic with username overlay for fallback cases
+    pub fn create_pfp_with_username(
+        pfp_bytes: &[u8],
+        username: &str,
+        target_size: (u32, u32),
+    ) -> Result<Vec<u8>, AppError> {
+        // Load profile pic
+        let pfp_img = image::load_from_memory(pfp_bytes)
+            .map_err(|e| AppError::Image(format!("Failed to load profile picture: {}", e)))?;
+
+        // Create a dark background similar to the banner case
+        let mut background = image::RgbaImage::new(target_size.0, target_size.1);
+        for y in 0..target_size.1 {
+            for x in 0..target_size.0 {
+                // Create a subtle dark gradient from dark gray to black
+                let gradient_factor = (y as f32 / target_size.1 as f32);
+                let gray_value = (64.0 * (1.0 - gradient_factor * 0.5)) as u8; // 64 to 32
+                background.put_pixel(x, y, image::Rgba([gray_value, gray_value, gray_value, 255]));
+            }
+        }
+
+        // Resize and position profile pic (centered)
+        let pfp_size = 64u32;
+        let pfp_cropped = pfp_img.resize_to_fill(pfp_size, pfp_size, image::imageops::FilterType::Lanczos3);
+        let mut pfp_rgba = pfp_cropped.to_rgba8();
+        
+        // Apply circular mask to profile picture
+        let center_x = pfp_size as f32 / 2.0;
+        let center_y = pfp_size as f32 / 2.0;
+        let radius = (pfp_size as f32 / 2.0) - 1.0;
+        for y in 0..pfp_size {
+            for x in 0..pfp_size {
+                let dx = x as f32 - center_x;
+                let dy = y as f32 - center_y;
+                let distance = (dx * dx + dy * dy).sqrt();
+                
+                let pixel = pfp_rgba.get_pixel_mut(x, y);
+                if distance > radius {
+                    pixel[3] = 0;
+                } else if distance > radius - 2.0 {
+                    let fade = (radius - distance) / 2.0;
+                    pixel[3] = (pixel[3] as f32 * fade) as u8;
+                }
+            }
+        }
+
+        // Add white border around circular profile picture
+        for y in 0..pfp_size {
+            for x in 0..pfp_size {
+                let dx = x as f32 - center_x;
+                let dy = y as f32 - center_y;
+                let distance = (dx * dx + dy * dy).sqrt();
+                if distance >= radius - 2.0 && distance <= radius {
+                    let pixel = pfp_rgba.get_pixel_mut(x, y);
+                    pixel[0] = 255;
+                    pixel[1] = 255;
+                    pixel[2] = 255;
+                    pixel[3] = 200;
+                }
+            }
+        }
+
+        // Overlay circular PFP on background (positioned on left side like in main composite)
+        let pfp_padding_left = 30u32; // Same as main composite function
+        let pfp_x = pfp_padding_left;
+        let pfp_y = (target_size.1 - pfp_size) / 2; // Still center vertically
+        for y in 0..pfp_size {
+            for x in 0..pfp_size {
+                let bg_x = pfp_x + x;
+                let bg_y = pfp_y + y;
+                if bg_x < target_size.0 && bg_y < target_size.1 {
+                    let pfp_pixel = pfp_rgba.get_pixel(x, y);
+                    let bg_pixel = background.get_pixel_mut(bg_x, bg_y);
+                    if pfp_pixel[3] > 0 {
+                        let alpha = pfp_pixel[3] as f32 / 255.0;
+                        let inv_alpha = 1.0 - alpha;
+                        bg_pixel[0] = (pfp_pixel[0] as f32 * alpha + bg_pixel[0] as f32 * inv_alpha) as u8;
+                        bg_pixel[1] = (pfp_pixel[1] as f32 * alpha + bg_pixel[1] as f32 * inv_alpha) as u8;
+                        bg_pixel[2] = (pfp_pixel[2] as f32 * alpha + bg_pixel[2] as f32 * inv_alpha) as u8;
+                    }
+                }
+            }
+        }
+
+        // Render username text
+        if !username.is_empty() {
+            Self::draw_simple_text(&mut background, username, target_size);
+        }
+
+        // Convert to bytes
+        let mut buffer = Vec::new();
+        background.write_to(&mut std::io::Cursor::new(&mut buffer), image::ImageFormat::Png)
+            .map_err(|e| AppError::Image(format!("Failed to encode profile image: {}", e)))?;
+        Ok(buffer)
     }
 }
 

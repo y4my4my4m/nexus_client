@@ -107,6 +107,8 @@ impl ProfileState {
     pub fn set_profile_for_viewing(&mut self, profile: UserProfile) {
         self.profile_view = Some(profile);
         self.show_profile_view_popup = true;
+        // Clear cached banner state to prevent showing stale composite images
+        self.profile_banner_image_state = None;
     }
     
     pub fn close_profile_view(&mut self) {

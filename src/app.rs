@@ -7,7 +7,7 @@ use crate::state::{
     AppConfig, AppResult, AppError
 };
 use crate::services::{ChatService, MessageService, ProfileService, ImageService};
-use crate::services::image::{ImageCache, ImageCacheConfig, ImageCacheStats};
+use crate::services::image::{ImageCache, ImageCacheStats};
 use crate::model::ChatMessageWithMeta;
 use tokio::sync::mpsc;
 use std::sync::Arc;
@@ -679,11 +679,27 @@ impl<'a> App<'a> {
                         }
                     }
                     Err(e) => {
-                        eprintln!("Failed to create banner composite: {}", e);
-                        // Fallback to just banner if composite fails
-                        if let Ok(banner_img) = image::load_from_memory(&banner_bytes) {
-                            let protocol = self.profile.picker.new_resize_protocol(banner_img);
-                            self.profile.profile_banner_image_state = Some(protocol);
+                        // self.set_notification(format!("Failed to create profile banner: {}", e), Some(3000), false);
+                        // Fallback to profile pic with username using the new helper function
+                        let font_size = self.profile.picker.font_size();
+                        let banner_px_w = banner_area_width_cells as u32 * font_size.0 as u32;
+                        let banner_px_h = banner_area_height_cells as u32 * font_size.1 as u32;
+                        let banner_size = (banner_px_w, banner_px_h);
+                        
+                        match ImageService::create_pfp_with_username(&pfp_bytes, &profile.username, banner_size) {
+                            Ok(fallback_bytes) => {
+                                if let Ok(fallback_img) = image::load_from_memory(&fallback_bytes) {
+                                    let protocol = self.profile.picker.new_resize_protocol(fallback_img);
+                                    self.profile.profile_banner_image_state = Some(protocol);
+                                }
+                            }
+                            Err(_) => {
+                                // Last resort: just the profile pic alone
+                                if let Ok(pfp_img) = image::load_from_memory(&pfp_bytes) {
+                                    let protocol = self.profile.picker.new_resize_protocol(pfp_img);
+                                    self.profile.profile_banner_image_state = Some(protocol);
+                                }
+                            }
                         }
                     }
                 }
@@ -707,6 +723,63 @@ impl<'a> App<'a> {
                     
                     let protocol = self.profile.picker.new_resize_protocol(image::DynamicImage::ImageRgba8(rgba_img));
                     self.profile.profile_banner_image_state = Some(protocol);
+                }
+            } else if let Some(pfp_bytes) = ImageService::decode_image_bytes(&profile.profile_pic) {
+                // Just profile pic, no banner - create a default dark background with profile pic overlaid
+                let font_size = self.profile.picker.font_size();
+                let banner_px_w = banner_area_width_cells as u32 * font_size.0 as u32;
+                let banner_px_h = banner_area_height_cells as u32 * font_size.1 as u32;
+                let banner_size = (banner_px_w, banner_px_h);
+                let pfp_size = (64, 64);
+                let pfp_padding_left = 30;
+                
+                // Create a default dark gradient background
+                let mut default_banner = image::RgbaImage::new(banner_size.0, banner_size.1);
+                for y in 0..banner_size.1 {
+                    for x in 0..banner_size.0 {
+                        // Create a subtle dark gradient from dark gray to black
+                        let gradient_factor = (y as f32 / banner_size.1 as f32);
+                        let gray_value = (64.0 * (1.0 - gradient_factor * 0.5)) as u8; // 64 to 32
+                        default_banner.put_pixel(x, y, image::Rgba([gray_value, gray_value, gray_value, 255]));
+                    }
+                }
+                
+                // Convert to bytes for composite function
+                let mut banner_bytes = Vec::new();
+                match default_banner.write_to(&mut std::io::Cursor::new(&mut banner_bytes), image::ImageFormat::Png) {
+                    Ok(()) => {
+                        match ImageService::composite_banner_and_pfp(
+                            &banner_bytes,
+                            &pfp_bytes,
+                            banner_size,
+                            pfp_size,
+                            pfp_padding_left,
+                            &profile.username,
+                        ) {
+                            Ok(composite_bytes) => {
+                                if let Ok(composite_img) = image::load_from_memory(&composite_bytes) {
+                                    let protocol = self.profile.picker.new_resize_protocol(composite_img);
+                                    self.profile.profile_banner_image_state = Some(protocol);
+                                }
+                            }
+                            Err(e) => {
+                                self.set_notification(format!("Failed to create profile banner: {}", e), Some(3000), true);
+                                // Fallback to just the profile pic if composite fails
+                                if let Ok(pfp_img) = image::load_from_memory(&pfp_bytes) {
+                                    let protocol = self.profile.picker.new_resize_protocol(pfp_img);
+                                    self.profile.profile_banner_image_state = Some(protocol);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        self.set_notification(format!("Failed to encode profile banner: {}", e), Some(3000), true);
+                        // Direct fallback to profile pic
+                        if let Ok(pfp_img) = image::load_from_memory(&pfp_bytes) {
+                            let protocol = self.profile.picker.new_resize_protocol(pfp_img);
+                            self.profile.profile_banner_image_state = Some(protocol);
+                        }
+                    }
                 }
             } else {
                 // No images available
