@@ -33,7 +33,7 @@ impl NotificationState {
             n.read = read;
         }
     }
-    
+
     pub fn should_close_notification(&self, tick_count: u64) -> bool {
         if let Some((_, Some(close_tick), _)) = &self.current_notification {
             tick_count >= *close_tick

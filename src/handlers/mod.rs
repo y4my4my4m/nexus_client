@@ -14,6 +14,12 @@ pub fn handle_key_event(key: KeyEvent, app: &mut App) {
         return;
     }
 
+    // Check if there's an active notification and close it on any key press
+    if app.notifications.current_notification.is_some() {
+        app.notifications.clear_notification();
+        return; // Consume the key press and don't process further
+    }
+
     match app.ui.mode {
         crate::state::AppMode::Login | crate::state::AppMode::Register => {
             auth::handle_auth_input(key, app);
