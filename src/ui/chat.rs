@@ -12,8 +12,8 @@ use chrono::TimeZone;
 pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
     // Sidebar with Tabs: [ Servers ] [ DMs ]
     let sidebar_width = 28;
-    let show_users = app.show_user_list;
-    let focus = app.chat_focus;
+    let show_users = app.chat.show_user_list;
+    let focus = app.chat.chat_focus;
     let chunks = if show_users {
         Layout::default()
             .direction(Direction::Horizontal)
@@ -34,20 +34,20 @@ pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
     };
     // Tabs at the top of the sidebar
     let tab_titles = vec![
-        if app.unread_channels.is_empty() {
+        if app.chat.unread_channels.is_empty() {
             Line::from("Servers")
         } else {
             Line::from(vec![Span::raw("Servers "), Span::styled("○", Style::default().fg(Color::Red))])
         },
-        if app.unread_dm_conversations.is_empty() {
+        if app.chat.unread_dm_conversations.is_empty() {
             Line::from("DMs")
         } else {
             Line::from(vec![Span::raw("DMs "), Span::styled("○", Style::default().fg(Color::Red))])
         },
     ];
-    let tab_idx = match app.sidebar_tab {
-        crate::app::SidebarTab::Servers => 0,
-        crate::app::SidebarTab::DMs => 1,
+    let tab_idx = match app.chat.sidebar_tab {
+        crate::state::SidebarTab::Servers => 0,
+        crate::state::SidebarTab::DMs => 1,
     };
     let tabs_border_style = if focus == ChatFocus::Sidebar {
         Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
@@ -58,7 +58,7 @@ pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
         .select(tab_idx)
         .block(Block::default().borders(Borders::ALL).border_style(tabs_border_style))
         .highlight_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-        .style(Style::default().fg(Color::Gray));
+        .style(Style::default());
     // Layout: Tabs (1 row), then content
     let sidebar_chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -68,12 +68,12 @@ pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
         ])
         .split(chunks[0]);
     f.render_widget(tabs, sidebar_chunks[0]);
-    match app.sidebar_tab {
-        crate::app::SidebarTab::Servers => {
+    match app.chat.sidebar_tab {
+        crate::state::SidebarTab::Servers => {
             draw_sidebar_servers(f, app, sidebar_chunks[1], focus == ChatFocus::Sidebar);
             draw_chat_main(f, app, chunks[1], focus == ChatFocus::Messages);
         }
-        crate::app::SidebarTab::DMs => {
+        crate::state::SidebarTab::DMs => {
             draw_sidebar_dms(f, app, sidebar_chunks[1], focus == ChatFocus::Sidebar);
             draw_chat_main(f, app, chunks[1], focus == ChatFocus::Messages);
         }
@@ -81,7 +81,7 @@ pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
     if show_users && chunks.len() > 2 {
         draw_user_list(f, app, chunks[2], focus == ChatFocus::Users);
     }
-    if app.chat_focus == ChatFocus::DMInput {
+    if app.chat.chat_focus == ChatFocus::DMInput {
         crate::ui::popups::draw_dm_input_popup(f, app);
     }
 }
@@ -98,10 +98,10 @@ pub fn draw_sidebar_servers(f: &mut Frame, app: &mut App, area: Rect, focused: b
     let inner = block.inner(area);
     if inner.width == 0 || inner.height == 0 { return; }
     let mut items = Vec::new();
-    for (si, server) in app.servers.iter().enumerate() {
-        let selected_server = app.selected_server == Some(si);
+    for (si, server) in app.chat.servers.iter().enumerate() {
+        let selected_server = app.chat.selected_server == Some(si);
         // Unread indicator for server: any channel in this server is unread
-        let has_unread = server.channels.iter().any(|c| app.unread_channels.contains(&c.id));
+        let has_unread = server.channels.iter().any(|c| app.chat.unread_channels.contains(&c.id));
         let mut server_spans = vec![Span::styled(format!("● {}", server.name), if selected_server {
             Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
         } else { Style::default().fg(Color::Gray) })];
@@ -112,24 +112,31 @@ pub fn draw_sidebar_servers(f: &mut Frame, app: &mut App, area: Rect, focused: b
         items.push(ListItem::new(Line::from(server_spans)));
         if selected_server {
             for (ci, channel) in server.channels.iter().enumerate() {
-                let selected_channel = app.selected_channel == Some(ci);
-                let mut channel_spans = vec![Span::styled(format!("  # {}", channel.name), if selected_channel {
-                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
-                } else { Style::default() })];
-                if app.unread_channels.contains(&channel.id) {
-                    channel_spans.push(Span::raw(" "));
-                    channel_spans.push(Span::styled("○", Style::default().fg(Color::Red)));
+                let selected_channel = app.chat.selected_channel == Some(ci);
+                let channel_name = format!("  #{}", channel.name);
+                if app.chat.unread_channels.contains(&channel.id) {
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::styled(channel_name, if selected_channel {
+                            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                        } else { Style::default() }),
+                        Span::styled(" ○", Style::default().fg(Color::Red)),
+                    ])));
+                } else {
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::styled(channel_name, if selected_channel {
+                            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                        } else { Style::default() }),
+                    ])));
                 }
-                items.push(ListItem::new(Line::from(channel_spans)));
             }
         }
     }
     let mut list_state = ListState::default();
     // Highlight selected server/channel
     let mut idx = 0;
-    for (si, _server) in app.servers.iter().enumerate() {
-        if app.selected_server == Some(si) {
-            idx += 1 + app.selected_channel.unwrap_or(0);
+    for (si, _server) in app.chat.servers.iter().enumerate() {
+        if app.chat.selected_server == Some(si) {
+            idx += 1 + app.chat.selected_channel.unwrap_or(0);
             break;
         }
         idx += 1;
@@ -155,21 +162,21 @@ pub fn draw_sidebar_dms(f: &mut Frame, app: &mut App, area: Rect, focused: bool)
     if inner.width == 0 || inner.height == 0 { return; }
     
     // Create a list of (original_index, user) pairs to track original indices
-    let mut indexed_users: Vec<(usize, &common::User)> = app.dm_user_list.iter().enumerate().collect();
+    let mut indexed_users: Vec<(usize, &common::User)> = app.chat.dm_user_list.iter().enumerate().collect();
     // Sort by unread first, then by username
-    indexed_users.sort_by_key(|(_, u)| (!app.unread_dm_conversations.contains(&u.id), u.username.clone()));
+    indexed_users.sort_by_key(|(_, u)| (!app.chat.unread_dm_conversations.contains(&u.id), u.username.clone()));
     
     let items: Vec<ListItem> = indexed_users.iter().map(|(_original_idx, u)| {
-        let mut spans = vec![Span::styled(format!("{} {}", if u.status == common::UserStatus::Connected { "●" } else { "○" }, u.username), Style::default().fg(u.color))];
-        if app.unread_dm_conversations.contains(&u.id) {
-            spans.push(Span::raw(" "));
-            spans.push(Span::styled("○", Style::default().fg(Color::Red)));
-        }
-        ListItem::new(Line::from(spans))
-    }).collect();
+            let mut spans = vec![Span::styled(format!("{} {}", if u.status == common::UserStatus::Connected { "●" } else { "○" }, u.username), Style::default().fg(u.color.clone().into()))];
+            if app.chat.unread_dm_conversations.contains(&u.id) {
+                spans.push(Span::raw(" "));
+                spans.push(Span::styled("○", Style::default().fg(Color::Red)));
+            }
+            ListItem::new(Line::from(spans))
+        }).collect();
     
     // Find the display index for the selected DM user
-    let display_selection = if let Some(selected_original_idx) = app.selected_dm_user {
+    let display_selection = if let Some(selected_original_idx) = app.chat.selected_dm_user {
         indexed_users.iter().position(|(original_idx, _)| *original_idx == selected_original_idx)
     } else {
         None
@@ -201,7 +208,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
     if inner_area.width == 0 || inner_area.height == 0 { return; }
 
     const AVATAR_PIXEL_SIZE: u32 = 32;
-    let (font_w, font_h) = app.picker.font_size();
+    let (font_w, font_h) = app.profile.picker.font_size();
     let (font_w, font_h) = if font_w == 0 || font_h == 0 { (8, 16) } else { (font_w, font_h) };
     let avatar_cell_width = (AVATAR_PIXEL_SIZE as f32 / font_w as f32).ceil() as u16;
     let avatar_cell_height = (AVATAR_PIXEL_SIZE as f32 / font_h as f32).ceil() as u16;
@@ -213,11 +220,11 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
     // For scrolling calculation, use average row height estimation
     let estimated_avg_row_height = min_row_height + 2; // +2 for spacing and potential wrapping
     let max_rows_estimate = (inner_area.height as usize) / (estimated_avg_row_height as usize + 1);
-    app.last_chat_rows = Some(max_rows_estimate); // Store for scroll calculations
+    app.chat.last_chat_rows = Some(max_rows_estimate); // Store for scroll calculations
     
     let total_msgs = messages.len();
     let max_scroll = total_msgs.saturating_sub(max_rows_estimate);
-    let scroll_offset = app.chat_scroll_offset.min(max_scroll);
+    let scroll_offset = app.chat.chat_scroll_offset.min(max_scroll);
     let end_idx = total_msgs.saturating_sub(scroll_offset);
     let start_idx = end_idx.saturating_sub(max_rows_estimate * 2); // Get more messages than estimated to account for varying heights
     let display_items = &messages[start_idx.max(0)..end_idx];
@@ -231,15 +238,28 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
     
     // First pass: calculate heights for all messages
     for msg in display_items.iter() {
-        // Calculate content height
+        // Calculate content height more accurately
         let content_str = &msg.content;
         let lines_needed = if text_area_width > 0 {
-            // Count explicit newlines
-            let explicit_lines = content_str.matches('\n').count() + 1;
-            // Calculate wrapped lines
-            let total_chars = content_str.len();
-            let wrapped_lines = (total_chars + text_area_width as usize - 1) / text_area_width as usize;
-            explicit_lines.max(wrapped_lines)
+            // Split content by explicit newlines first
+            let content_lines: Vec<&str> = content_str.split('\n').collect();
+            let mut total_lines = 0;
+            
+            for line in content_lines {
+                if line.is_empty() {
+                    total_lines += 1; // Empty lines still take space
+                } else {
+                    // Calculate how many wrapped lines this content line will take
+                    let line_len = line.chars().count();
+                    let wrapped_lines = if line_len == 0 {
+                        1
+                    } else {
+                        (line_len + text_area_width as usize - 1) / text_area_width as usize
+                    };
+                    total_lines += wrapped_lines;
+                }
+            }
+            total_lines
         } else {
             1
         };
@@ -267,35 +287,48 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
     let visible_messages = &display_items[visible_start..];
     let visible_heights = &message_heights[visible_start..];
     
-    // Start from bottom and work up
-    let mut current_y = inner_area.y + inner_area.height;
+    // Pre-calculate date delimiter positions to avoid interrupting message rendering
+    let mut date_delimiters = Vec::new();
+    let mut last_date: Option<chrono::NaiveDate> = None;
     
-    for (msg, &msg_height) in visible_messages.iter().zip(visible_heights.iter()).rev() {
-        current_y = current_y.saturating_sub(msg_height + 1);
-        
-        if current_y < inner_area.y { break; }
-        
-        // Insert date delimiter only when the date changes
+    // First pass: identify where date delimiters should go (in forward order)
+    // Only show delimiters if there are actually messages after them in the visible range
+    for (i, msg) in visible_messages.iter().enumerate() {
         if let Some(ts) = msg.timestamp {
-            let dt = chrono::Local.timestamp_opt(ts, 0).single();
-            if let Some(dt) = dt {
+            if let Some(dt) = chrono::Local.timestamp_opt(ts, 0).single() {
                 let msg_date = dt.date_naive();
                 if let Some(last) = last_date {
                     if last != msg_date {
-                        let header = Block::default()
-                            .borders(Borders::TOP)
-                            .title_alignment(ratatui::layout::Alignment::Center)
-                            .title(format_date_delimiter(ts))
-                            .border_style(Style::default().fg(Color::DarkGray))
-                            .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC));
-                            // Use `min_row_height` to ensure consistent spacing for date headers.
-                            // This value should be verified to match the intended vertical spacing.
-                        f.render_widget(header, Rect::new(inner_area.x, current_y, inner_area.width, min_row_height));
-                        current_y = current_y.saturating_sub(min_row_height);
+                        // Only add delimiter if this is NOT the last message in visible range
+                        // (i.e., there are messages after this delimiter)
+                        if i < visible_messages.len() - 1 {
+                            date_delimiters.push((i, ts));
+                        }
                     }
                 }
                 last_date = Some(msg_date);
             }
+        }
+    }
+    
+    // Start from bottom and work up
+    let mut current_y = inner_area.y + inner_area.height;
+    
+    for (msg_idx, (msg, &msg_height)) in visible_messages.iter().zip(visible_heights.iter()).enumerate().rev() {
+        current_y = current_y.saturating_sub(msg_height + 1);
+        
+        if current_y < inner_area.y { break; }
+        
+        // Check if we need to render a date delimiter before this message
+        if let Some(&(delimiter_idx, delimiter_ts)) = date_delimiters.iter().find(|&&(idx, _)| idx == msg_idx) {
+            let header = Block::default()
+                .borders(Borders::TOP)
+                .title_alignment(ratatui::layout::Alignment::Center)
+                .title(format_date_delimiter(delimiter_ts))
+                .border_style(Style::default().fg(Color::DarkGray))
+                .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC));
+            f.render_widget(header, Rect::new(inner_area.x, current_y, inner_area.width, min_row_height));
+            current_y = current_y.saturating_sub(min_row_height + 1);
         }
         
         let row_area = Rect::new(inner_area.x, current_y, inner_area.width, msg_height);
@@ -303,14 +336,15 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
         let text_area = Rect::new(row_area.x + avatar_cell_width + 1, row_area.y, text_area_width, msg_height);
         
         // Avatar/profile pic rendering
-        let user_for_avatar = match &app.current_chat_target {
-            Some(crate::app::ChatTarget::Channel { .. }) => {
-                app.channel_userlist.iter().find(|u| u.username == msg.author).map(|u| u.clone())
+        let user_for_avatar = match &app.chat.current_chat_target {
+            Some(crate::state::ChatTarget::Channel { channel_id: _, server_id: _ }) => {
+                // Clone the user to avoid borrowing issues
+                app.chat.channel_userlist.iter().find(|u| u.username == msg.author).cloned()
             }
-            Some(crate::app::ChatTarget::DM { user_id: _ }) => {
-                if let Some(dm_user) = app.dm_user_list.iter().find(|u| u.username == msg.author) {
+            Some(crate::state::ChatTarget::DM { user_id: _ }) => {
+                if let Some(dm_user) = app.chat.dm_user_list.iter().find(|u| u.username == msg.author) {
                     Some(dm_user.clone())
-                } else if let Some(current) = &app.current_user {
+                } else if let Some(current) = &app.auth.current_user {
                     if &current.username == &msg.author {
                         Some(current.clone())
                     } else {
@@ -332,7 +366,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
             let fallback_user = common::User {
                 id: uuid::Uuid::nil(),
                 username: msg.author.clone(),
-                color: msg.color,
+                color: msg.color.clone().into(),
                 role: common::UserRole::User,
                 profile_pic: Some(pic.clone()),
                 cover_banner: None,
@@ -359,7 +393,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
                 spans.push(Span::raw(&content_str[last..start]));
             }
             let mention = &content_str[start+1..end];
-            let mention_color = app.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color);
+            let mention_color = app.chat.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color.clone().into());
             if let Some(mcolor) = mention_color {
                 spans.push(Span::styled(format!("@{}", mention), Style::default().fg(Color::Black).bg(mcolor).add_modifier(Modifier::BOLD)));
             } else {
@@ -418,7 +452,10 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         ])
         .split(area);
 
-    draw_message_list(f, app, chunks[0], focused, "Chat");
+    // Use the clean helper method to get the title
+    let title = app.get_current_chat_title();
+
+    draw_message_list(f, app, chunks[0], focused, &title);
 
     // Create styled input text with white text and colored @mentions
     let mut input_spans = Vec::new();
@@ -436,7 +473,7 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         
         // Add the mention with user color or default styling
         let mention = &input_str[start+1..end];
-        let mention_color = app.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color);
+        let mention_color = app.chat.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color.clone().into());
         if let Some(mcolor) = mention_color {
             input_spans.push(Span::styled(format!("@{}", mention), Style::default().fg(Color::Black).bg(mcolor).add_modifier(Modifier::BOLD)));
         } else {
@@ -512,12 +549,13 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     // Draw mention suggestions popup if present
     if focused {
         draw_mention_suggestion_popup(f, app, chunks[1], area);
+        draw_emoji_suggestion_popup(f, app, chunks[1], area);
     }
     
     // Draw scrollbar if there are more messages than fit - use message area only
     let messages = app.get_current_message_list();
     let total_msgs = messages.len();
-    let max_rows = app.last_chat_rows.unwrap_or(0);
+    let max_rows = app.chat.last_chat_rows.unwrap_or(0);
     
     if total_msgs > max_rows && chunks[0].width > 2 {
         let msg_area = chunks[0]; // Use message area, not full area
@@ -527,7 +565,7 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         
         let thumb_height = ((max_rows as f32 / total_msgs as f32) * bar_height as f32).ceil().max(1.0) as u16;
         let max_offset = total_msgs.saturating_sub(max_rows);
-        let offset = app.chat_scroll_offset.min(max_offset);
+        let offset = app.chat.chat_scroll_offset.min(max_offset);
         
         // Invert thumb position: offset=0 => bottom, max_offset => top
         let thumb_pos = if max_offset > 0 {
@@ -561,7 +599,7 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     if inner_area.width == 0 || inner_area.height == 0 { return; }
 
     const AVATAR_PIXEL_SIZE: u32 = 16;
-    let (font_w, font_h) = app.picker.font_size();
+    let (font_w, font_h) = app.profile.picker.font_size();
     let (font_w, font_h) = if font_w == 0 || font_h == 0 { (8, 16) } else { (font_w, font_h) };
     let avatar_cell_width = (AVATAR_PIXEL_SIZE as f32 / font_w as f32).ceil() as u16;
     let avatar_cell_height = (AVATAR_PIXEL_SIZE as f32 / font_h as f32).ceil() as u16;
@@ -572,16 +610,15 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
     use common::UserRole;
     // Group users by role
     let mut role_map: BTreeMap<UserRole, Vec<_>> = BTreeMap::new();
-    for user in app.channel_userlist.iter() {
-        role_map.entry(user.role.clone()).or_default().push(user.clone());
+    for user in app.chat.channel_userlist.iter() {
+        role_map.entry(user.role.clone()).or_default().push(user.clone()); // Clone users to avoid borrowing issues
     }
     // Collect roles and reverse
     let mut roles: Vec<_> = role_map.keys().cloned().collect();
-    roles.sort();
     roles.reverse();
     // Status order: Connected, Busy, Away, Offline
     // For selection logic
-    let list_state = app.user_list_state.clone();
+    let list_state = app.chat.user_list_state.clone();
     let selected_index = list_state.selected();
     let mut idx = 0;
     for role in roles {
@@ -603,7 +640,7 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
             let text_style = if is_selected {
                 Style::default().fg(Color::Black).add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(user.color)
+                Style::default().fg(user.color.clone().into())
             };
             if is_selected {
                 f.render_widget(Block::default().style(Style::default().bg(Color::Cyan)), row_area);
@@ -654,16 +691,16 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
 
 /// Draw the mention suggestion popup below (or above) the input area.
 pub fn draw_mention_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect, chat_area: Rect) {
-    if app.mention_suggestions.is_empty() { return; }
-    let max_name_len = app.mention_suggestions.iter().map(|&i| app.channel_userlist[i].username.len()).max().unwrap_or(8).max(8);
+    if app.chat.mention_suggestions.is_empty() { return; }
+    let max_name_len = app.chat.mention_suggestions.iter().map(|&i| app.chat.channel_userlist[i].username.len()).max().unwrap_or(8).max(8);
     let popup_width = (max_name_len + 12).min(chat_area.width as usize) as u16;
     let mut lines = vec![];
-    for (i, &user_idx) in app.mention_suggestions.iter().enumerate() {
-        let user = &app.channel_userlist[user_idx];
-        let style = if i == app.mention_selected {
+    for (i, &user_idx) in app.chat.mention_suggestions.iter().enumerate() {
+        let user = &app.chat.channel_userlist[user_idx];
+        let style = if i == app.chat.mention_selected {
             Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(user.color).bg(Color::Black)
+            Style::default().fg(user.color.clone().into()).bg(Color::Black)
         };
         lines.push(Line::from(Span::styled(format!("{}", user.username), style)));
     }
@@ -688,4 +725,68 @@ pub fn draw_mention_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect,
     let block = Block::default().borders(Borders::ALL).title("Mentions");
     let para = Paragraph::new(lines).block(block).wrap(Wrap { trim: true });
     f.render_widget(para, popup_area);
+}
+
+/// Draw the emoji suggestion popup above the input area.
+pub fn draw_emoji_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect, chat_area: Rect) {
+    if app.chat.emoji_suggestions.is_empty() { return; }
+    
+    const GRID_COLS: usize = 4;
+    const GRID_ROWS: usize = 5;
+    const ITEMS_PER_PAGE: usize = GRID_COLS * GRID_ROWS;
+    
+    // Calculate which page we're on and visible emojis
+    let selected_index = app.chat.emoji_selected;
+    let page = selected_index / ITEMS_PER_PAGE;
+    let start_idx = page * ITEMS_PER_PAGE;
+    let end_idx = (start_idx + ITEMS_PER_PAGE).min(app.chat.emoji_suggestions.len());
+    let visible_emojis = &app.chat.emoji_suggestions[start_idx..end_idx];
+    
+    // Calculate popup size - wider to accommodate 4 columns
+    let cell_width = 8; // Width per emoji cell
+    let cell_height = 1; // Height per emoji cell
+    let popup_width = (GRID_COLS * cell_width + 2) as u16; // +2 for borders
+    let popup_height = (GRID_ROWS * cell_height + 2) as u16; // +2 for borders
+    
+    // Position popup directly above the input area
+    let popup_y = input_area.y.saturating_sub(popup_height);
+    
+    let popup_area = Rect::new(
+        input_area.x,
+        popup_y,
+        popup_width.min(chat_area.width),
+        popup_height
+    );
+    
+    // Create the popup block
+    let block = Block::default().borders(Borders::ALL).title("Emojis");
+    let inner_area = block.inner(popup_area);
+    f.render_widget(block, popup_area);
+    
+    // Draw the emoji grid
+    for (i, emoji) in visible_emojis.iter().enumerate() {
+        let row = i / GRID_COLS;
+        let col = i % GRID_COLS;
+        
+        let x = inner_area.x + (col * cell_width) as u16;
+        let y = inner_area.y + (row * cell_height) as u16;
+        let cell_area = Rect::new(x, y, cell_width as u16, cell_height as u16);
+        
+        // Check if this is the selected emoji
+        let global_index = start_idx + i;
+        let is_selected = global_index == selected_index;
+        
+        let style = if is_selected {
+            Style::default().fg(Color::Black).bg(Color::Yellow).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White).bg(Color::Black)
+        };
+        
+        // Center the emoji in its cell
+        let emoji_text = format!("{:^width$}", emoji, width = cell_width);
+        f.render_widget(
+            Paragraph::new(emoji_text).style(style),
+            cell_area
+        );
+    }
 }

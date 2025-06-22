@@ -18,10 +18,11 @@ pub fn draw_centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
 }
 
 pub fn draw_dm_input_popup(f: &mut Frame, app: &App) {
-    let username = app.dm_target.and_then(|uid| app.channel_userlist.iter().find(|u| u.id == uid)).map(|u| u.username.as_str()).unwrap_or("");
-    
+    let username = app.chat.dm_target.and_then(|uid| app.chat.channel_userlist.iter().find(|u| u.id == uid)).map(|u| u.username.as_str()).unwrap_or("");
+    let title = format!("DM to {}", username);
+    let popup_area = draw_centered_rect(f.area(), 80, 30);
+    let input_str = &app.chat.dm_input;
     // Calculate popup size based on content
-    let input_str = &app.dm_input;
     let base_area = draw_centered_rect(f.area(), 50, 20);
     let input_inner_width = base_area.width.saturating_sub(2); // Account for borders
     
@@ -48,15 +49,15 @@ pub fn draw_dm_input_popup(f: &mut Frame, app: &App) {
         Span::styled(username, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
     ])).borders(Borders::ALL).border_type(BorderType::Double);
     
-    let input_field = Paragraph::new(app.dm_input.as_str()).wrap(Wrap { trim: true }).block(block);
+    let input_field = Paragraph::new(app.chat.dm_input.as_str()).wrap(Wrap { trim: true }).block(block);
     f.render_widget(Clear, area);
     f.render_widget(input_field, area);
     
     // Calculate cursor position for multiline input
     let inner_area = Block::default().borders(Borders::ALL).inner(area);
-    if inner_area.width > 0 && !app.dm_input.is_empty() {
-        let cursor_pos = app.dm_input.len();
-        let text_up_to_cursor = &app.dm_input[..cursor_pos];
+    if inner_area.width > 0 && !app.chat.dm_input.is_empty() {
+        let cursor_pos = app.chat.dm_input.len();
+        let text_up_to_cursor = &app.chat.dm_input[..cursor_pos];
         
         // Count newlines and estimate position
         let newlines = text_up_to_cursor.matches('\n').count() as u16;
@@ -82,19 +83,21 @@ pub fn draw_dm_input_popup(f: &mut Frame, app: &App) {
 }
 
 pub fn draw_input_popup(f: &mut Frame, app: &App) {
-    let title = match app.input_mode {
-        Some(crate::app::InputMode::NewThreadTitle) => "New Thread Title",
-        Some(crate::app::InputMode::NewThreadContent) => "New Thread Content",
-        Some(crate::app::InputMode::NewPostContent) => "Reply Content",
-        Some(crate::app::InputMode::UpdatePassword) => "New Password",
+    let title = match app.auth.input_mode {
+        Some(crate::state::InputMode::NewForumName) => "New Forum Name",
+        Some(crate::state::InputMode::NewForumDescription) => "New Forum Description",
+        Some(crate::state::InputMode::NewThreadTitle) => "New Thread Title",
+        Some(crate::state::InputMode::NewThreadContent) => "New Thread Content",
+        Some(crate::state::InputMode::NewPostContent) => "Reply Content",
+        Some(crate::state::InputMode::UpdatePassword) => "New Password",
         _ => "Input"
     };
     
     // Calculate popup size based on content
-    let input_str = if matches!(app.input_mode, Some(crate::app::InputMode::UpdatePassword)) {
-        "*".repeat(app.current_input.len())
+    let input_str = if matches!(app.auth.input_mode, Some(crate::state::InputMode::UpdatePassword)) {
+        "*".repeat(app.auth.current_input.len())
     } else { 
-        app.current_input.clone() 
+        app.auth.current_input.clone() 
     };
     
     let base_area = draw_centered_rect(f.area(), 60, 25);
@@ -125,12 +128,12 @@ pub fn draw_input_popup(f: &mut Frame, app: &App) {
     
     // Calculate cursor position for multiline input
     let inner_area = Block::default().borders(Borders::ALL).inner(area);
-    if inner_area.width > 0 && !app.current_input.is_empty() {
-        let cursor_pos = app.current_input.len();
-        let display_text = if matches!(app.input_mode, Some(crate::app::InputMode::UpdatePassword)) {
+    if inner_area.width > 0 && !app.auth.current_input.is_empty() {
+        let cursor_pos = app.auth.current_input.len();
+        let display_text = if matches!(app.auth.input_mode, Some(crate::state::InputMode::UpdatePassword)) {
             "*".repeat(cursor_pos)
         } else {
-            app.current_input[..cursor_pos].to_string()
+            app.auth.current_input[..cursor_pos].to_string()
         };
         
         // Count newlines and estimate position
@@ -187,41 +190,40 @@ pub fn draw_minimal_notification_popup(f: &mut Frame, text: String) {
 pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::UserProfile) {
     let area = draw_centered_rect(f.area(), 70, 60);
     f.render_widget(Clear, area);
+    
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(7), // Banner
+            Constraint::Length(8), // Banner (increased height)
             Constraint::Min(0),    // Rest
         ])
         .split(area);
 
-    // --- Banner with PFP and Username ---
+    // --- Full-width banner with PFP and Username ---
     let banner_area = layout[0];
-    // Dynamically update the composite image to match the banner area
+    
+    // Update the composite image to match the banner area dimensions
     app.update_profile_banner_composite(banner_area.width - 2, banner_area.height - 2);
-    // Add a border to the top of the banner
-    let banner_border = Block::default()
-        .borders(Borders::TOP)
-        .border_type(BorderType::Double);
-    f.render_widget(banner_border, banner_area);
 
-    // --- Banner background: crop and stretch to fit ---
-    if let Some(state) = &mut app.profile_banner_image_state {
+    // --- Render banner background: full width, cropped to fill ---
+    if let Some(state) = &mut app.profile.profile_banner_image_state {
+        // Create a block with borders for the banner
         let banner_block = Block::default()
             .borders(Borders::ALL)
             .title(Span::styled(&profile.username, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
             .style(Style::default());
+        
+        // Get the inner area (excluding borders) for the image
+        let image_area = banner_block.inner(banner_area);
+        
+        // Render the block first
         f.render_widget(banner_block, banner_area);
-        // Only render the composited image (banner + PFP)
-        let offset_area = Rect {
-            x: banner_area.x + 1,
-            y: banner_area.y + 1,
-            width: banner_area.width,
-            height: banner_area.height,
-        };
-        let image_widget = ratatui_image::StatefulImage::default().resize(ratatui_image::Resize::Fit(None));
-        f.render_stateful_widget(image_widget, offset_area, state);
+        // Render image to fill the inner area completely
+        let image_widget = ratatui_image::StatefulImage::default()
+            .resize(ratatui_image::Resize::Fit(None));
+        f.render_stateful_widget(image_widget, image_area, state);
     } else {
+        // Fallback: solid color banner with username
         let banner_bg = Color::Blue;
         let banner_block = Block::default()
             .borders(Borders::ALL)
@@ -231,7 +233,9 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
     }
 
     // --- Rest of profile info below banner ---
+    let content_area = layout[1];
     let mut lines = vec![];
+    
     if let Some(bio) = &profile.bio {
         if !bio.is_empty() {
             let mut bio_lines: Vec<&str> = bio.lines().collect();
@@ -243,26 +247,66 @@ pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::U
             for line in bio_lines {
                 lines.push(Line::from(Span::raw(line)));
             }
+            lines.push(Line::from("")); // Add spacing
         }
     }
-    if let Some(loc) = &profile.location { if !loc.is_empty() { lines.push(Line::from(vec![Span::styled("Location: ", Style::default().fg(Color::Cyan)), Span::raw(loc)])); } }
-    if let Some(url1) = &profile.url1 { if !url1.is_empty() { lines.push(Line::from(vec![Span::styled("URL1: ", Style::default().fg(Color::Cyan)), Span::raw(url1)])); } }
-    if let Some(url2) = &profile.url2 { if !url2.is_empty() { lines.push(Line::from(vec![Span::styled("URL2: ", Style::default().fg(Color::Cyan)), Span::raw(url2)])); } }
-    if let Some(url3) = &profile.url3 { if !url3.is_empty() { lines.push(Line::from(vec![Span::styled("URL3: ", Style::default().fg(Color::Cyan)), Span::raw(url3)])); } }
-    lines.push(Line::from(vec![Span::styled("Role: ", Style::default().fg(Color::Cyan)), Span::raw(format!("{:?}", profile.role))]));
-    let rest = Paragraph::new(lines).wrap(Wrap { trim: true }).block(Block::default().borders(Borders::ALL));
-    f.render_widget(rest, layout[1]);
+    
+    if let Some(loc) = &profile.location { 
+        if !loc.is_empty() { 
+            lines.push(Line::from(vec![
+                Span::styled("📍 Location: ", Style::default().fg(Color::Cyan)), 
+                Span::raw(loc)
+            ])); 
+        } 
+    }
+    
+    if let Some(url1) = &profile.url1 { 
+        if !url1.is_empty() { 
+            lines.push(Line::from(vec![
+                Span::styled("🔗 URL1: ", Style::default().fg(Color::Cyan)), 
+                Span::raw(url1)
+            ])); 
+        } 
+    }
+    
+    if let Some(url2) = &profile.url2 { 
+        if !url2.is_empty() { 
+            lines.push(Line::from(vec![
+                Span::styled("🔗 URL2: ", Style::default().fg(Color::Cyan)), 
+                Span::raw(url2)
+            ])); 
+        } 
+    }
+    
+    if let Some(url3) = &profile.url3 { 
+        if !url3.is_empty() { 
+            lines.push(Line::from(vec![
+                Span::styled("🔗 URL3: ", Style::default().fg(Color::Cyan)), 
+                Span::raw(url3)
+            ])); 
+        } 
+    }
+    
+    lines.push(Line::from(vec![
+        Span::styled("👑 Role: ", Style::default().fg(Color::Cyan)), 
+        Span::styled(format!("{:?}", profile.role), Style::default().fg(Color::Yellow))
+    ]));
+    
+    let content = Paragraph::new(lines)
+        .wrap(Wrap { trim: true })
+        .block(Block::default().borders(Borders::ALL).title("Profile Details"));
+    f.render_widget(content, content_area);
 }
 
 pub fn draw_user_actions_popup(f: &mut Frame, app: &App) {
     let area = draw_centered_rect(f.area(), 40, 20);
     f.render_widget(Clear, area);
-    let user = app.user_actions_target.and_then(|idx| app.channel_userlist.get(idx));
+    let user = app.profile.user_actions_target.and_then(|idx| app.chat.channel_userlist.get(idx));
     let username = user.map(|u| u.username.as_str()).unwrap_or("<unknown>");
     let actions = ["Show Profile", "Send DM", "Invite to Server"];
     let mut lines = vec![];
     for (i, action) in actions.iter().enumerate() {
-        let style = if app.user_actions_selected == i {
+        let style = if app.profile.user_actions_selected == i {
             Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(ratatui::style::Modifier::BOLD)
         } else {
             Style::default()
@@ -280,10 +324,10 @@ pub fn draw_user_actions_popup(f: &mut Frame, app: &App) {
 pub fn draw_server_actions_popup(f: &mut Frame, app: &App) {
     let area = draw_centered_rect(f.area(), 40, 20);
     f.render_widget(Clear, area);
-    let server_name = app.selected_server.and_then(|s| app.servers.get(s)).map(|srv| srv.name.as_str()).unwrap_or("<server>");
-    let is_owner = app.selected_server
-        .and_then(|s| app.servers.get(s))
-        .and_then(|srv| app.current_user.as_ref().map(|u| u.id == srv.owner))
+    let server_name = app.chat.selected_server.and_then(|s| app.chat.servers.get(s)).map(|srv| srv.name.as_str()).unwrap_or("<server>");
+    let is_owner = app.chat.selected_server
+        .and_then(|s| app.chat.servers.get(s))
+        .and_then(|srv| app.auth.current_user.as_ref().map(|u| u.id == srv.owner))
         .unwrap_or(false);
     let mut actions = vec!["View full user list", "Send invite code"];
     if is_owner {
@@ -291,7 +335,7 @@ pub fn draw_server_actions_popup(f: &mut Frame, app: &App) {
     }
     let mut lines = vec![];
     for (i, action) in actions.iter().enumerate() {
-        let style = if app.server_actions_selected == i {
+        let style = if app.ui.server_actions_selected == i {
             Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
         } else {
             Style::default()
@@ -337,12 +381,12 @@ pub fn draw_quit_confirm_popup(f: &mut Frame, app: &App) {
         Style::default().add_modifier(Modifier::BOLD),
     )));
     for _ in 0..pad_between_msg_btn { lines.push(Line::from("")); }
-    let yes_style = if app.quit_confirm_selected == 0 {
+    let yes_style = if app.ui.quit_confirm_selected == 0 {
         Style::default().fg(Color::Black).bg(Color::Green).add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::Green)
     };
-    let no_style = if app.quit_confirm_selected == 1 {
+    let no_style = if app.ui.quit_confirm_selected == 1 {
         Style::default().fg(Color::Black).bg(Color::Red).add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::Red)
@@ -367,8 +411,8 @@ pub fn draw_server_invite_selection_popup(f: &mut Frame, app: &App) {
     let area = draw_centered_rect(f.area(), 50, 30);
     f.render_widget(Clear, area);
     
-    let user = app.server_invite_target_user
-        .and_then(|uid| app.channel_userlist.iter().find(|u| u.id == uid));
+    let user = app.ui.server_invite_target_user
+        .and_then(|uid| app.chat.channel_userlist.iter().find(|u| u.id == uid));
     let username = user.map(|u| u.username.as_str()).unwrap_or("<unknown>");
     
     let mut lines = vec![];
@@ -379,8 +423,8 @@ pub fn draw_server_invite_selection_popup(f: &mut Frame, app: &App) {
     ]));
     lines.push(Line::from(""));
     
-    for (i, server) in app.servers.iter().enumerate() {
-        let style = if app.server_invite_selected == i {
+    for (i, server) in app.chat.servers.iter().enumerate() {
+        let style = if app.ui.server_invite_selected == i {
             Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
         } else {
             Style::default()

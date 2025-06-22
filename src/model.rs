@@ -3,6 +3,7 @@ use ratatui::style::Color;
 // --- Data Structures ---
 
 
+/// Chat message with metadata for UI rendering
 #[derive(Debug, Clone)]
 pub struct ChatMessageWithMeta {
     pub author: String,
