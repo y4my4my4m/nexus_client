@@ -167,13 +167,13 @@ pub fn draw_sidebar_dms(f: &mut Frame, app: &mut App, area: Rect, focused: bool)
     indexed_users.sort_by_key(|(_, u)| (!app.chat.unread_dm_conversations.contains(&u.id), u.username.clone()));
     
     let items: Vec<ListItem> = indexed_users.iter().map(|(_original_idx, u)| {
-        let mut spans = vec![Span::styled(format!("{} {}", if u.status == common::UserStatus::Connected { "●" } else { "○" }, u.username), Style::default().fg(u.color))];
-        if app.chat.unread_dm_conversations.contains(&u.id) {
-            spans.push(Span::raw(" "));
-            spans.push(Span::styled("○", Style::default().fg(Color::Red)));
-        }
-        ListItem::new(Line::from(spans))
-    }).collect();
+            let mut spans = vec![Span::styled(format!("{} {}", if u.status == common::UserStatus::Connected { "●" } else { "○" }, u.username), Style::default().fg(u.color.clone().into()))];
+            if app.chat.unread_dm_conversations.contains(&u.id) {
+                spans.push(Span::raw(" "));
+                spans.push(Span::styled("○", Style::default().fg(Color::Red)));
+            }
+            ListItem::new(Line::from(spans))
+        }).collect();
     
     // Find the display index for the selected DM user
     let display_selection = if let Some(selected_original_idx) = app.chat.selected_dm_user {
@@ -340,7 +340,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
             let fallback_user = common::User {
                 id: uuid::Uuid::nil(),
                 username: msg.author.clone(),
-                color: msg.color,
+                color: msg.color.clone().into(),
                 role: common::UserRole::User,
                 profile_pic: Some(pic.clone()),
                 cover_banner: None,
@@ -367,7 +367,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
                 spans.push(Span::raw(&content_str[last..start]));
             }
             let mention = &content_str[start+1..end];
-            let mention_color = app.chat.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color);
+            let mention_color = app.chat.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color.clone().into());
             if let Some(mcolor) = mention_color {
                 spans.push(Span::styled(format!("@{}", mention), Style::default().fg(Color::Black).bg(mcolor).add_modifier(Modifier::BOLD)));
             } else {
@@ -444,7 +444,7 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
         
         // Add the mention with user color or default styling
         let mention = &input_str[start+1..end];
-        let mention_color = app.chat.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color);
+        let mention_color = app.chat.channel_userlist.iter().find(|u| u.username == mention).map(|u| u.color.clone().into());
         if let Some(mcolor) = mention_color {
             input_spans.push(Span::styled(format!("@{}", mention), Style::default().fg(Color::Black).bg(mcolor).add_modifier(Modifier::BOLD)));
         } else {
@@ -611,7 +611,7 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
             let text_style = if is_selected {
                 Style::default().fg(Color::Black).add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(user.color)
+                Style::default().fg(user.color.clone().into())
             };
             if is_selected {
                 f.render_widget(Block::default().style(Style::default().bg(Color::Cyan)), row_area);
@@ -671,7 +671,7 @@ pub fn draw_mention_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect,
         let style = if i == app.chat.mention_selected {
             Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(user.color).bg(Color::Black)
+            Style::default().fg(user.color.clone().into()).bg(Color::Black)
         };
         lines.push(Line::from(Span::styled(format!("{}", user.username), style)));
     }

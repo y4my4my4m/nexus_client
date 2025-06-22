@@ -118,3 +118,9 @@ impl ProfileState {
         self.avatar_protocol_cache.retain(|(uid, _), _| *uid != user_id);
     }
 }
+
+impl Default for ProfileState {
+    fn default() -> Self {
+        Self::new()
+    }
+}

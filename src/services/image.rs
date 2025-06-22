@@ -1,6 +1,11 @@
 use crate::state::AppError;
 use std::io::Cursor;
 use base64::Engine;
+use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::{Arc, Mutex};
+use uuid::Uuid;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 /// Service for image processing and validation
 pub struct ImageService;
@@ -170,4 +175,347 @@ impl ImageService {
         
         Ok(())
     }
+}
+
+/// Configuration for the image cache
+#[derive(Debug, Clone)]
+pub struct ImageCacheConfig {
+    pub max_cache_size_mb: usize,
+    pub max_entries: usize,
+    pub default_ttl_seconds: u64,
+    pub cleanup_interval_seconds: u64,
+}
+
+impl Default for ImageCacheConfig {
+    fn default() -> Self {
+        Self {
+            max_cache_size_mb: 100, // 100MB cache
+            max_entries: 1000,
+            default_ttl_seconds: 3600, // 1 hour
+            cleanup_interval_seconds: 300, // 5 minutes
+        }
+    }
+}
+
+/// Cached image with metadata
+#[derive(Debug, Clone)]
+pub struct CachedImage {
+    pub data: Vec<u8>,
+    pub format: ImageFormat,
+    pub size_bytes: usize,
+    pub timestamp_cached: u64,
+    pub ttl_seconds: u64,
+    pub access_count: u64,
+    pub last_accessed: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImageFormat {
+    Png,
+    Jpeg,
+    Gif,
+    WebP,
+    Base64(String), // For base64 encoded images with mime type
+}
+
+impl ImageFormat {
+    /// Detect format from data or mime type
+    pub fn detect_from_data(data: &[u8]) -> Self {
+        if data.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+            ImageFormat::Png
+        } else if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+            ImageFormat::Jpeg
+        } else if data.starts_with(&[0x47, 0x49, 0x46]) {
+            ImageFormat::Gif
+        } else if data.len() >= 12 && &data[8..12] == b"WEBP" {
+            ImageFormat::WebP
+        } else {
+            // Fallback to PNG
+            ImageFormat::Png
+        }
+    }
+
+    pub fn from_base64_data_url(data_url: &str) -> Option<(Self, Vec<u8>)> {
+        if let Some(comma_pos) = data_url.find(',') {
+            let (header, data) = data_url.split_at(comma_pos);
+            let data = &data[1..]; // Skip the comma
+            
+            if let Ok(decoded) = BASE64.decode(data) {
+                let format = if header.contains("image/png") {
+                    ImageFormat::Png
+                } else if header.contains("image/jpeg") || header.contains("image/jpg") {
+                    ImageFormat::Jpeg
+                } else if header.contains("image/gif") {
+                    ImageFormat::Gif
+                } else if header.contains("image/webp") {
+                    ImageFormat::WebP
+                } else {
+                    ImageFormat::Base64(header.to_string())
+                };
+                
+                return Some((format, decoded));
+            }
+        }
+        None
+    }
+}
+
+impl CachedImage {
+    pub fn new(data: Vec<u8>, format: ImageFormat, ttl_seconds: Option<u64>) -> Self {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        Self {
+            size_bytes: data.len(),
+            data,
+            format,
+            timestamp_cached: now,
+            ttl_seconds: ttl_seconds.unwrap_or(3600),
+            access_count: 0,
+            last_accessed: now,
+        }
+    }
+
+    pub fn is_expired(&self) -> bool {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        now > self.timestamp_cached + self.ttl_seconds
+    }
+
+    pub fn touch(&mut self) {
+        self.access_count += 1;
+        self.last_accessed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+    }
+}
+
+/// Cache key for images
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ImageCacheKey {
+    UserAvatar(Uuid),
+    UserCoverBanner(Uuid),
+    ServerIcon(Uuid),
+    ServerBanner(Uuid),
+    Custom(String),
+}
+
+impl ImageCacheKey {
+    pub fn user_avatar(user_id: Uuid) -> Self {
+        Self::UserAvatar(user_id)
+    }
+
+    pub fn user_cover_banner(user_id: Uuid) -> Self {
+        Self::UserCoverBanner(user_id)
+    }
+
+    pub fn server_icon(server_id: Uuid) -> Self {
+        Self::ServerIcon(server_id)
+    }
+
+    pub fn server_banner(server_id: Uuid) -> Self {
+        Self::ServerBanner(server_id)
+    }
+
+    pub fn custom(key: impl Into<String>) -> Self {
+        Self::Custom(key.into())
+    }
+}
+
+/// Thread-safe image cache with LRU eviction and TTL
+pub struct ImageCache {
+    cache: Arc<Mutex<HashMap<ImageCacheKey, CachedImage>>>,
+    config: ImageCacheConfig,
+    current_size_bytes: Arc<Mutex<usize>>,
+}
+
+impl ImageCache {
+    pub fn new(config: ImageCacheConfig) -> Self {
+        Self {
+            cache: Arc::new(Mutex::new(HashMap::new())),
+            config,
+            current_size_bytes: Arc::new(Mutex::new(0)),
+        }
+    }
+
+    pub fn with_default_config() -> Self {
+        Self::new(ImageCacheConfig::default())
+    }
+
+    /// Store an image in the cache
+    pub fn put(&self, key: ImageCacheKey, image: CachedImage) -> Result<(), String> {
+        let mut cache = self.cache.lock().map_err(|e| format!("Cache lock error: {}", e))?;
+        let mut current_size = self.current_size_bytes.lock()
+            .map_err(|e| format!("Size lock error: {}", e))?;
+
+        // Check if we need to evict entries
+        while cache.len() >= self.config.max_entries 
+            || (*current_size + image.size_bytes) > (self.config.max_cache_size_mb * 1024 * 1024) {
+            
+            if let Some(evict_key) = self.find_lru_key(&cache) {
+                if let Some(evicted) = cache.remove(&evict_key) {
+                    *current_size = current_size.saturating_sub(evicted.size_bytes);
+                }
+            } else {
+                break; // No more entries to evict
+            }
+        }
+
+        // Add the new image
+        *current_size += image.size_bytes;
+        cache.insert(key, image);
+
+        Ok(())
+    }
+
+    /// Retrieve an image from the cache
+    pub fn get(&self, key: &ImageCacheKey) -> Result<Option<CachedImage>, String> {
+        let mut cache = self.cache.lock().map_err(|e| format!("Cache lock error: {}", e))?;
+        
+        if let Some(mut image) = cache.get(key).cloned() {
+            if image.is_expired() {
+                // Remove expired image
+                let mut current_size = self.current_size_bytes.lock()
+                    .map_err(|e| format!("Size lock error: {}", e))?;
+                *current_size = current_size.saturating_sub(image.size_bytes);
+                cache.remove(key);
+                return Ok(None);
+            }
+
+            // Update access information
+            image.touch();
+            cache.insert(key.clone(), image.clone());
+            Ok(Some(image))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Check if an image exists in cache (without updating access time)
+    pub fn contains_key(&self, key: &ImageCacheKey) -> bool {
+        if let Ok(cache) = self.cache.lock() {
+            if let Some(image) = cache.get(key) {
+                !image.is_expired()
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    /// Remove an image from the cache
+    pub fn remove(&self, key: &ImageCacheKey) -> Result<Option<CachedImage>, String> {
+        let mut cache = self.cache.lock().map_err(|e| format!("Cache lock error: {}", e))?;
+        
+        if let Some(image) = cache.remove(key) {
+            let mut current_size = self.current_size_bytes.lock()
+                .map_err(|e| format!("Size lock error: {}", e))?;
+            *current_size = current_size.saturating_sub(image.size_bytes);
+            Ok(Some(image))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Clear all cached images
+    pub fn clear(&self) -> Result<(), String> {
+        let mut cache = self.cache.lock().map_err(|e| format!("Cache lock error: {}", e))?;
+        let mut current_size = self.current_size_bytes.lock()
+            .map_err(|e| format!("Size lock error: {}", e))?;
+        
+        cache.clear();
+        *current_size = 0;
+        Ok(())
+    }
+
+    /// Get cache statistics
+    pub fn stats(&self) -> Result<ImageCacheStats, String> {
+        let cache = self.cache.lock().map_err(|e| format!("Cache lock error: {}", e))?;
+        let current_size = *self.current_size_bytes.lock()
+            .map_err(|e| format!("Size lock error: {}", e))?;
+
+        let mut expired_count = 0;
+        let mut total_access_count = 0;
+
+        for image in cache.values() {
+            if image.is_expired() {
+                expired_count += 1;
+            }
+            total_access_count += image.access_count;
+        }
+
+        Ok(ImageCacheStats {
+            total_entries: cache.len(),
+            total_size_bytes: current_size,
+            total_size_mb: current_size as f64 / (1024.0 * 1024.0),
+            expired_entries: expired_count,
+            total_access_count,
+            hit_ratio: 0.0, // Would need to track misses to calculate
+        })
+    }
+
+    /// Cleanup expired entries
+    pub fn cleanup_expired(&self) -> Result<usize, String> {
+        let mut cache = self.cache.lock().map_err(|e| format!("Cache lock error: {}", e))?;
+        let mut current_size = self.current_size_bytes.lock()
+            .map_err(|e| format!("Size lock error: {}", e))?;
+
+        let mut to_remove = Vec::new();
+        
+        for (key, image) in cache.iter() {
+            if image.is_expired() {
+                to_remove.push(key.clone());
+            }
+        }
+
+        let removed_count = to_remove.len();
+        for key in to_remove {
+            if let Some(image) = cache.remove(&key) {
+                *current_size = current_size.saturating_sub(image.size_bytes);
+            }
+        }
+
+        Ok(removed_count)
+    }
+
+    /// Find the LRU key for eviction
+    fn find_lru_key(&self, cache: &HashMap<ImageCacheKey, CachedImage>) -> Option<ImageCacheKey> {
+        cache.iter()
+            .min_by_key(|(_, image)| image.last_accessed)
+            .map(|(key, _)| key.clone())
+    }
+
+    /// Process a base64 image string and cache it
+    pub fn process_and_cache_base64(
+        &self, 
+        key: ImageCacheKey, 
+        base64_data: &str,
+        ttl_seconds: Option<u64>
+    ) -> Result<CachedImage, String> {
+        if let Some((format, data)) = ImageFormat::from_base64_data_url(base64_data) {
+            let image = CachedImage::new(data, format, ttl_seconds);
+            self.put(key, image.clone())?;
+            Ok(image)
+        } else {
+            Err("Invalid base64 image data".to_string())
+        }
+    }
+}
+
+/// Cache statistics
+#[derive(Debug, Clone)]
+pub struct ImageCacheStats {
+    pub total_entries: usize,
+    pub total_size_bytes: usize,
+    pub total_size_mb: f64,
+    pub expired_entries: usize,
+    pub total_access_count: u64,
+    pub hit_ratio: f64,
 }

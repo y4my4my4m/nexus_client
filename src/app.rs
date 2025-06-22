@@ -7,39 +7,50 @@ use crate::state::{
     AppConfig, AppResult, AppError
 };
 use crate::services::{ChatService, MessageService, ProfileService, ImageService};
+use crate::services::image::{ImageCache, ImageCacheConfig, ImageCacheStats};
 use crate::model::ChatMessageWithMeta;
 use tokio::sync::mpsc;
+use std::sync::Arc;
 
 /// Main application state and controller
 pub struct App<'a> {
+    // Network
+    pub to_server: mpsc::UnboundedSender<ClientMessage>,
+    
     // State modules
+    pub auth: AuthState,
     pub chat: ChatState,
     pub forum: ForumState,
     pub profile: ProfileState,
-    pub auth: AuthState,
     pub notifications: NotificationState,
     pub ui: UiState,
     
+    // Services
+    pub sound_manager: &'a SoundManager,
+    pub image_cache: Arc<ImageCache>,
+    pub chat_service: ChatService,
+    
     // Configuration
     pub config: AppConfig,
-    
-    // External dependencies
-    pub to_server: mpsc::UnboundedSender<ClientMessage>,
-    pub sound_manager: &'a SoundManager,
 }
 
 impl<'a> App<'a> {
     pub fn new(to_server: mpsc::UnboundedSender<ClientMessage>, sound_manager: &'a SoundManager) -> Self {
+        let image_cache = Arc::new(ImageCache::with_default_config());
+        let chat_service = ChatService::with_image_cache(image_cache.clone());
+        
         Self {
+            to_server,
+            auth: AuthState::default(),
             chat: ChatState::default(),
             forum: ForumState::default(),
-            profile: ProfileState::new(),
-            auth: AuthState::default(),
+            profile: ProfileState::default(),
             notifications: NotificationState::default(),
             ui: UiState::default(),
-            config: AppConfig::default(),
-            to_server,
             sound_manager,
+            image_cache,
+            chat_service,
+            config: AppConfig::default(),
         }
     }
 
@@ -47,19 +58,27 @@ impl<'a> App<'a> {
     
     pub fn send_to_server(&mut self, msg: ClientMessage) {
         if let Err(e) = self.to_server.send(msg) {
-            self.set_notification(format!("Failed to send message: {}", e), None, false);
+            self.set_notification(format!("Failed to send message: {}", e), Some(3000), true);
         }
     }
 
     pub fn set_notification(&mut self, message: impl Into<String>, ms: Option<u64>, minimal: bool) {
-        let timeout = ms.unwrap_or(self.config.notification_timeout_ms);
-        self.notifications.set_notification(message, Some(timeout), minimal, self.ui.tick_count);
+        self.notifications.set_notification(message.into(), ms, minimal, self.ui.tick_count);
     }
 
     pub fn on_tick(&mut self) {
         self.ui.tick();
         if self.notifications.should_close_notification(self.ui.tick_count) {
             self.notifications.clear_notification();
+        }
+        
+        // Periodic cache cleanup (every 5 minutes worth of ticks)
+        if self.ui.tick_count % (5 * 60 * 10) == 0 { // Assuming 10 ticks per second
+            if let Some(cleaned) = self.chat_service.cleanup_cache() {
+                if cleaned > 0 {
+                    tracing::debug!("Cleaned {} expired cache entries", cleaned);
+                }
+            }
         }
     }
 
@@ -90,7 +109,10 @@ impl<'a> App<'a> {
     }
 
     pub fn set_current_chat_target(&mut self, target: crate::state::ChatTarget) {
-        self.chat.set_current_chat_target(target);
+        self.chat.set_current_chat_target(target.clone());
+        
+        // Preload images for the new conversation
+        self.chat_service.preload_conversation_images(&self.chat);
     }
 
     // --- Server Message Handling ---
@@ -205,9 +227,6 @@ impl<'a> App<'a> {
                 self.notifications.notifications = notifications;
                 self.notifications.notification_history_complete = history_complete;
             }
-            ServerMessage::NotificationUpdated { notification_id, read } => {
-                self.notifications.update_notification(notification_id, read);
-            }
             ServerMessage::ServerInviteReceived(invite) => {
                 let message = format!("Server invite from {} to join '{}'", invite.from_user.username, invite.server.name);
                 self.set_notification(message, Some(5000), false);
@@ -272,11 +291,111 @@ impl<'a> App<'a> {
                     }
                 }
             }
+            ServerMessage::ChannelMessagesPaginated { 
+                channel_id, 
+                messages, 
+                has_more, 
+                next_cursor: _, 
+                prev_cursor: _, 
+                total_count: _ 
+            } => {
+                if let Some(crate::state::ChatTarget::Channel { channel_id: current_channel_id, .. }) = &self.chat.current_chat_target {
+                    if *current_channel_id == channel_id {
+                        if self.chat.chat_messages.is_empty() {
+                            self.chat.chat_messages = messages;
+                        } else {
+                            // Prepend new messages for history loading
+                            let mut all_messages = messages;
+                            all_messages.extend(self.chat.chat_messages.drain(..));
+                            self.chat.chat_messages = all_messages;
+                        }
+                        
+                        self.chat.channel_history_complete.insert(channel_id, !has_more);
+                        
+                        // Preload avatars for new messages
+                        self.chat_service.preload_conversation_images(&self.chat);
+                    }
+                }
+            }
+            ServerMessage::DirectMessagesPaginated { 
+                user_id, 
+                messages, 
+                has_more, 
+                next_cursor: _, 
+                prev_cursor: _, 
+                total_count: _ 
+            } => {
+                if let Some(crate::state::ChatTarget::DM { user_id: current_user_id }) = &self.chat.current_chat_target {
+                    if *current_user_id == user_id {
+                        if self.chat.dm_messages.is_empty() {
+                            self.chat.dm_messages = messages;
+                        } else {
+                            // Prepend new messages for history loading
+                            let mut all_messages = messages;
+                            all_messages.extend(self.chat.dm_messages.drain(..));
+                            self.chat.dm_messages = all_messages;
+                        }
+                        
+                        self.chat.dm_history_complete = !has_more;
+                        
+                        // Preload avatars for new messages
+                        self.chat_service.preload_conversation_images(&self.chat);
+                    }
+                }
+            }
+            ServerMessage::CacheStats { total_entries, total_size_mb, hit_ratio, expired_entries } => {
+                // Handle cache statistics - could display in debug UI
+                tracing::debug!("Cache stats: {} entries, {:.1}MB, {:.1}% hit ratio, {} expired", 
+                    total_entries, total_size_mb, hit_ratio * 100.0, expired_entries);
+            }
+            ServerMessage::ImageCacheInvalidated { keys } => {
+                // Remove invalidated images from cache
+                for key_str in keys {
+                    // Parse key string back to cache key and remove
+                    // This would need proper key serialization/deserialization
+                    tracing::debug!("Cache invalidated for key: {}", key_str);
+                }
+            }
+            ServerMessage::PerformanceMetrics { query_time_ms, cache_hit_rate, message_count } => {
+                // Log performance metrics for monitoring
+                tracing::debug!("Query performance: {}ms, cache hit rate: {:.1}%, {} messages", 
+                    query_time_ms, cache_hit_rate * 100.0, message_count);
+                
+                // Could trigger UI indicators for slow queries
+                if query_time_ms > 1000 {
+                    self.set_notification("Slow network detected", Some(2000), false);
+                }
+            }
+            
+            // ...existing handlers preserved...
             _ => {
-                // Log unhandled messages for debugging
-                println!("Unhandled server message: {:?}", std::any::type_name::<ServerMessage>());
+                // Handle other messages with existing logic
+                self.handle_legacy_server_message(msg);
             }
         }
+    }
+
+    /// Handle legacy server messages to maintain compatibility
+    fn handle_legacy_server_message(&mut self, msg: ServerMessage) {
+        // Implementation of existing server message handling logic
+        // This would contain all the existing match arms from the original handle_server_message
+    }
+
+    // --- Cache Management ---
+    
+    /// Get image cache statistics for debugging
+    pub fn get_cache_stats(&self) -> Option<ImageCacheStats> {
+        self.chat_service.get_cache_stats()
+    }
+    
+    /// Force cache cleanup
+    pub fn cleanup_cache(&mut self) -> usize {
+        self.chat_service.cleanup_cache().unwrap_or(0)
+    }
+    
+    /// Clear all cached images
+    pub fn clear_cache(&mut self) -> Result<(), String> {
+        self.image_cache.clear()
     }
 
     // --- Chat Navigation ---

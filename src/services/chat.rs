@@ -1,11 +1,170 @@
 use crate::state::{ChatState, ChatTarget};
 use crate::model::ChatMessageWithMeta;
+use crate::services::ImageService;
+use crate::services::image::{ImageCache, ImageCacheKey, CachedImage, ImageFormat, ImageCacheStats};
 use common::User;
+use std::sync::Arc;
 
-/// Business logic for chat functionality
-pub struct ChatService;
+/// Enhanced chat service with pagination and caching capabilities
+pub struct ChatService {
+    image_cache: Option<Arc<ImageCache>>,
+}
+
+impl Default for ChatService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl ChatService {
+    pub fn new() -> Self {
+        Self {
+            image_cache: None,
+        }
+    }
+
+    pub fn with_image_cache(image_cache: Arc<ImageCache>) -> Self {
+        Self {
+            image_cache: Some(image_cache),
+        }
+    }
+
+    /// Enhanced message fetching logic with intelligent prefetching
+    pub fn should_fetch_more_messages_enhanced(
+        chat_state: &ChatState,
+        max_rows: usize,
+        prefetch_threshold: usize,
+    ) -> bool {
+        match &chat_state.current_chat_target {
+            Some(ChatTarget::Channel { channel_id, server_id: _ }) => {
+                let history_complete = chat_state.channel_history_complete
+                    .get(channel_id)
+                    .copied()
+                    .unwrap_or(false);
+                let total_msgs = chat_state.chat_messages.len();
+                let max_scroll_offset = total_msgs.saturating_sub(max_rows);
+                
+                // Enhanced logic: fetch when approaching the end OR when we have insufficient buffer
+                !history_complete && (
+                    chat_state.chat_scroll_offset >= max_scroll_offset.saturating_sub(prefetch_threshold) || 
+                    total_msgs <= max_rows * 2
+                )
+            }
+            Some(ChatTarget::DM { .. }) => {
+                let total_msgs = chat_state.dm_messages.len();
+                let max_scroll_offset = total_msgs.saturating_sub(max_rows);
+                
+                !chat_state.dm_history_complete && (
+                    chat_state.chat_scroll_offset >= max_scroll_offset.saturating_sub(prefetch_threshold) || 
+                    total_msgs <= max_rows * 2
+                )
+            }
+            None => false,
+        }
+    }
+
+    /// Calculate optimal message buffer size based on scroll behavior
+    pub fn calculate_optimal_buffer_size(
+        current_buffer: usize,
+        scroll_velocity: f32,
+        max_rows: usize,
+    ) -> usize {
+        let base_buffer = max_rows * 2;
+        
+        // Increase buffer size based on scroll velocity
+        let velocity_multiplier = if scroll_velocity > 10.0 {
+            3.0 // Fast scrolling - larger buffer
+        } else if scroll_velocity > 5.0 {
+            2.5 // Medium scrolling
+        } else {
+            2.0 // Slow scrolling - standard buffer
+        };
+        
+        let optimal_size = (base_buffer as f32 * velocity_multiplier) as usize;
+        optimal_size.min(1000).max(base_buffer) // Cap at 1000, minimum base_buffer
+    }
+
+    /// Process and cache user avatar with optimization
+    pub fn process_user_avatar(&self, user: &User) -> Option<CachedImage> {
+        if let (Some(cache), Some(avatar_data)) = (&self.image_cache, &user.profile_pic) {
+            let cache_key = ImageCacheKey::user_avatar(user.id);
+            
+            // Check if already cached
+            if let Ok(Some(cached)) = cache.get(&cache_key) {
+                return Some(cached);
+            }
+            
+            // Process and cache new avatar
+            if let Ok(cached_image) = cache.process_and_cache_base64(
+                cache_key, 
+                avatar_data, 
+                Some(7200) // 2 hour TTL for avatars
+            ) {
+                return Some(cached_image);
+            }
+        }
+        None
+    }
+
+    /// Batch process multiple user avatars for efficiency
+    pub fn batch_process_avatars(&self, users: &[User]) -> Vec<(uuid::Uuid, Option<CachedImage>)> {
+        users.iter().map(|user| {
+            (user.id, self.process_user_avatar(user))
+        }).collect()
+    }
+
+    /// Get cache statistics for monitoring
+    pub fn get_cache_stats(&self) -> Option<ImageCacheStats> {
+        self.image_cache.as_ref()
+            .and_then(|cache| cache.stats().ok())
+    }
+
+    /// Cleanup expired cache entries
+    pub fn cleanup_cache(&self) -> Option<usize> {
+        self.image_cache.as_ref()
+            .and_then(|cache| cache.cleanup_expired().ok())
+    }
+
+    /// Preload images for current conversation participants
+    pub fn preload_conversation_images(&self, chat_state: &ChatState) {
+        if let Some(cache) = &self.image_cache {
+            match &chat_state.current_chat_target {
+                Some(ChatTarget::Channel { .. }) => {
+                    // Preload channel user avatars
+                    for user in &chat_state.channel_userlist {
+                        if let Some(avatar_data) = &user.profile_pic {
+                            let cache_key = ImageCacheKey::user_avatar(user.id);
+                            if !cache.contains_key(&cache_key) {
+                                let _ = cache.process_and_cache_base64(
+                                    cache_key,
+                                    avatar_data,
+                                    Some(7200)
+                                );
+                            }
+                        }
+                    }
+                }
+                Some(ChatTarget::DM { .. }) => {
+                    // Preload DM user avatars
+                    for user in &chat_state.dm_user_list {
+                        if let Some(avatar_data) = &user.profile_pic {
+                            let cache_key = ImageCacheKey::user_avatar(user.id);
+                            if !cache.contains_key(&cache_key) {
+                                let _ = cache.process_and_cache_base64(
+                                    cache_key,
+                                    avatar_data,
+                                    Some(7200)
+                                );
+                            }
+                        }
+                    }
+                }
+                None => {}
+            }
+        }
+    }
+
+    /// Get mention suggestions for users starting with the given input
     pub fn get_mention_suggestions(input: &str, users: &[User]) -> Vec<String> {
         let cursor = input.len();
         let upto = &input[..cursor];
@@ -27,6 +186,7 @@ impl ChatService {
         Vec::new()
     }
     
+    /// Apply the mention suggestion to the input text
     pub fn apply_mention_suggestion(input: &str, suggestion: &str, prefix: &str) -> String {
         let mut result = input.to_string();
         if let Some(idx) = input.rfind(&format!("@{}", prefix)) {
@@ -78,20 +238,11 @@ impl ChatService {
     
     /// Check if input contains a complete emoji shortcode and return the emoji
     pub fn check_for_exact_emoji_match(input: &str) -> Option<(String, usize, usize)> {
-        // Look for pattern :emoji_name: (complete with closing colon)
-        if let Some(end_pos) = input.rfind(':') {
-            if let Some(start_pos) = input[..end_pos].rfind(':') {
-                let emoji_name = &input[(start_pos + 1)..end_pos];
-                if !emoji_name.is_empty() && emoji_name.chars().all(|ch| ch.is_alphabetic() || ch == '_') {
-                    // Check if this matches any emoji shortcode exactly
-                    for emoji in emojis::iter() {
-                        for shortcode in emoji.shortcodes() {
-                            if shortcode.to_lowercase() == emoji_name.to_lowercase() {
-                                return Some((emoji.as_str().to_string(), start_pos, end_pos + 1));
-                            }
-                        }
-                    }
-                }
+        let re = regex::Regex::new(r":([a-zA-Z0-9_+-]+):").unwrap();
+        if let Some(captures) = re.find(input) {
+            let shortcode = &input[captures.start()+1..captures.end()-1];
+            if let Some(emoji) = emojis::get_by_shortcode(shortcode) {
+                return Some((emoji.as_str().to_string(), captures.start(), captures.end()));
             }
         }
         None
@@ -107,7 +258,7 @@ impl ChatService {
                     ChatMessageWithMeta {
                         author: msg.author_username.clone(),
                         content: msg.content.clone(),
-                        color: msg.author_color,
+                        color: msg.author_color.clone().into(),
                         profile_pic: msg.author_profile_pic.clone(),
                         timestamp: Some(msg.timestamp),
                     }
@@ -119,13 +270,13 @@ impl ChatService {
                         if msg.from != user.id {
                             // Find user in dm_user_list
                             if let Some(dm_user) = chat_state.dm_user_list.iter().find(|u| u.id == msg.from) {
-                                (dm_user.username.clone(), dm_user.color, dm_user.profile_pic.clone())
+                                (dm_user.username.clone(), dm_user.color.clone().into(), dm_user.profile_pic.clone())
                             } else {
                                 ("?".to_string(), ratatui::style::Color::Gray, None)
                             }
                         } else {
                             // Current user
-                            (user.username.clone(), user.color, user.profile_pic.clone())
+                            (user.username.clone(), user.color.clone().into(), user.profile_pic.clone())
                         }
                     } else {
                         ("?".to_string(), ratatui::style::Color::Gray, None)
@@ -143,33 +294,11 @@ impl ChatService {
             None => Vec::new(),
         }
     }
-    
+
     pub fn should_fetch_more_messages(
         chat_state: &ChatState,
         max_rows: usize,
     ) -> bool {
-        match &chat_state.current_chat_target {
-            Some(ChatTarget::Channel { channel_id, server_id: _ }) => {
-                let history_complete = chat_state.channel_history_complete
-                    .get(channel_id)
-                    .copied()
-                    .unwrap_or(false);
-                let total_msgs = chat_state.chat_messages.len();
-                let max_scroll_offset = total_msgs.saturating_sub(max_rows);
-                
-                !history_complete && 
-                (chat_state.chat_scroll_offset >= max_scroll_offset.saturating_sub(max_rows / 2) || 
-                 total_msgs <= max_rows * 2)
-            }
-            Some(ChatTarget::DM { .. }) => {
-                let total_msgs = chat_state.dm_messages.len();
-                let max_scroll_offset = total_msgs.saturating_sub(max_rows);
-                
-                !chat_state.dm_history_complete && 
-                (chat_state.chat_scroll_offset >= max_scroll_offset.saturating_sub(max_rows / 2) || 
-                 total_msgs <= max_rows * 2)
-            }
-            None => false,
-        }
+        Self::should_fetch_more_messages_enhanced(chat_state, max_rows, 10)
     }
 }
