@@ -534,6 +534,7 @@ pub fn draw_preferences(f: &mut Frame, app: &mut App, area: Rect) {
         .constraints([
             Constraint::Length(3), // Sound Effects
             Constraint::Length(3), // Glitch Effects
+            Constraint::Length(3), // Desktop Notifications
             Constraint::Min(0),    // Remaining space
         ])
         .split(inner);
@@ -570,16 +571,28 @@ pub fn draw_preferences(f: &mut Frame, app: &mut App, area: Rect) {
         items_layout[1],
     );
     
-    // Help text
-    let help_area = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(2)])
-        .split(inner)[1];
-        
+    // Desktop Notifications preference
+    let desktop_notif_status = if prefs.desktop_notifications_enabled { "ON" } else { "OFF" };
+    let desktop_notif_style = if app.ui.preferences_selected == 2 {
+        Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::White)
+    };
+    
     f.render_widget(
-        Paragraph::new("Use ↑↓ to navigate, SPACE/ENTER to toggle, ESC to go back")
-            .style(Style::default().fg(Color::DarkGray))
+        Paragraph::new(format!("🔔 Desktop Notifications: {}", desktop_notif_status))
+            .style(desktop_notif_style)
+            .block(Block::default().borders(Borders::ALL))
             .alignment(Alignment::Center),
-        help_area,
+        items_layout[2],
     );
+    
+    // Help text
+    if items_layout.len() > 3 {
+        let help_text = Paragraph::new("Use [↑↓] to navigate, [Space/Enter] to toggle, [Esc] to go back")
+            .style(Style::default().fg(Color::Gray))
+            .alignment(Alignment::Center)
+            .block(Block::default().borders(Borders::ALL).title("Help"));
+        f.render_widget(help_text, items_layout[3]);
+    }
 }

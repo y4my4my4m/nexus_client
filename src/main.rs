@@ -6,6 +6,7 @@ mod ui;
 mod sound;
 mod global_prefs;
 mod model;
+mod desktop_notifications;
 
 use app::App;
 use sound::SoundManager;

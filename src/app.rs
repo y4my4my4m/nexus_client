@@ -9,6 +9,7 @@ use crate::services::image::{ImageCache, ImageCacheStats};
 use crate::model::ChatMessageWithMeta;
 use tokio::sync::mpsc;
 use std::sync::Arc;
+use crate::desktop_notifications::DesktopNotificationService;
 
 /// Main application state and controller
 pub struct App<'a> {
@@ -189,23 +190,44 @@ impl<'a> App<'a> {
                 }
             }
             ServerMessage::DirectMessage(dm) => {
-                let current_user_id = self.auth.current_user.as_ref().map(|u| u.id);
+                let current_user_id = self.auth.current_user.as_ref().map(|u| u.id);                
+                
                 let is_current = if let (Some(crate::state::ChatTarget::DM { user_id }), Some(_my_id)) = (self.chat.current_chat_target.as_ref(), current_user_id) {
                     (user_id == &dm.from || user_id == &dm.to) && self.chat.sidebar_tab == crate::state::SidebarTab::DMs
                 } else { false };
+                
+                // Extract needed data before any potential moves
+                let dm_from = dm.from;
+                let dm_to = dm.to;
+                let dm_author_username = dm.author_username.clone();
+                let dm_content = dm.content.clone();
+                let sender_profile_pic = dm.author_profile_pic.clone();
                 
                 if is_current {
                     self.chat.dm_messages.push(dm);
                     self.chat.reset_scroll_offset();
                 } else if let Some(my_id) = current_user_id {
-                    if dm.to == my_id {
-                        self.chat.unread_dm_conversations.insert(dm.from);
+                    if dm_to == my_id {
+                        self.chat.unread_dm_conversations.insert(dm_from);
                         self.set_notification(
-                            format!("DM from {}: {}", dm.author_username, dm.content),
+                            format!("DM from {}: {}", dm_author_username, dm_content),
                             Some(4000),
                             true,
                         );
-                        self.sound_manager.play(SoundType::DirectMessage);
+                        
+                        // Desktop notification with profile picture
+                        crate::desktop_notifications::DesktopNotificationService::show_dm_notification(
+                            &dm_author_username,
+                            &dm_content,
+                            sender_profile_pic.as_ref(),
+                        );
+                    }
+                }
+                
+                // Update unread count for sender if not currently viewing their DM
+                if let Some(my_id) = current_user_id {
+                    if dm_to == my_id && !is_current {
+                        self.chat.unread_dm_conversations.insert(dm_from);
                     }
                 }
             }
@@ -215,11 +237,24 @@ impl<'a> App<'a> {
                     Some(4000),
                     true,
                 );
+                
+                // Show desktop notification for mentions with profile picture
+                DesktopNotificationService::show_mention_notification(&from.username, &content, from.profile_pic.as_deref());
                 self.sound_manager.play(SoundType::Mention);
             }
             ServerMessage::Notification(text, is_error) => {
                 let prefix = if is_error { "Error: " } else { "Info: " };
                 self.set_notification(format!("{}{}", prefix, text), Some(2000), false);
+                
+                // Show desktop notification for important messages
+                if is_error {
+                    DesktopNotificationService::show_error_notification(&text);
+                } else if text.contains("Profile updated successfully") || 
+                         text.contains("Server invite") || 
+                         text.contains("connected") ||
+                         text.contains("disconnected") {
+                    DesktopNotificationService::show_info_notification(&text);
+                }
                 
                 // If this is a profile update success notification, play save sound and return to settings
                 if !is_error && text.contains("Profile updated successfully") {
@@ -235,7 +270,9 @@ impl<'a> App<'a> {
             }
             ServerMessage::ServerInviteReceived(invite) => {
                 let message = format!("Server invite from {} to join '{}'", invite.from_user.username, invite.server.name);
-                self.set_notification(message, Some(5000), false);
+                self.set_notification(message.clone(), Some(5000), false);
+                // Show desktop notification for server invites
+                DesktopNotificationService::show_server_invite_notification(&invite.from_user.username, &invite.server.name);
                 self.sound_manager.play(SoundType::PopupOpen);
             }
             ServerMessage::ServerInviteResponse { invite_id: _, accepted, user } => {

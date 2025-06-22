@@ -23,11 +23,12 @@ base64 = "0.22.1"
 ratatui-image = "8.0.1"
 image = { version = "0.25.6", features = ["png", "jpeg", "gif"] }
 regex = "1.11.1"
-chrono = "0.4.41"
+chrono = { version = "0.4.41", features = ["serde"] }
 chrono-humanize = "0.2"
 serde = "1.0.219"
 serde_json = "1.0.140"
 tracing = "0.1"
+notify-rust = "4.10"
 
 # Optional rodio dependency, only included when the "audio" feature is enabled
 rodio = { version = "0.17", default-features = false, features = ["mp3"], optional = true }

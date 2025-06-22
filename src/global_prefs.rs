@@ -9,6 +9,7 @@ use std::sync::RwLock;
 pub struct GlobalPrefs {
     pub sound_effects_enabled: bool,
     pub minimal_banner_glitch_enabled: bool,
+    pub desktop_notifications_enabled: bool,
 }
 
 impl Default for GlobalPrefs {
@@ -16,6 +17,7 @@ impl Default for GlobalPrefs {
         Self {
             sound_effects_enabled: true,
             minimal_banner_glitch_enabled: true,
+            desktop_notifications_enabled: true,
         }
     }
 }

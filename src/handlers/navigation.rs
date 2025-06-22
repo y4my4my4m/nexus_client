@@ -1,6 +1,7 @@
 use crate::app::App;
 use crate::sound::SoundType;
 use crate::global_prefs::global_prefs_mut;
+use crate::desktop_notifications::DesktopNotificationService;
 use common::{ClientMessage, UserColor};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::Color;
@@ -314,11 +315,11 @@ fn handle_preferences_input(key: KeyEvent, app: &mut App) {
     match key.code {
         KeyCode::Down => {
             app.sound_manager.play(SoundType::Scroll);
-            app.ui.preferences_selected = (app.ui.preferences_selected + 1) % 2; // 2 preferences total
+            app.ui.preferences_selected = (app.ui.preferences_selected + 1) % 3; // 3 preferences total
         }
         KeyCode::Up => {
             app.sound_manager.play(SoundType::Scroll);
-            app.ui.preferences_selected = if app.ui.preferences_selected == 0 { 1 } else { 0 }; // Go to previous item (wrap around)
+            app.ui.preferences_selected = if app.ui.preferences_selected == 0 { 2 } else { app.ui.preferences_selected - 1 };
         }
         KeyCode::Char(' ') | KeyCode::Enter => {
             app.sound_manager.play(SoundType::Save);
@@ -331,6 +332,15 @@ fn handle_preferences_input(key: KeyEvent, app: &mut App) {
                 1 => {
                     // Toggle glitch effects
                     prefs.minimal_banner_glitch_enabled = !prefs.minimal_banner_glitch_enabled;
+                }
+                2 => {
+                    // Toggle desktop notifications
+                    prefs.desktop_notifications_enabled = !prefs.desktop_notifications_enabled;
+                    
+                    // Show a test notification when enabling
+                    if prefs.desktop_notifications_enabled {
+                        DesktopNotificationService::show_info_notification("Desktop notifications enabled!");
+                    }
                 }
                 _ => {}
             }
