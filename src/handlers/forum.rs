@@ -17,7 +17,7 @@ fn handle_forum_list_input(key: KeyEvent, app: &mut App) {
     match key.code {
         KeyCode::Down => {
             if !app.forum.forums.is_empty() {
-                app.sound_manager.play(SoundType::Scroll);
+                app.sound_manager.play(SoundType::ChangeChannel);
                 let current = app.forum.forum_list_state.selected().unwrap_or(0);
                 let next = (current + 1) % app.forum.forums.len();
                 app.forum.forum_list_state.select(Some(next));
@@ -25,7 +25,7 @@ fn handle_forum_list_input(key: KeyEvent, app: &mut App) {
         }
         KeyCode::Up => {
             if !app.forum.forums.is_empty() {
-                app.sound_manager.play(SoundType::Scroll);
+                app.sound_manager.play(SoundType::ChangeChannel);
                 let current = app.forum.forum_list_state.selected().unwrap_or(0);
                 let next = (current + app.forum.forums.len() - 1) % app.forum.forums.len();
                 app.forum.forum_list_state.select(Some(next));
@@ -74,7 +74,7 @@ fn handle_thread_list_input(key: KeyEvent, app: &mut App) {
         KeyCode::Down => {
             if let Some(forum) = app.forum.get_current_forum() {
                 if !forum.threads.is_empty() {
-                    app.sound_manager.play(SoundType::Scroll);
+                    app.sound_manager.play(SoundType::ChangeChannel);
                     let current = app.forum.thread_list_state.selected().unwrap_or(0);
                     let next = (current + 1) % forum.threads.len();
                     app.forum.thread_list_state.select(Some(next));
@@ -84,7 +84,7 @@ fn handle_thread_list_input(key: KeyEvent, app: &mut App) {
         KeyCode::Up => {
             if let Some(forum) = app.forum.get_current_forum() {
                 if !forum.threads.is_empty() {
-                    app.sound_manager.play(SoundType::Scroll);
+                    app.sound_manager.play(SoundType::ChangeChannel);
                     let current = app.forum.thread_list_state.selected().unwrap_or(0);
                     let next = (current + forum.threads.len() - 1) % forum.threads.len();
                     app.forum.thread_list_state.select(Some(next));
