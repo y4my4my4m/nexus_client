@@ -182,12 +182,18 @@ impl<'a> App<'a> {
                 } else {
                     self.chat.user_list_state.select(None);
                 }
+                
+                // Request missing avatars for users that don't have profile pictures
+                self.chat_service.request_missing_avatars(&self.chat, &self.to_server);
             }
             ServerMessage::DMUserList(users) => {
                 self.chat.dm_user_list = users;
                 if self.ui.mode == crate::state::AppMode::Chat && self.chat.sidebar_tab == crate::state::SidebarTab::DMs {
                     self.select_and_load_first_chat();
                 }
+                
+                // Request missing avatars for DM users that don't have profile pictures
+                self.chat_service.request_missing_avatars(&self.chat, &self.to_server);
             }
             ServerMessage::DirectMessage(dm) => {
                 let current_user_id = self.auth.current_user.as_ref().map(|u| u.id);                
@@ -423,6 +429,21 @@ impl<'a> App<'a> {
                 // Could trigger UI indicators for slow queries
                 if query_time_ms > 1000 {
                     self.set_notification("Slow network detected", Some(2000), false);
+                }
+            }
+            ServerMessage::UserAvatars { avatars } => {
+                // Update avatar cache with received avatars
+                for (user_id, profile_pic) in avatars {
+                    // Update users in channel userlist
+                    if let Some(user) = self.chat.channel_userlist.iter_mut().find(|u| u.id == user_id) {
+                        user.profile_pic = profile_pic.clone();
+                    }
+                    // Update users in DM list
+                    if let Some(user) = self.chat.dm_user_list.iter_mut().find(|u| u.id == user_id) {
+                        user.profile_pic = profile_pic.clone();
+                    }
+                    // Invalidate any cached avatar protocols to force reload
+                    self.profile.invalidate_avatar_cache(user_id);
                 }
             }
             
