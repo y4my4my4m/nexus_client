@@ -367,9 +367,8 @@ impl<'a> App<'a> {
                 }
             }
             
-            // ...existing handlers preserved...
+            // Handle any unmatched server messages
             _ => {
-                // Handle other messages with existing logic
                 self.handle_legacy_server_message(msg);
             }
         }
