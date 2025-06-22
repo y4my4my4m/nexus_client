@@ -141,9 +141,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 AppEvent::Terminal(terminal_event) => {
                     if let CEvent::Key(key) = terminal_event {
                         handlers::handle_key_event(key, &mut app);
-                        if app.profile.show_profile_view_popup == true {
-                            app.profile.show_profile_view_popup = false;
-                        }
                     }
                 }
                 AppEvent::Server(server_msg) => {

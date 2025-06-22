@@ -20,6 +20,12 @@ pub fn handle_chat_input(key: KeyEvent, app: &mut App) {
 }
 
 fn handle_chat_popups(key: KeyEvent, app: &mut App) -> bool {
+    // Handle profile view popup
+    if app.profile.show_profile_view_popup {
+        app.profile.close_profile_view();
+        return true;
+    }
+
     // Handle user actions popup
     if app.profile.show_user_actions {
         match key.code {
