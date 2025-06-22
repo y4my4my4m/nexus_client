@@ -77,7 +77,7 @@ impl DesktopNotificationService {
 
     /// Show an error notification
     pub fn show_error_notification(message: &str) {
-        let title = "Nexus - Error";
+        let title = "Error";
         Self::show_notification(title, message, NotificationUrgency::Critical);
     }
 
