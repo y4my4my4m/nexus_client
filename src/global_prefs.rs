@@ -1,4 +1,3 @@
-// client/src/global_prefs.rs
 // Global preferences for the app (not user-specific)
 use std::path::PathBuf;
 use std::fs;

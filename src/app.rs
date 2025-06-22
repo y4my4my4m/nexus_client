@@ -1,5 +1,3 @@
-// client/src/app.rs
-
 use common::{ClientMessage, ServerMessage};
 use crate::sound::{SoundManager, SoundType};
 use crate::state::{
@@ -746,7 +744,7 @@ impl<'a> App<'a> {
                 }
             } else if let Some(banner_bytes) = ImageService::decode_image_bytes(&profile.cover_banner) {
                 // Just banner, no profile pic - still apply gradient overlay
-                if let Ok(mut banner_img) = image::load_from_memory(&banner_bytes) {
+                if let Ok(banner_img) = image::load_from_memory(&banner_bytes) {
                     // Apply black gradient overlay even for banner-only images
                     let mut rgba_img = banner_img.to_rgba8();
                     let (width, height) = rgba_img.dimensions();

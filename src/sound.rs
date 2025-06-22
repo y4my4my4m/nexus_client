@@ -1,4 +1,3 @@
-// client/src/sound.rs
 // SoundManager for playing UI sounds
 use crate::global_prefs::global_prefs;
 #[cfg(not(target_env = "musl"))]

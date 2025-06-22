@@ -230,7 +230,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
     let display_items = &messages[start_idx.max(0)..end_idx];
 
     let now = chrono::Local::now();
-    let mut last_date: Option<chrono::NaiveDate> = None;
+    let last_date: Option<chrono::NaiveDate> = None;
     let text_area_width = inner_area.width.saturating_sub(avatar_cell_width + 1);
     
     // Render messages from bottom up to handle dynamic heights properly
