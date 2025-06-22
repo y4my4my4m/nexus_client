@@ -231,11 +231,36 @@ fn handle_message_input(key: KeyEvent, app: &mut App) {
                     app.chat.emoji_selected = new_index.min(app.chat.emoji_suggestions.len() - 1);
                 }
             } else {
+                // Scroll up one line and fetch more messages if needed
                 let max_rows = app.chat.last_chat_rows.unwrap_or(20);
                 let total_msgs = app.get_current_message_list().len();
                 let max_scroll = total_msgs.saturating_sub(max_rows);
+                
                 if app.chat.chat_scroll_offset < max_scroll {
                     app.chat.chat_scroll_offset += 1;
+                    
+                    // Check if we need to fetch more messages when scrolling up
+                    if crate::services::ChatService::should_fetch_more_messages(&app.chat, max_rows) {
+                        match &app.chat.current_chat_target {
+                            Some(crate::state::ChatTarget::Channel { server_id: _, channel_id }) => {
+                                if let Some(oldest_msg) = app.chat.chat_messages.first() {
+                                    app.send_to_server(ClientMessage::GetChannelMessages {
+                                        channel_id: *channel_id,
+                                        before: Some(oldest_msg.timestamp),
+                                    });
+                                }
+                            }
+                            Some(crate::state::ChatTarget::DM { user_id }) => {
+                                if let Some(oldest) = app.chat.dm_messages.first() {
+                                    app.send_to_server(ClientMessage::GetDirectMessages {
+                                        user_id: *user_id,
+                                        before: Some(oldest.timestamp),
+                                    });
+                                }
+                            }
+                            None => {}
+                        }
+                    }
                 }
             }
         }
