@@ -100,21 +100,3 @@ pub fn get_styled_banner_lines(width: u16, tick_count: u64) -> Vec<Line<'static>
         })
         .collect()
 }
-
-pub fn draw_full_banner(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    let banner_lines = get_styled_banner_lines(area.width, app.ui.tick_count);
-    let paragraph = Paragraph::new(banner_lines)
-        .block(Block::default().borders(Borders::ALL))
-        .alignment(ratatui::layout::Alignment::Center);
-    f.render_widget(paragraph, area);
-}
-
-pub fn draw_min_banner(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    let banner_lines = get_styled_banner_lines(area.width, app.ui.tick_count);
-    // Take only the first 3 lines for minimal banner
-    let min_lines: Vec<Line> = banner_lines.into_iter().take(3).collect();
-    let paragraph = Paragraph::new(min_lines)
-        .block(Block::default().borders(Borders::ALL))
-        .alignment(ratatui::layout::Alignment::Center);
-    f.render_widget(paragraph, area);
-}

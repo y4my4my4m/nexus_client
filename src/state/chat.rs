@@ -134,16 +134,16 @@ impl ChatState {
         self.chat_scroll_offset = 0;
     }
     
-    pub fn update_scroll_offset(&mut self, offset: usize, max_rows: usize) {
-        let total_msgs = match &self.current_chat_target {
-            Some(ChatTarget::Channel { .. }) => self.chat_messages.len(),
-            Some(ChatTarget::DM { .. }) => self.dm_messages.len(),
-            None => 0,
-        };
+    // pub fn update_scroll_offset(&mut self, offset: usize, max_rows: usize) {
+    //     let total_msgs = match &self.current_chat_target {
+    //         Some(ChatTarget::Channel { .. }) => self.chat_messages.len(),
+    //         Some(ChatTarget::DM { .. }) => self.dm_messages.len(),
+    //         None => 0,
+    //     };
         
-        let max_scroll = total_msgs.saturating_sub(max_rows);
-        self.chat_scroll_offset = offset.min(max_scroll);
-    }
+    //     let max_scroll = total_msgs.saturating_sub(max_rows);
+    //     self.chat_scroll_offset = offset.min(max_scroll);
+    // }
     
     pub fn clear_mention_suggestions(&mut self) {
         self.mention_suggestions.clear();

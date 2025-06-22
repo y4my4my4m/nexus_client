@@ -92,17 +92,17 @@ impl ProfileState {
         self.profile_edit_error = None;
     }
     
-    pub fn clear_edit_state(&mut self) {
-        self.edit_bio.clear();
-        self.edit_url1.clear();
-        self.edit_url2.clear();
-        self.edit_url3.clear();
-        self.edit_location.clear();
-        self.edit_profile_pic.clear();
-        self.edit_cover_banner.clear();
-        self.profile_edit_error = None;
-        self.profile_edit_focus = ProfileEditFocus::Bio;
-    }
+    // pub fn clear_edit_state(&mut self) {
+    //     self.edit_bio.clear();
+    //     self.edit_url1.clear();
+    //     self.edit_url2.clear();
+    //     self.edit_url3.clear();
+    //     self.edit_location.clear();
+    //     self.edit_profile_pic.clear();
+    //     self.edit_cover_banner.clear();
+    //     self.profile_edit_error = None;
+    //     self.profile_edit_focus = ProfileEditFocus::Bio;
+    // }
     
     pub fn set_profile_for_viewing(&mut self, profile: UserProfile) {
         self.profile_view = Some(profile);

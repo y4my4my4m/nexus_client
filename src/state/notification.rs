@@ -28,11 +28,11 @@ impl NotificationState {
         self.current_notification = None;
     }
     
-    pub fn update_notification(&mut self, notification_id: Uuid, read: bool) {
-        if let Some(n) = self.notifications.iter_mut().find(|n| n.id == notification_id) {
-            n.read = read;
-        }
-    }
+    // pub fn update_notification(&mut self, notification_id: Uuid, read: bool) {
+    //     if let Some(n) = self.notifications.iter_mut().find(|n| n.id == notification_id) {
+    //         n.read = read;
+    //     }
+    // }
 
     pub fn should_close_notification(&self, tick_count: u64) -> bool {
         if let Some((_, Some(close_tick), _)) = &self.current_notification {

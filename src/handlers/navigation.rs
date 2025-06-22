@@ -15,6 +15,12 @@ pub fn handle_global_shortcuts(key: KeyEvent, app: &mut App) -> bool {
             app.sound_manager.play(SoundType::PopupOpen);
             return true;
         }
+        KeyCode::F(2) => {
+            // open the preferences menu
+            app.ui.set_mode(crate::state::AppMode::Parameters);
+            app.sound_manager.play(SoundType::PopupOpen);
+            return true;
+        }
         KeyCode::F(5) => {
             if app.ui.mode == crate::state::AppMode::Chat {
                 app.ui.show_server_actions = true;
