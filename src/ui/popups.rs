@@ -463,31 +463,31 @@ pub fn draw_cyberpunk_server_error_popup(f: &mut Frame, app: &App) {
     ]));
     lines.push(Line::from(vec![
         Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-        Span::styled("    ███████ ██████  ██████   ██████  ██████      ", 
+        Span::styled("             ███████ ██████  ██████   ██████  ██████       ", 
             Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD)),
         Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
     ]));
     lines.push(Line::from(vec![
         Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-        Span::styled("    ██      ██   ██ ██   ██ ██    ██ ██   ██     ", 
+        Span::styled("             ██      ██   ██ ██   ██ ██    ██ ██   ██      ", 
             Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD)),
         Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
     ]));
     lines.push(Line::from(vec![
         Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-        Span::styled("    █████   ██████  ██████  ██    ██ ██████      ", 
+        Span::styled("             █████   ██████  ██████  ██    ██ ██████       ", 
             Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD)),
         Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
     ]));
     lines.push(Line::from(vec![
         Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-        Span::styled("    ██      ██   ██ ██   ██ ██    ██ ██   ██     ", 
+        Span::styled("             ██      ██   ██ ██   ██ ██    ██ ██   ██      ", 
             Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD)),
         Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
     ]));
     lines.push(Line::from(vec![
         Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-        Span::styled("    ███████ ██   ██ ██   ██  ██████  ██   ██     ", 
+        Span::styled("             ███████ ██   ██ ██   ██  ██████  ██   ██      ", 
             Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD)),
         Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
     ]));
