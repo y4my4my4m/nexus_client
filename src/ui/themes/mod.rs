@@ -82,4 +82,9 @@ impl ThemeManager {
     pub fn get_theme_name(&self) -> &str {
         self.get_current_theme().name()
     }
+    pub fn set_theme_by_name(&mut self, name: &str) {
+        if let Some(idx) = self.themes.iter().position(|t| t.name().eq_ignore_ascii_case(name)) {
+            self.current_index = idx;
+        }
+    }
 }

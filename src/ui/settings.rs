@@ -525,7 +525,7 @@ pub fn draw_color_picker(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 pub fn draw_preferences(f: &mut Frame, app: &mut App, area: Rect) {
-    let prefs = crate::global_prefs::global_prefs();
+    let prefs = &app.prefs;
     
     let block = Block::default().borders(Borders::ALL).title("Preferences");
     f.render_widget(&block, area);

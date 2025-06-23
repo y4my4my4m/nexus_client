@@ -10,6 +10,8 @@ pub struct GlobalPrefs {
     pub sound_effects_enabled: bool,
     pub minimal_banner_glitch_enabled: bool,
     pub desktop_notifications_enabled: bool,
+    pub theme_name: String,
+    pub background_name: String,
 }
 
 impl Default for GlobalPrefs {
@@ -18,6 +20,8 @@ impl Default for GlobalPrefs {
             sound_effects_enabled: true,
             minimal_banner_glitch_enabled: true,
             desktop_notifications_enabled: true,
+            theme_name: "Cyberpunk".to_string(),
+            background_name: "Minimal".to_string(),
         }
     }
 }
@@ -25,7 +29,7 @@ impl Default for GlobalPrefs {
 impl GlobalPrefs {
     pub fn config_path() -> PathBuf {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        PathBuf::from(home).join(".cyberpunk_bbs_prefs.json")
+        PathBuf::from(home).join(".nexus_prefs.json")
     }
 
     pub fn load() -> Self {

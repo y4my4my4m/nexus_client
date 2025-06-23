@@ -1,6 +1,5 @@
 use crate::app::App;
 use crate::sound::SoundType;
-use crate::global_prefs::global_prefs_mut;
 use crate::desktop_notifications::DesktopNotificationService;
 use common::{ClientMessage, UserColor};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -37,17 +36,21 @@ pub fn handle_global_shortcuts(key: KeyEvent, app: &mut App) -> bool {
             }
         }
         KeyCode::F(7) => {
-            // Cycle through backgrounds
             app.background_manager.cycle_background();
             let bg_name = app.background_manager.get_background_name();
+            app.prefs.background_name = bg_name.to_string();
+            app.prefs_dirty = true;
+            app.prefs_dirty_last_update = Some(std::time::Instant::now());
             app.set_notification(format!("Background changed to: {}", bg_name.to_uppercase()), Some(2000), true);
             app.sound_manager.play(SoundType::ChangeChannel);
             return true;
         }
         KeyCode::F(8) => {
-            // Cycle through color themes
             app.theme_manager.cycle_theme();
             let theme_name = app.theme_manager.get_theme_name();
+            app.prefs.theme_name = theme_name.to_string();
+            app.prefs_dirty = true;
+            app.prefs_dirty_last_update = Some(std::time::Instant::now());
             app.set_notification(format!("Theme changed to: {}", theme_name.to_uppercase()), Some(2000), true);
             app.sound_manager.play(SoundType::ChangeChannel);
             return true;
@@ -355,37 +358,23 @@ fn handle_preferences_input(key: KeyEvent, app: &mut App) {
         }
         KeyCode::Char(' ') | KeyCode::Enter => {
             app.sound_manager.play(SoundType::Save);
-            // Copy prefs, modify, save, then update global
-            let mut prefs = crate::global_prefs::global_prefs_mut();
-            let mut new_prefs = prefs.clone();
             match app.ui.preferences_selected {
                 0 => {
-                    new_prefs.sound_effects_enabled = !new_prefs.sound_effects_enabled;
+                    app.prefs.sound_effects_enabled = !app.prefs.sound_effects_enabled;
                 }
                 1 => {
-                    new_prefs.minimal_banner_glitch_enabled = !new_prefs.minimal_banner_glitch_enabled;
+                    app.prefs.minimal_banner_glitch_enabled = !app.prefs.minimal_banner_glitch_enabled;
                 }
                 2 => {
-                    new_prefs.desktop_notifications_enabled = !new_prefs.desktop_notifications_enabled;
-                    if new_prefs.desktop_notifications_enabled {
-                        // Drop lock before showing notification
-                        drop(prefs);
+                    app.prefs.desktop_notifications_enabled = !app.prefs.desktop_notifications_enabled;
+                    if app.prefs.desktop_notifications_enabled {
                         DesktopNotificationService::show_info_notification("Desktop notifications enabled!");
-                        // reacquire lock for save below
-                        let mut prefs = crate::global_prefs::global_prefs_mut();
-                        *prefs = new_prefs.clone();
-                        new_prefs.save();
-                        return;
                     }
                 }
                 _ => {}
             }
-            // Drop lock before saving to disk
-            drop(prefs);
-            new_prefs.save();
-            // reacquire lock and update global
-            let mut prefs = crate::global_prefs::global_prefs_mut();
-            *prefs = new_prefs;
+            app.prefs_dirty = true;
+            app.prefs_dirty_last_update = Some(std::time::Instant::now());
         }
         KeyCode::Esc => {
             // Return to previous menu

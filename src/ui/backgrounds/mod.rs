@@ -71,4 +71,9 @@ impl BackgroundManager {
     pub fn get_background_name(&self) -> &str {
         self.get_current_background().map(|b| b.name()).unwrap_or("None")
     }
+    pub fn set_background_by_name(&mut self, name: &str) {
+        if let Some(idx) = self.backgrounds.iter().position(|b| b.name().eq_ignore_ascii_case(name)) {
+            self.current_index = idx;
+        }
+    }
 }

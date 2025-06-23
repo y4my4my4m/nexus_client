@@ -34,15 +34,23 @@ pub struct App<'a> {
     // Theme system
     pub background_manager: BackgroundManager, // For animated backgrounds
     pub theme_manager: ThemeManager, // For UI color themes
-    
     // Configuration
     pub config: AppConfig,
+    // Preferences (no global lock)
+    pub prefs: crate::global_prefs::GlobalPrefs,
+    pub prefs_dirty: bool,
+    pub prefs_dirty_last_update: Option<std::time::Instant>,
 }
 
 impl<'a> App<'a> {
     pub fn new(to_server: mpsc::UnboundedSender<ClientMessage>, sound_manager: &'a SoundManager) -> Self {
         let image_cache = Arc::new(ImageCache::with_default_config());
         let chat_service = ChatService::with_image_cache(image_cache.clone());
+        let prefs = crate::global_prefs::GlobalPrefs::load();
+        let mut theme_manager = ThemeManager::new();
+        theme_manager.set_theme_by_name(&prefs.theme_name);
+        let mut background_manager = BackgroundManager::new();
+        background_manager.set_background_by_name(&prefs.background_name);
         Self {
             to_server,
             auth: AuthState::default(),
@@ -54,9 +62,12 @@ impl<'a> App<'a> {
             sound_manager,
             image_cache,
             chat_service,
-            background_manager: BackgroundManager::new(),
-            theme_manager: ThemeManager::new(),
+            background_manager,
+            theme_manager,
             config: AppConfig::default(),
+            prefs,
+            prefs_dirty: false,
+            prefs_dirty_last_update: None,
         }
     }
 
@@ -77,7 +88,15 @@ impl<'a> App<'a> {
         if self.notifications.should_close_notification(self.ui.tick_count) {
             self.notifications.clear_notification();
         }
-        
+        // Debounced prefs save
+        if self.prefs_dirty {
+            if let Some(last) = self.prefs_dirty_last_update {
+                if last.elapsed().as_millis() > 1000 {
+                    self.prefs.save();
+                    self.prefs_dirty = false;
+                }
+            }
+        }
         // Periodic cache cleanup (every 5 minutes worth of ticks)
         if self.ui.tick_count % (5 * 60 * 10) == 0 { // Assuming 10 ticks per second
             if let Some(cleaned) = self.chat_service.cleanup_cache() {
