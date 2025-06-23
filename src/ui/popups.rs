@@ -442,7 +442,7 @@ pub fn draw_server_invite_selection_popup(f: &mut Frame, app: &App) {
 
 /// Draw a cyberpunk-themed server error popup with glitch effects
 pub fn draw_cyberpunk_server_error_popup(f: &mut Frame, app: &App) {
-    let area = draw_centered_rect(f.area(), 70, 40);
+    let area = draw_centered_rect(f.area(), 70, 60);
     f.render_widget(Clear, area);
     
     // Create glitch effect by using tick count for animation
@@ -450,7 +450,7 @@ pub fn draw_cyberpunk_server_error_popup(f: &mut Frame, app: &App) {
     let tick = app.ui.tick_count;
     let glitch_char = glitch_chars[((tick / 5) as usize) % glitch_chars.len()];
     
-    // Create the main error message with cyberpunk styling
+    // Create the main error message
     let mut lines = vec![];
     
     // Add some padding at the top

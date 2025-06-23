@@ -22,6 +22,24 @@ use std::{env, error::Error, io, time::Duration};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
+use tokio_rustls::rustls::{self, ClientConfig as RustlsClientConfig, RootCertStore};
+use tokio_rustls::rustls::pki_types::ServerName;
+use tokio_rustls::TlsConnector;
+use std::sync::Arc;
+use std::fs::File;
+use std::io::BufReader;
+use rustls_pemfile;
+
+fn load_root_cert(path: &str) -> RootCertStore {
+    let mut root_store = RootCertStore::empty();
+    let certfile = File::open(path).expect("Cannot open cert.pem");
+    let mut reader = BufReader::new(certfile);
+    let certs: Vec<_> = rustls_pemfile::certs(&mut reader).filter_map(|res| res.ok()).collect();
+    for cert in certs {
+        root_store.add(cert).unwrap();
+    }
+    root_store
+}
 
 /// Application events
 enum AppEvent {
@@ -56,9 +74,29 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Get server address from command line or use default
     let server_addr = env::args().nth(1).unwrap_or_else(|| "127.0.0.1:8080".to_string());
-    
-    // Try to connect to server with error handling
-    let connection_result = TcpStream::connect(&server_addr).await;
+    let parts: Vec<String> = server_addr.split(':').map(|s| s.to_string()).collect();
+    let server_host = parts.get(0).cloned().unwrap_or_else(|| "127.0.0.1".to_string());
+    let server_port = parts.get(1).cloned().unwrap_or_else(|| "8080".to_string());
+
+    // TLS setup
+    let root_store = load_root_cert("cert.pem");
+    let tls_config = RustlsClientConfig::builder()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+    let tls_connector = TlsConnector::from(Arc::new(tls_config));
+    let server_name = ServerName::try_from(server_host.clone()).unwrap();
+
+    // Try to connect to server with error handling (TLS)
+    let tcp_stream = TcpStream::connect(&server_addr).await;
+    let connection_result = match tcp_stream {
+        Ok(stream) => {
+            match tls_connector.connect(server_name.clone(), stream).await {
+                Ok(tls_stream) => Ok(tls_stream),
+                Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, format!("TLS error: {}", e))),
+            }
+        },
+        Err(e) => Err(e),
+    };
     
     // Show error popup if initial connection fails
     if let Err(e) = &connection_result {
@@ -169,74 +207,73 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // Check for retry connection request
         if app.ui.should_retry_connection {
             app.ui.should_retry_connection = false;
-            
-            // Attempt to reconnect
+            // Attempt to reconnect (TLS)
             match TcpStream::connect(&server_addr).await {
                 Ok(stream) => {
-                    // Successfully connected!
-                    app.sound_manager.play(sound::SoundType::LoginSuccess);
-                    
-                    // Cancel any existing server communication task
-                    if let Some(handle) = server_comm_handle.take() {
-                        handle.abort();
-                    }
-                    
-                    // Create new channels for the new connection
-                    let (new_tx_to_server, mut new_rx_from_ui) = mpsc::unbounded_channel::<ClientMessage>();
-                    let (new_tx_to_ui, mut new_rx_from_server) = mpsc::unbounded_channel::<ServerMessage>();
-                    
-                    // Update app with new sender
-                    app.to_server = new_tx_to_server;
-                    
-                    let mut framed = Framed::new(stream, LengthDelimitedCodec::new());
-                    
-                    // Spawn new server message handler
-                    let event_tx_clone = event_tx.clone();
-                    tokio::spawn(async move {
-                        while let Some(msg) = new_rx_from_server.recv().await {
-                            if event_tx_clone.send(AppEvent::Server(msg)).is_err() {
-                                break;
+                    match tls_connector.connect(server_name.clone(), stream).await {
+                        Ok(tls_stream) => {
+                            app.sound_manager.play(sound::SoundType::LoginSuccess);
+                            if let Some(handle) = server_comm_handle.take() {
+                                handle.abort();
                             }
-                        }
-                    });
-
-                    // Spawn new server communication handler
-                    let event_tx_clone = event_tx.clone();
-                    server_comm_handle = Some(tokio::spawn(async move {
-                        loop {
-                            tokio::select! {
-                                msg = new_rx_from_ui.recv() => {
-                                    if let Some(msg) = msg {
-                                        let serialized = bincode::serialize(&msg).unwrap();
-                                        if framed.send(serialized.into()).await.is_err() {
-                                            // Connection lost while sending
-                                            let _ = event_tx_clone.send(AppEvent::ConnectionLost);
-                                            break;
-                                        }
-                                    } else {
+                            let (new_tx_to_server, mut new_rx_from_ui) = mpsc::unbounded_channel::<ClientMessage>();
+                            let (new_tx_to_ui, mut new_rx_from_server) = mpsc::unbounded_channel::<ServerMessage>();
+                            app.to_server = new_tx_to_server;
+                            let mut framed = Framed::new(tls_stream, LengthDelimitedCodec::new());
+                            // Spawn new server message handler
+                            let event_tx_clone = event_tx.clone();
+                            tokio::spawn(async move {
+                                while let Some(msg) = new_rx_from_server.recv().await {
+                                    if event_tx_clone.send(AppEvent::Server(msg)).is_err() {
                                         break;
                                     }
                                 }
-                                
-                                result = framed.next() => {
-                                    match result {
-                                        Some(Ok(bytes)) => {
-                                            if let Ok(msg) = bincode::deserialize::<ServerMessage>(&bytes) {
-                                                if new_tx_to_ui.send(msg).is_err() {
+                            });
+
+                            // Spawn new server communication handler
+                            let event_tx_clone = event_tx.clone();
+                            server_comm_handle = Some(tokio::spawn(async move {
+                                loop {
+                                    tokio::select! {
+                                        msg = new_rx_from_ui.recv() => {
+                                            if let Some(msg) = msg {
+                                                let serialized = bincode::serialize(&msg).unwrap();
+                                                if framed.send(serialized.into()).await.is_err() {
+                                                    // Connection lost while sending
+                                                    let _ = event_tx_clone.send(AppEvent::ConnectionLost);
+                                                    break;
+                                                }
+                                            } else {
+                                                break;
+                                            }
+                                        }
+                                        
+                                        result = framed.next() => {
+                                            match result {
+                                                Some(Ok(bytes)) => {
+                                                    if let Ok(msg) = bincode::deserialize::<ServerMessage>(&bytes) {
+                                                        if new_tx_to_ui.send(msg).is_err() {
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                Some(Err(_)) | None => {
+                                                    // Connection lost while receiving
+                                                    let _ = event_tx_clone.send(AppEvent::ConnectionLost);
                                                     break;
                                                 }
                                             }
                                         }
-                                        Some(Err(_)) | None => {
-                                            // Connection lost while receiving
-                                            let _ = event_tx_clone.send(AppEvent::ConnectionLost);
-                                            break;
-                                        }
                                     }
                                 }
-                            }
+                            }));
                         }
-                    }));
+                        Err(e) => {
+                            let error_msg = format!("TLS error: {}", e);
+                            app.ui.show_server_error(error_msg);
+                            app.sound_manager.play(sound::SoundType::Error);
+                        }
+                    }
                 }
                 Err(e) => {
                     // Connection failed, show error and continue
