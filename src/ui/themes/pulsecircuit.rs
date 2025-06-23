@@ -2,46 +2,52 @@ use ratatui::{Frame, layout::Rect, style::{Style, Color, Modifier}, widgets::Par
 use crate::app::App;
 use super::{Theme, ThemeColors, AccentColors};
 
-pub struct CyberGridTheme;
+pub struct PulseCircuitTheme;
 
-impl Theme for CyberGridTheme {
-    fn name(&self) -> &'static str { "CyberGrid" }
+impl Theme for PulseCircuitTheme {
+    fn name(&self) -> &'static str { "PulseCircuit" }
     fn draw_background(&self, f: &mut Frame, app: &App, area: Rect) {
         let tick = app.ui.tick_count;
         let w = area.width as f32;
         let h = area.height as f32;
         let cx = area.x as f32 + w / 2.0;
         let cy = area.y as f32 + h / 2.0;
-        let grid_size = 12;
-        let t = tick as f32 * 0.04;
-        for i in 0..=grid_size {
-            let frac = i as f32 / grid_size as f32;
-            let x = cx + (frac - 0.5) * w * 0.9;
-            let y = cy + (frac - 0.5) * h * 0.9;
-            // Vertical lines
-            draw_line(f, area, x, cy - h * 0.45, x, cy + h * 0.45, Color::Cyan);
-            // Horizontal lines
-            draw_line(f, area, cx - w * 0.45, y, cx + w * 0.45, y, Color::Magenta);
+        let t = tick as f32 * 0.06;
+        let num_traces = 10;
+        for i in 0..num_traces {
+            let phase = t + i as f32 * 0.7;
+            let r = w.min(h) * (0.18 + 0.07 * (phase * 1.2).sin());
+            let angle = phase * 0.8 + (phase * 0.17).cos() * 0.7;
+            let x0 = cx + r * angle.cos();
+            let y0 = cy + r * angle.sin();
+            let x1 = cx - r * angle.cos();
+            let y1 = cy - r * angle.sin();
+            let color = match i % 6 {
+                0 => Color::Cyan,
+                1 => Color::Magenta,
+                2 => Color::Yellow,
+                3 => Color::Green,
+                4 => Color::LightBlue,
+                _ => Color::LightMagenta,
+            };
+            draw_line(f, area, x0, y0, x1, y1, color);
+            // Pulse
+            let pulse_pos = (t * 2.0 + i as f32 * 1.3).sin() * 0.5 + 0.5;
+            let px = x0 + (x1 - x0) * pulse_pos;
+            let py = y0 + (y1 - y0) * pulse_pos;
+            if let Some((tx, ty)) = to_cell(area, px, py) {
+                f.render_widget(
+                    Paragraph::new("●").style(Style::default().fg(color).add_modifier(Modifier::BOLD)),
+                    Rect::new(tx, ty, 1, 1),
+                );
+            }
         }
-        // Flickering nodes
-        for i in 0..=grid_size {
-            for j in 0..=grid_size {
-                let fx = cx + (i as f32 / grid_size as f32 - 0.5) * w * 0.9;
-                let fy = cy + (j as f32 / grid_size as f32 - 0.5) * h * 0.9;
-                let flicker = ((tick + (i * 13 + j * 7) as u64) % 7) < 2;
-                if flicker {
-                    let color = match (i + j) % 3 {
-                        0 => Color::Yellow,
-                        1 => Color::Cyan,
-                        _ => Color::Magenta,
-                    };
-                    if let Some((tx, ty)) = to_cell(area, fx, fy) {
-                        f.render_widget(
-                            Paragraph::new("●").style(Style::default().fg(color).add_modifier(Modifier::BOLD)),
-                            Rect::new(tx, ty, 1, 1),
-                        );
-                    }
-                }
+        // Random glitch sparks
+        if (tick % 5) == 0 {
+            let gx = cx + (t * 3.0).sin() * w * 0.4;
+            let gy = cy + (t * 2.0).cos() * h * 0.4;
+            if let Some((tx, ty)) = to_cell(area, gx, gy) {
+                f.render_widget(Paragraph::new("✶").style(Style::default().fg(Color::Yellow)), Rect::new(tx, ty, 1, 1));
             }
         }
     }
@@ -71,8 +77,6 @@ impl Theme for CyberGridTheme {
         }
     }
 }
-
-// --- Drawing helpers (copied from geometry.rs) ---
 fn draw_line(
     f: &mut Frame,
     area: Rect,
@@ -82,7 +86,7 @@ fn draw_line(
     y1: f32,
     color: Color,
 ) {
-    let (x0, y0) = (x0.round() as i32, y0.round() as i32);
+    let (mut x0, mut y0) = (x0.round() as i32, y0.round() as i32);
     let (x1, y1) = (x1.round() as i32, y1.round() as i32);
     let dx = (x1 - x0).abs();
     let dy = -(y1 - y0).abs();

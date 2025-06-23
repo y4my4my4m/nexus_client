@@ -193,7 +193,7 @@ fn draw_line(
     y1: f32,
     color: Color,
 ) {
-    let (mut x0, mut y0) = (x0.round() as i32, y0.round() as i32);
+    let (x0, y0) = (x0.round() as i32, y0.round() as i32);
     let (x1, y1) = (x1.round() as i32, y1.round() as i32);
     let dx = (x1 - x0).abs();
     let dy = -(y1 - y0).abs();

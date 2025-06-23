@@ -2,48 +2,46 @@ use ratatui::{Frame, layout::Rect, style::{Style, Color, Modifier}, widgets::Par
 use crate::app::App;
 use super::{Theme, ThemeColors, AccentColors};
 
-pub struct CyberGridTheme;
+pub struct NeonTunnelTheme;
 
-impl Theme for CyberGridTheme {
-    fn name(&self) -> &'static str { "CyberGrid" }
+impl Theme for NeonTunnelTheme {
+    fn name(&self) -> &'static str { "NeonTunnel" }
     fn draw_background(&self, f: &mut Frame, app: &App, area: Rect) {
         let tick = app.ui.tick_count;
         let w = area.width as f32;
         let h = area.height as f32;
         let cx = area.x as f32 + w / 2.0;
         let cy = area.y as f32 + h / 2.0;
-        let grid_size = 12;
-        let t = tick as f32 * 0.04;
-        for i in 0..=grid_size {
-            let frac = i as f32 / grid_size as f32;
-            let x = cx + (frac - 0.5) * w * 0.9;
-            let y = cy + (frac - 0.5) * h * 0.9;
-            // Vertical lines
-            draw_line(f, area, x, cy - h * 0.45, x, cy + h * 0.45, Color::Cyan);
-            // Horizontal lines
-            draw_line(f, area, cx - w * 0.45, y, cx + w * 0.45, y, Color::Magenta);
-        }
-        // Flickering nodes
-        for i in 0..=grid_size {
-            for j in 0..=grid_size {
-                let fx = cx + (i as f32 / grid_size as f32 - 0.5) * w * 0.9;
-                let fy = cy + (j as f32 / grid_size as f32 - 0.5) * h * 0.9;
-                let flicker = ((tick + (i * 13 + j * 7) as u64) % 7) < 2;
-                if flicker {
-                    let color = match (i + j) % 3 {
-                        0 => Color::Yellow,
-                        1 => Color::Cyan,
-                        _ => Color::Magenta,
-                    };
-                    if let Some((tx, ty)) = to_cell(area, fx, fy) {
-                        f.render_widget(
-                            Paragraph::new("●").style(Style::default().fg(color).add_modifier(Modifier::BOLD)),
-                            Rect::new(tx, ty, 1, 1),
-                        );
-                    }
-                }
+        let t = tick as f32 * 0.07;
+        let num_rings = 18;
+        for i in 0..num_rings {
+            let z = (i as f32 * 0.25 + t) % 5.0;
+            let scale = 1.0 / (z + 0.7);
+            let radius = w.min(h) * 0.38 * scale;
+            let color = match i % 6 {
+                0 => Color::Cyan,
+                1 => Color::Magenta,
+                2 => Color::Yellow,
+                3 => Color::Green,
+                4 => Color::LightBlue,
+                _ => Color::LightMagenta,
+            };
+            let segs = 24;
+            for j in 0..segs {
+                let theta0 = j as f32 * std::f32::consts::TAU / segs as f32;
+                let theta1 = (j + 1) as f32 * std::f32::consts::TAU / segs as f32;
+                let x0 = cx + radius * theta0.cos();
+                let y0 = cy + radius * theta0.sin();
+                let x1 = cx + radius * theta1.cos();
+                let y1 = cy + radius * theta1.sin();
+                draw_line(f, area, x0, y0, x1, y1, color);
             }
         }
+        // Center vanishing point
+        f.render_widget(
+            Paragraph::new("✦").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Rect::new(cx as u16, cy as u16, 1, 1),
+        );
     }
     fn get_primary_colors(&self) -> ThemeColors {
         ThemeColors {
@@ -71,8 +69,7 @@ impl Theme for CyberGridTheme {
         }
     }
 }
-
-// --- Drawing helpers (copied from geometry.rs) ---
+// --- Drawing helpers ---
 fn draw_line(
     f: &mut Frame,
     area: Rect,
@@ -82,7 +79,7 @@ fn draw_line(
     y1: f32,
     color: Color,
 ) {
-    let (x0, y0) = (x0.round() as i32, y0.round() as i32);
+    let (mut x0, mut y0) = (x0.round() as i32, y0.round() as i32);
     let (x1, y1) = (x1.round() as i32, y1.round() as i32);
     let dx = (x1 - x0).abs();
     let dy = -(y1 - y0).abs();

@@ -8,6 +8,10 @@ pub mod geometry2;
 pub mod cybergrid;
 pub mod plasmawave;
 pub mod matrixrain;
+pub mod neontunnel;
+pub mod fractalgrid;
+pub mod pulsecircuit;
+pub mod hackerglyphs;
 
 pub use cyberpunk::CyberpunkTheme;
 pub use minimal::MinimalTheme;
@@ -16,6 +20,10 @@ pub use geometry2::Geometry2Theme;
 pub use cybergrid::CyberGridTheme;
 pub use plasmawave::PlasmaWaveTheme;
 pub use matrixrain::MatrixRainTheme;
+pub use neontunnel::NeonTunnelTheme;
+pub use fractalgrid::FractalGridTheme;
+pub use pulsecircuit::PulseCircuitTheme;
+pub use hackerglyphs::HackerGlyphsTheme;
 
 /// Trait for defining UI themes
 pub trait Theme {
@@ -69,6 +77,10 @@ impl ThemeManager {
             Box::new(CyberGridTheme),
             Box::new(PlasmaWaveTheme),
             Box::new(MatrixRainTheme),
+            Box::new(NeonTunnelTheme),
+            Box::new(FractalGridTheme),
+            Box::new(PulseCircuitTheme),
+            Box::new(HackerGlyphsTheme),
         ];
         
         Self {

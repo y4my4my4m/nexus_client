@@ -478,8 +478,8 @@ fn draw_bottom_flowing_arrows(f: &mut Frame, app: &mut App, area: Rect) {
             match flow_pos {
                 0..=3 => '▶',
                 4..=6 => '▷',
-                25..=29 => '◁',
-                26..=28 => '◀',
+                23..=25 => '◁',
+                25..=28 => '◀',
                 _ => '═',
             }
         })
