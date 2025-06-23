@@ -22,19 +22,30 @@ use std::{env, error::Error, io, time::Duration};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
-use tokio_rustls::rustls::{ClientConfig as RustlsClientConfig, RootCertStore};
+use tokio_rustls::rustls::{self, ClientConfig as RustlsClientConfig, RootCertStore};
 use tokio_rustls::rustls::pki_types::ServerName;
 use tokio_rustls::TlsConnector;
 use std::sync::Arc;
 use std::fs::File;
 use std::io::BufReader;
 use rustls_pemfile;
+use tokio_rustls::rustls::client::danger::ServerCertVerifier;
 
 fn load_root_cert(path: &str) -> RootCertStore {
     let mut root_store = RootCertStore::empty();
     let certfile = File::open(path).expect("Cannot open cert.pem");
     let mut reader = BufReader::new(certfile);
     let certs: Vec<_> = rustls_pemfile::certs(&mut reader).filter_map(|res| res.ok()).collect();
+    for cert in certs {
+        root_store.add(cert).unwrap();
+    }
+    root_store
+}
+
+fn system_root_store() -> RootCertStore {
+    let mut root_store = RootCertStore::empty();
+    let certs = rustls_native_certs::load_native_certs()
+        .expect("could not load platform certs");
     for cert in certs {
         root_store.add(cert).unwrap();
     }
@@ -74,12 +85,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Get server address from command line or use default
     let server_addr = env::args().nth(1).unwrap_or_else(|| "127.0.0.1:8080".to_string());
+    let cert_path = env::args().nth(2); // Optional cert path
     let parts: Vec<String> = server_addr.split(':').map(|s| s.to_string()).collect();
     let server_host = parts.get(0).cloned().unwrap_or_else(|| "127.0.0.1".to_string());
     let server_port = parts.get(1).cloned().unwrap_or_else(|| "8080".to_string());
 
     // TLS setup
-    let root_store = load_root_cert("cert.pem");
+    let root_store = if let Some(path) = cert_path {
+        load_root_cert(&path)
+    } else {
+        system_root_store()
+    };
     let tls_config = RustlsClientConfig::builder()
         .with_root_certificates(root_store)
         .with_no_client_auth();
