@@ -35,24 +35,24 @@ impl Background for Geometry2Background {
         let camera = [cam_x, cam_y, cam_z];
         let look_at = [0.0, 0.0, 0.0];
         let up = [0.0, 0.0, 1.0];
-        let fov = 1.1 + (t * 0.09).sin() * 0.4;
+        let fov = 0.1 + (t * 0.09).sin() * 0.4;
         let view = look_at_matrix(camera, look_at, up);
         let proj = perspective_matrix(fov, w / h, 0.1, 12.0);
 
-        // Demo-scene: field of animated triangles/lines
-        let num_tris = 18;
-        for i in 0..num_tris {
-            // Each triangle has its own orbit, scale, and color cycling
+        // Demo-scene: field of animated squares/lines
+        let num_squares = 14;
+        for i in 0..num_squares {
+            // Each square has its own orbit, scale, and color cycling
             let phase = t + i as f32 * 0.7;
             let r = 1.2 + (phase * 0.8).sin() * 0.7 + (phase * 0.33).cos() * 0.3;
             let base_angle = phase * 1.2 + (phase * 0.17).cos() * 0.7;
             let z = (phase * 0.9).sin() * 1.2 + (phase * 0.5).cos() * 0.7;
-            let mut tri3d = vec![];
-            for j in 0..3 {
-                let theta = base_angle + j as f32 * (2.0 * std::f32::consts::PI / 3.0);
+            let mut square3d = vec![];
+            for j in 0..4 {
+                let theta = base_angle + j as f32 * (std::f32::consts::PI / 2.0);
                 let x = r * theta.cos();
                 let y = r * theta.sin();
-                tri3d.push([x, y, z]);
+                square3d.push([x, y, z]);
             }
             // Color cycling
             let color = match i % 6 {
@@ -68,22 +68,22 @@ impl Background for Geometry2Background {
             if !flicker { continue; }
             // Project to 2D
             let mut pts2d = Vec::new();
-            for v in &tri3d {
+            for v in &square3d {
                 let p = mat4_mul_vec3(&proj, &mat4_mul_vec3(&view, v));
                 let sx = cx + p[0] * w * 0.38;
                 let sy = cy - p[1] * h * 0.38;
                 pts2d.push((sx, sy));
             }
-            // Draw triangle edges
-            for j in 0..3 {
+            // Draw square edges
+            for j in 0..4 {
                 let (x0, y0) = pts2d[j];
-                let (x1, y1) = pts2d[(j + 1) % 3];
+                let (x1, y1) = pts2d[(j + 1) % 4];
                 draw_line(f, area, x0, y0, x1, y1, color);
             }
             // Optionally, draw a glowing dot at the centroid
             let centroid = (
-                (pts2d[0].0 + pts2d[1].0 + pts2d[2].0) / 3.0,
-                (pts2d[0].1 + pts2d[1].1 + pts2d[2].1) / 3.0,
+                (pts2d[0].0 + pts2d[1].0 + pts2d[2].0 + pts2d[3].0) / 4.0,
+                (pts2d[0].1 + pts2d[1].1 + pts2d[2].1 + pts2d[3].1) / 4.0,
             );
             if let Some((cx, cy)) = to_cell(area, centroid.0, centroid.1) {
                 f.render_widget(
