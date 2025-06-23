@@ -3,9 +3,11 @@ use crate::app::App;
 
 pub mod cyberpunk;
 pub mod minimal;
+pub mod geometry;
 
 pub use cyberpunk::CyberpunkTheme;
 pub use minimal::MinimalTheme;
+pub use geometry::GeometryTheme;
 
 /// Trait for defining UI themes
 pub trait Theme {
@@ -54,6 +56,7 @@ impl ThemeManager {
         let themes: Vec<Box<dyn Theme>> = vec![
             Box::new(MinimalTheme),
             Box::new(CyberpunkTheme),
+            Box::new(GeometryTheme),
         ];
         
         Self {
