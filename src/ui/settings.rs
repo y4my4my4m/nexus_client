@@ -41,10 +41,10 @@ pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
     // Enhanced settings items without test notifications
     let items: Vec<ListItem> = if app.auth.is_logged_in() {
         let settings_items = [
-            ("Change Password", "  ╔═══════════════╗\n  ║ ⚡ SECURITY ⚡ ║\n  ╚═══════════════╝", "Update authentication key"),
-            ("Change Color", "  ╔═══════════════╗\n  ║ 🎨 IDENTITY 🎨 ║\n  ╚═══════════════╝", "Customize user signature"),
+            ("Change Password", "  ╔═══════════════╗\n  ║ ⚡ SECURITY ⚡║\n  ╚═══════════════╝", "Update authentication key"),
+            ("Change Color", "  ╔═══════════════╗\n  ║ 🎨 IDENTITY 🎨║\n  ╚═══════════════╝", "Customize user signature"),
             ("Edit Profile", "  ╔═══════════════╗\n  ║ 👤 PERSONA 👤 ║\n  ╚═══════════════╝", "Modify profile data"),
-            ("Preferences", "  ╔═══════════════╗\n  ║ ⚙ SYSTEM ⚙ ║\n  ╚═══════════════╝", "Configure client settings"),
+            ("Preferences", "  ╔═══════════════╗\n  ║  ⚙  SYSTEM ⚙  ║\n  ╚═══════════════╝", "Configure client settings"),
         ];
         
         settings_items.iter().enumerate().map(|(i, &(name, icon, desc))| {
@@ -97,9 +97,9 @@ pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
         }).collect()
     } else {
         let settings_items = [
-            ("Change Password", "  ╔═══════════════╗\n  ║ ⚡ SECURITY ⚡ ║\n  ╚═══════════════╝", "Update authentication key"),
-            ("Change Color", "  ╔═══════════════╗\n  ║ 🎨 IDENTITY 🎨 ║\n  ╚═══════════════╝", "Customize user signature"),
-            ("Preferences", "  ╔═══════════════╗\n  ║ ⚙ SYSTEM ⚙ ║\n  ╚═══════════════╝", "Configure client settings"),
+            ("Change Password", "  ╔═══════════════╗\n  ║ ⚡ SECURITY ⚡║\n  ╚═══════════════╝", "Update authentication key"),
+            ("Change Color", "  ╔═══════════════╗\n  ║ 🎨 IDENTITY 🎨║\n  ╚═══════════════╝", "Customize user signature"),
+            ("Preferences", "  ╔═══════════════╗\n  ║  ⚙  SYSTEM ⚙   ║\n  ╚═══════════════╝", "Configure client settings"),
         ];
         
         settings_items.iter().enumerate().map(|(i, &(name, icon, desc))| {
