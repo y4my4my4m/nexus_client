@@ -144,6 +144,69 @@ impl<'a> App<'a> {
                     }
                 }
             }
+            ServerMessage::ForumsLightweight(forums_lightweight) => {
+                // Convert lightweight forums to regular forums by creating User objects without profile images
+                use common::{Forum, Thread, Post, User, UserStatus};
+                let forums = forums_lightweight.into_iter().map(|forum_lite| {
+                    let threads = forum_lite.threads.into_iter().map(|thread_lite| {
+                        let posts = thread_lite.posts.into_iter().map(|post_lite| {
+                            Post {
+                                id: post_lite.id,
+                                author: User {
+                                    id: post_lite.author.id,
+                                    username: post_lite.author.username,
+                                    color: post_lite.author.color,
+                                    role: post_lite.author.role,
+                                    profile_pic: None, // No profile images in lightweight version
+                                    cover_banner: None, // No cover banners in lightweight version
+                                    status: post_lite.author.status,
+                                },
+                                content: post_lite.content,
+                                timestamp: post_lite.timestamp,
+                                reply_to: post_lite.reply_to,
+                            }
+                        }).collect();
+                        
+                        Thread {
+                            id: thread_lite.id,
+                            title: thread_lite.title,
+                            author: User {
+                                id: thread_lite.author.id,
+                                username: thread_lite.author.username,
+                                color: thread_lite.author.color,
+                                role: thread_lite.author.role,
+                                profile_pic: None, // No profile images in lightweight version
+                                cover_banner: None, // No cover banners in lightweight version
+                                status: thread_lite.author.status,
+                            },
+                            posts,
+                            timestamp: thread_lite.timestamp,
+                        }
+                    }).collect();
+                    
+                    Forum {
+                        id: forum_lite.id,
+                        name: forum_lite.name,
+                        description: forum_lite.description,
+                        threads,
+                    }
+                }).collect();
+                
+                self.forum.forums = forums;
+                
+                // Handle pending thread selection (same logic as regular Forums)
+                if let (Some(forum_id), Some(ref title)) = (self.forum.current_forum_id, &self.forum.pending_new_thread_title.clone()) {
+                    if let Some(forum) = self.forum.get_current_forum() {
+                        if let Some((idx, thread)) = forum.threads.iter().enumerate().find(|(_, t)| t.title == *title) {
+                            let thread_id = thread.id; // Extract thread_id to avoid borrowing issues
+                            self.forum.thread_list_state.select(Some(idx));
+                            self.forum.select_thread(thread_id);
+                            self.ui.set_mode(crate::state::AppMode::PostView);
+                            self.forum.clear_pending_thread();
+                        }
+                    }
+                }
+            }
             ServerMessage::Profile(profile) => {
                 if self.profile.profile_requested_by_user {
                     self.profile.set_profile_for_viewing(profile);
