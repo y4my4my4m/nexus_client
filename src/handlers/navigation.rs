@@ -355,28 +355,37 @@ fn handle_preferences_input(key: KeyEvent, app: &mut App) {
         }
         KeyCode::Char(' ') | KeyCode::Enter => {
             app.sound_manager.play(SoundType::Save);
-            let mut prefs = global_prefs_mut();
+            // Copy prefs, modify, save, then update global
+            let mut prefs = crate::global_prefs::global_prefs_mut();
+            let mut new_prefs = prefs.clone();
             match app.ui.preferences_selected {
                 0 => {
-                    // Toggle sound effects
-                    prefs.sound_effects_enabled = !prefs.sound_effects_enabled;
+                    new_prefs.sound_effects_enabled = !new_prefs.sound_effects_enabled;
                 }
                 1 => {
-                    // Toggle glitch effects
-                    prefs.minimal_banner_glitch_enabled = !prefs.minimal_banner_glitch_enabled;
+                    new_prefs.minimal_banner_glitch_enabled = !new_prefs.minimal_banner_glitch_enabled;
                 }
                 2 => {
-                    // Toggle desktop notifications
-                    prefs.desktop_notifications_enabled = !prefs.desktop_notifications_enabled;
-                    
-                    // Show a test notification when enabling
-                    if prefs.desktop_notifications_enabled {
+                    new_prefs.desktop_notifications_enabled = !new_prefs.desktop_notifications_enabled;
+                    if new_prefs.desktop_notifications_enabled {
+                        // Drop lock before showing notification
+                        drop(prefs);
                         DesktopNotificationService::show_info_notification("Desktop notifications enabled!");
+                        // reacquire lock for save below
+                        let mut prefs = crate::global_prefs::global_prefs_mut();
+                        *prefs = new_prefs.clone();
+                        new_prefs.save();
+                        return;
                     }
                 }
                 _ => {}
             }
-            prefs.save();
+            // Drop lock before saving to disk
+            drop(prefs);
+            new_prefs.save();
+            // reacquire lock and update global
+            let mut prefs = crate::global_prefs::global_prefs_mut();
+            *prefs = new_prefs;
         }
         KeyCode::Esc => {
             // Return to previous menu
