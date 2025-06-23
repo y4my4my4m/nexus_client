@@ -15,9 +15,12 @@ pub struct ForumState {
     
     // Post navigation state
     pub selected_post_index: Option<usize>,
-    pub selected_reply_index: Option<usize>, // For navigating replies to a post
-    pub reply_to_post_id: Option<Uuid>, // Currently selected post to reply to
-    pub scroll_offset: usize, // For scrolling to specific posts
+    pub selected_reply_index: Option<usize>,
+    pub reply_to_post_id: Option<Uuid>,
+    pub scroll_offset: usize,
+    pub show_reply_context: bool,
+    pub show_thread_navigation: bool,
+    pub thread_nav_selection: Option<usize>,
 }
 
 impl Default for ForumState {
@@ -33,6 +36,9 @@ impl Default for ForumState {
             selected_reply_index: None,
             reply_to_post_id: None,
             scroll_offset: 0,
+            show_reply_context: false,
+            show_thread_navigation: false,
+            thread_nav_selection: None,
         }
     }
 }
@@ -185,4 +191,134 @@ impl ForumState {
             None
         }
     }
+    
+    /// Find the post that the currently selected post replied to
+    pub fn get_replied_to_post(&self) -> Option<(&common::Post, usize)> {
+        if let Some(selected_post) = self.get_selected_post() {
+            if let Some(reply_to_id) = selected_post.reply_to {
+                if let Some(thread) = self.get_current_thread() {
+                    for (idx, post) in thread.posts.iter().enumerate() {
+                        if post.id == reply_to_id {
+                            return Some((post, idx));
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+    
+    /// Navigate to the post that the current post replied to
+    pub fn jump_to_replied_post(&mut self) -> bool {
+        if let Some((_, post_idx)) = self.get_replied_to_post() {
+            self.selected_post_index = Some(post_idx);
+            self.selected_reply_index = None;
+            self.show_reply_context = false;
+            self.auto_scroll_to_selected_post();
+            true
+        } else {
+            false
+        }
+    }
+    
+    /// Toggle thread navigation mode (show context and replies together)
+    pub fn toggle_thread_navigation(&mut self) {
+        self.show_thread_navigation = !self.show_thread_navigation;
+        if self.show_thread_navigation {
+            self.thread_nav_selection = Some(0);
+        } else {
+            self.thread_nav_selection = None;
+        }
+    }
+    
+    /// Toggle reply context mode (show who this post replied to)
+    pub fn toggle_reply_context(&mut self) {
+        if self.get_replied_to_post().is_some() {
+            self.show_reply_context = !self.show_reply_context;
+        }
+    }
+    
+    /// Get the combined list of context + replies for navigation
+    pub fn get_thread_navigation_items(&self) -> Vec<ThreadNavItem> {
+        let mut items = Vec::new();
+        
+        // Add context item (original post this replied to) if it exists
+        if let Some((original_post, original_idx)) = self.get_replied_to_post() {
+            items.push(ThreadNavItem::Context {
+                post: original_post,
+                post_index: original_idx,
+            });
+        }
+        
+        // Add reply items
+        if let Some(selected_post) = self.get_selected_post() {
+            let replies = self.get_replies_to_post(selected_post.id);
+            for (reply_idx, (post_idx, reply_post)) in replies.iter().enumerate() {
+                items.push(ThreadNavItem::Reply {
+                    post: reply_post,
+                    post_index: *post_idx,
+                    reply_index: reply_idx,
+                });
+            }
+        }
+        
+        items
+    }
+    
+    /// Move selection in thread navigation mode
+    pub fn move_thread_nav_selection(&mut self, direction: i32) {
+        let items = self.get_thread_navigation_items();
+        if items.is_empty() { return; }
+        
+        let current = self.thread_nav_selection.unwrap_or(0);
+        let new_index = if direction > 0 {
+            (current + 1) % items.len()
+        } else {
+            (current + items.len() - 1) % items.len()
+        };
+        self.thread_nav_selection = Some(new_index);
+    }
+    
+    /// Jump to the currently selected item in thread navigation
+    pub fn jump_to_selected_nav_item(&mut self) -> bool {
+        let items = self.get_thread_navigation_items();
+        if let Some(selected_idx) = self.thread_nav_selection {
+            if let Some(item) = items.get(selected_idx) {
+                match item {
+                    ThreadNavItem::Context { post_index, .. } => {
+                        self.selected_post_index = Some(*post_index);
+                        self.show_thread_navigation = false;
+                        self.thread_nav_selection = None;
+                        self.auto_scroll_to_selected_post();
+                        true
+                    }
+                    ThreadNavItem::Reply { post_index, .. } => {
+                        self.selected_post_index = Some(*post_index);
+                        self.show_thread_navigation = false;
+                        self.thread_nav_selection = None;
+                        self.auto_scroll_to_selected_post();
+                        true
+                    }
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+}
+
+/// Items that can be navigated to in thread navigation mode
+#[derive(Debug)]
+pub enum ThreadNavItem<'a> {
+    Context {
+        post: &'a common::Post,
+        post_index: usize,
+    },
+    Reply {
+        post: &'a common::Post,
+        post_index: usize,
+        reply_index: usize,
+    },
 }

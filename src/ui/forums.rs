@@ -161,8 +161,10 @@ pub fn draw_post_view(f: &mut Frame, app: &mut App, area: Rect) {
         
         let navigation_help = if app.forum.selected_reply_index.is_some() {
             " | ←→ Navigate Replies | Enter: Jump to Reply | Esc: Clear"
+        } else if app.forum.show_reply_context {
+            " | Enter: Jump to Original Post | Esc: Clear | C: Show Context"
         } else {
-            " | ↑↓ Select Posts | →: View Replies | R: Reply To | Alt+R: Reply"
+            " | ↑↓ Select Posts | →: View Replies | R: Reply To | Alt+R: Reply | C: Show Context"
         };
         
         let title = format!("Reading: {}{}{}", 
@@ -338,6 +340,43 @@ pub fn draw_post_view(f: &mut Frame, app: &mut App, area: Rect) {
                     text_lines.push(Line::from(vec![
                         Span::styled("  → ", Style::default().fg(Color::Green)),
                         Span::styled(reply_preview, reply_style)
+                    ]));
+                }
+            }
+            
+            // Show context information if this post is a reply and context mode is active
+            if is_selected && app.forum.show_reply_context {
+                if let Some((replied_to_post, _)) = app.forum.get_replied_to_post() {
+                    text_lines.push(Line::from(Span::styled(
+                        "--- Context: Original Post ---",
+                        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                    )));
+                    
+                    // Show original post info
+                    let original_id_short = &replied_to_post.id.to_string()[..8];
+                    let original_author = &replied_to_post.author.username;
+                    let original_preview = if replied_to_post.content.len() > 80 {
+                        format!("{}...", &replied_to_post.content[..77])
+                    } else {
+                        replied_to_post.content.clone()
+                    };
+                    
+                    text_lines.push(Line::from(vec![
+                        Span::styled("  Original: ", Style::default().fg(Color::Cyan)),
+                        Span::styled(
+                            format!("#{} by {}", original_id_short, original_author),
+                            Style::default().fg(replied_to_post.author.color.clone().into()).add_modifier(Modifier::BOLD)
+                        )
+                    ]));
+                    
+                    text_lines.push(Line::from(vec![
+                        Span::styled("  Content: ", Style::default().fg(Color::Cyan)),
+                        Span::styled(original_preview, Style::default().fg(Color::White))
+                    ]));
+                    
+                    text_lines.push(Line::from(vec![
+                        Span::styled("  → Press Enter to jump to this post", 
+                                    Style::default().fg(Color::Green).add_modifier(Modifier::ITALIC))
                     ]));
                 }
             }

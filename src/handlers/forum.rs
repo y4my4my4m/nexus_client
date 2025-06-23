@@ -190,9 +190,16 @@ fn handle_post_view_input(key: KeyEvent, app: &mut App) {
                 }
             }
         }
-        // Enter: Navigate to selected reply or general reply
+        // Enter: Navigate to selected reply or jump to original post in context mode
         KeyCode::Enter => {
-            if let Some(reply_post) = app.forum.get_selected_reply_post() {
+            if app.forum.show_reply_context {
+                // Jump to the original post that the current post replied to
+                if app.forum.jump_to_replied_post() {
+                    app.sound_manager.play(SoundType::PopupOpen);
+                } else {
+                    app.sound_manager.play(SoundType::Error);
+                }
+            } else if let Some(reply_post) = app.forum.get_selected_reply_post() {
                 // Find the index of the reply post and scroll to it
                 if let Some(thread) = app.forum.get_current_thread() {
                     if let Some((idx, _)) = thread.posts.iter().enumerate().find(|(_, p)| p.id == reply_post.id) {
@@ -202,6 +209,15 @@ fn handle_post_view_input(key: KeyEvent, app: &mut App) {
                         app.sound_manager.play(SoundType::PopupOpen);
                     }
                 }
+            }
+        }
+        KeyCode::Char('c') | KeyCode::Char('C') => {
+            // Toggle context view to see what post this replied to
+            app.forum.toggle_reply_context();
+            if app.forum.show_reply_context {
+                app.sound_manager.play(SoundType::PopupOpen);
+            } else {
+                app.sound_manager.play(SoundType::PopupClose);
             }
         }
         KeyCode::Char('r') | KeyCode::Char('R') => {
