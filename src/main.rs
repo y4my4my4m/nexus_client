@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let server_addr = env::args().nth(1).unwrap_or_else(|| "127.0.0.1:8080".to_string());
     
     // Try to connect to server with error handling
-    let mut connection_result = TcpStream::connect(&server_addr).await;
+    let connection_result = TcpStream::connect(&server_addr).await;
     
     // Show error popup if initial connection fails
     if let Err(e) = &connection_result {

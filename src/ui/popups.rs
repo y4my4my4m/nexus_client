@@ -19,8 +19,8 @@ pub fn draw_centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
 
 pub fn draw_dm_input_popup(f: &mut Frame, app: &App) {
     let username = app.chat.dm_target.and_then(|uid| app.chat.channel_userlist.iter().find(|u| u.id == uid)).map(|u| u.username.as_str()).unwrap_or("");
-    let title = format!("DM to {}", username);
-    let popup_area = draw_centered_rect(f.area(), 80, 30);
+    let _title = format!("DM to {}", username);
+    let _popup_area = draw_centered_rect(f.area(), 80, 30);
     let input_str = &app.chat.dm_input;
     // Calculate popup size based on content
     let base_area = draw_centered_rect(f.area(), 50, 20);

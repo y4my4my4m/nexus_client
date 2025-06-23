@@ -242,7 +242,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
     let display_items = &messages[start_idx.max(0)..end_idx];
 
     let now = chrono::Local::now();
-    let last_date: Option<chrono::NaiveDate> = None;
+    let _last_date: Option<chrono::NaiveDate> = None;
     let text_area_width = inner_area.width.saturating_sub(avatar_cell_width + 1);
     
     // Render messages from bottom up to handle dynamic heights properly
@@ -332,7 +332,7 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
         if current_y < inner_area.y { break; }
         
         // Check if we need to render a date delimiter before this message
-        if let Some(&(delimiter_idx, delimiter_ts)) = date_delimiters.iter().find(|&&(idx, _)| idx == msg_idx) {
+        if let Some(&(_delimiter_idx, delimiter_ts)) = date_delimiters.iter().find(|&&(idx, _)| idx == msg_idx) {
             let header = Block::default()
                 .borders(Borders::TOP)
                 .title_alignment(ratatui::layout::Alignment::Center)

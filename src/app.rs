@@ -132,7 +132,7 @@ impl<'a> App<'a> {
             ServerMessage::Forums(forums) => {
                 self.forum.forums = forums;
                 // Handle pending thread selection
-                if let (Some(forum_id), Some(ref title)) = (self.forum.current_forum_id, &self.forum.pending_new_thread_title.clone()) {
+                if let (Some(_forum_id), Some(ref title)) = (self.forum.current_forum_id, &self.forum.pending_new_thread_title.clone()) {
                     if let Some(forum) = self.forum.get_current_forum() {
                         if let Some((idx, thread)) = forum.threads.iter().enumerate().find(|(_, t)| t.title == *title) {
                             let thread_id = thread.id; // Extract thread_id to avoid borrowing issues
@@ -195,7 +195,7 @@ impl<'a> App<'a> {
                 self.forum.forums = forums;
                 
                 // Handle pending thread selection (same logic as regular Forums)
-                if let (Some(forum_id), Some(ref title)) = (self.forum.current_forum_id, &self.forum.pending_new_thread_title.clone()) {
+                if let (Some(_forum_id), Some(ref title)) = (self.forum.current_forum_id, &self.forum.pending_new_thread_title.clone()) {
                     if let Some(forum) = self.forum.get_current_forum() {
                         if let Some((idx, thread)) = forum.threads.iter().enumerate().find(|(_, t)| t.title == *title) {
                             let thread_id = thread.id; // Extract thread_id to avoid borrowing issues
@@ -600,7 +600,7 @@ impl<'a> App<'a> {
                 }
                 
                 let s = self.chat.selected_server.unwrap_or(0);
-                let server_id = if let Some(server) = self.chat.servers.get(s) {
+                let _server_id = if let Some(server) = self.chat.servers.get(s) {
                     let server_id = server.id;
                     if server.channels.is_empty() {
                         self.chat.selected_channel = None;
@@ -641,7 +641,7 @@ impl<'a> App<'a> {
                 }
                 
                 if let Some(idx) = self.chat.selected_dm_user {
-                    let user_id = if let Some(user) = self.chat.dm_user_list.get(idx) {
+                    let _user_id = if let Some(user) = self.chat.dm_user_list.get(idx) {
                         let target = crate::state::ChatTarget::DM { user_id: user.id };
                         let user_id = user.id;
                         self.set_current_chat_target(target);

@@ -28,11 +28,16 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         AppMode::Login | AppMode::Register | AppMode::MainMenu => (9, true),
         _ => (3, false),
     };
+    
+    // Hide footer for main menu mode
+    let show_footer = !matches!(app.ui.mode, AppMode::MainMenu);
+    let footer_height = if show_footer { 3 } else { 0 };
+    
     let chunks = ratatui::layout::Layout::default()
         .constraints([
             ratatui::layout::Constraint::Length(banner_height), // Banner height
             ratatui::layout::Constraint::Min(0),                // Main Content
-            ratatui::layout::Constraint::Length(3),             // Footer
+            ratatui::layout::Constraint::Length(footer_height), // Footer (hidden for main menu)
         ])
         .split(size);
 
@@ -42,45 +47,48 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         draw_min_banner(f, app, chunks[0]);
     }
 
-    let help_text = match app.ui.mode {
-        AppMode::Login | AppMode::Register => "[Esc] QUIT | [F2] Preferences\n[Tab]/[Shift+Tab] Change Focus | [Enter] Select/Submit",
-        _ => "[Tab] Change Focus | [F2] Prefs | [↑↓] Nav\n[PgUp/PgDn] Scroll | [Enter] Sel | [Esc] Back"
-    };
-    let status_text = if let Some(user) = &app.auth.current_user {
-        if user.role == UserRole::Admin {
-            format!("Logged in as: {} ({:?})", user.username, user.role)
-        } else {
-            format!("Logged in as: {}", user.username)
-        }
-    } else { "Not Logged In".to_string() };
-    
-    // Split footer into two sections: help text and status
-    let footer_chunks = ratatui::layout::Layout::default()
-        .direction(ratatui::layout::Direction::Horizontal)
-        .constraints([
-            ratatui::layout::Constraint::Percentage(67), // Help text area
-            ratatui::layout::Constraint::Percentage(33), // Status area
-        ])
-        .split(chunks[2]);
-    
-    // Render help text with multiline support and wrapping
-    f.render_widget(
-        ratatui::widgets::Paragraph::new(help_text)
-            .wrap(ratatui::widgets::Wrap { trim: true })
-            .block(ratatui::widgets::Block::default().borders(ratatui::widgets::Borders::TOP)),
-        footer_chunks[0],
-    );
-    
-    // Render status text right-aligned
-    f.render_widget(
-        ratatui::widgets::Paragraph::new(ratatui::text::Span::styled(
-            status_text,
-            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow)
-        ))
-            .alignment(ratatui::layout::Alignment::Right)
-            .block(ratatui::widgets::Block::default().borders(ratatui::widgets::Borders::TOP)),
-        footer_chunks[1],
-    );
+    // Only show footer if not in main menu
+    if show_footer {
+        let help_text = match app.ui.mode {
+            AppMode::Login | AppMode::Register => "[Esc] QUIT | [F2] Preferences\n[Tab]/[Shift+Tab] Change Focus | [Enter] Select/Submit",
+            _ => "[Tab] Change Focus | [F2] Prefs | [↑↓] Nav\n[PgUp/PgDn] Scroll | [Enter] Sel | [Esc] Back"
+        };
+        let status_text = if let Some(user) = &app.auth.current_user {
+            if user.role == UserRole::Admin {
+                format!("Logged in as: {} ({:?})", user.username, user.role)
+            } else {
+                format!("Logged in as: {}", user.username)
+            }
+        } else { "Not Logged In".to_string() };
+        
+        // Split footer into two sections: help text and status
+        let footer_chunks = ratatui::layout::Layout::default()
+            .direction(ratatui::layout::Direction::Horizontal)
+            .constraints([
+                ratatui::layout::Constraint::Percentage(67), // Help text area
+                ratatui::layout::Constraint::Percentage(33), // Status area
+            ])
+            .split(chunks[2]);
+        
+        // Render help text with multiline support and wrapping
+        f.render_widget(
+            ratatui::widgets::Paragraph::new(help_text)
+                .wrap(ratatui::widgets::Wrap { trim: true })
+                .block(ratatui::widgets::Block::default().borders(ratatui::widgets::Borders::TOP)),
+            footer_chunks[0],
+        );
+        
+        // Render status text right-aligned
+        f.render_widget(
+            ratatui::widgets::Paragraph::new(ratatui::text::Span::styled(
+                status_text,
+                ratatui::style::Style::default().fg(ratatui::style::Color::Yellow)
+            ))
+                .alignment(ratatui::layout::Alignment::Right)
+                .block(ratatui::widgets::Block::default().borders(ratatui::widgets::Borders::TOP)),
+            footer_chunks[1],
+        );
+    }
 
     let main_area = chunks[1];
     match app.ui.mode {
