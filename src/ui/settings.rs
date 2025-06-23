@@ -5,12 +5,12 @@ use ratatui::prelude::{Alignment, Direction};
 use crate::app::{App};
 use base64::Engine;
 use crate::global_prefs;
+use crate::ui::themes::Theme;
 
 pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
-    // Draw animated background using the current theme
-    {
-        let theme = app.theme_manager.get_current_theme();
-        theme.draw_background(f, app, area);
+    // Draw animated background using selected background
+    if let Some(bg) = app.background_manager.get_current_background() {
+        bg.draw_background(f, app, area);
     }
     
     let tick = app.ui.tick_count;
@@ -155,7 +155,7 @@ pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
     // Enhanced settings list with theme-based styling
     let list_border_color = {
         let theme = app.theme_manager.get_current_theme();
-        theme.get_border_colors(tick)
+        theme.border_color(tick)
     };
     
     let list_block = Block::default()

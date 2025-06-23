@@ -2,11 +2,13 @@
 
 use ratatui::{Frame, layout::{Rect, Layout, Constraint, Direction, Alignment}, style::{Style, Color, Modifier}, widgets::{Block, List, ListItem, Borders, Paragraph, BorderType}, text::{Line, Span}};
 use crate::app::App;
+use crate::ui::themes::Theme;
 
 pub fn draw_main_menu(f: &mut Frame, app: &mut App, area: Rect) {
-    // Draw animated background using the current theme
-    let theme = app.theme_manager.get_current_theme();
-    theme.draw_background(f, app, area);
+    // Draw animated background using selected background
+    if let Some(bg) = app.background_manager.get_current_background() {
+        bg.draw_background(f, app, area);
+    }
     
     // Calculate responsive layout based on available height
     let available_height = area.height;
@@ -124,6 +126,7 @@ fn draw_enhanced_title(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn draw_enhanced_menu(f: &mut Frame, app: &mut App, area: Rect) {
+    let theme = app.theme_manager.get_current_theme();
     let tick = app.ui.tick_count;
     
     // Create side-by-side layout for menu and info panel

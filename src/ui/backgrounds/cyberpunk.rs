@@ -1,6 +1,6 @@
 use ratatui::{Frame, layout::Rect, style::{Style, Color, Modifier}, widgets::Paragraph};
 use crate::app::App;
-use super::{Theme, ThemeColors, AccentColors};
+use crate::ui::themes::{Theme, ThemeColors, AccentColors};
 use crate::ui::backgrounds::Background;
 
 pub struct CyberpunkBackground;
@@ -61,41 +61,5 @@ impl Background for CyberpunkBackground {
                 scan_area
             );
         }
-    }
-}
-
-pub struct CyberpunkTheme;
-impl Theme for CyberpunkTheme {
-    fn name(&self) -> &'static str { "Cyberpunk" }
-    fn colors(&self) -> ThemeColors {
-        ThemeColors {
-            primary: Color::Cyan,
-            secondary: Color::Magenta,
-            background: Color::Black,
-            text: Color::White,
-            selected_bg: Color::LightCyan,
-            selected_fg: Color::Black,
-        }
-    }
-    fn accents(&self) -> AccentColors {
-        AccentColors {
-            success: Color::Green,
-            warning: Color::Yellow,
-            error: Color::Red,
-            info: Color::Cyan,
-        }
-    }
-    fn border_color(&self, tick: u64) -> Color {
-        match (tick / 8) % 3 {
-            0 => Color::Cyan,
-            1 => Color::Magenta,
-            _ => Color::Yellow,
-        }
-    }
-    fn selected_style(&self) -> Style {
-        Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)
-    }
-    fn text_style(&self) -> Style {
-        Style::default().fg(Color::White)
     }
 }

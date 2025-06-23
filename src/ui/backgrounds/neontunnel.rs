@@ -1,10 +1,11 @@
 use ratatui::{Frame, layout::Rect, style::{Style, Color, Modifier}, widgets::Paragraph};
 use crate::app::App;
-use super::{Theme, ThemeColors, AccentColors};
+use crate::ui::backgrounds::Background;
+use crate::ui::themes::{Theme, ThemeColors, AccentColors};
 
-pub struct NeonTunnelTheme;
+pub struct NeonTunnelBackground;
 
-impl Theme for NeonTunnelTheme {
+impl Background for NeonTunnelBackground {
     fn name(&self) -> &'static str { "NeonTunnel" }
     fn draw_background(&self, f: &mut Frame, app: &App, area: Rect) {
         let tick = app.ui.tick_count;
@@ -56,31 +57,6 @@ impl Theme for NeonTunnelTheme {
             Paragraph::new("✦").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
             Rect::new(cx as u16, cy as u16, 1, 1),
         );
-    }
-    fn get_primary_colors(&self) -> ThemeColors {
-        ThemeColors {
-            primary: Color::Cyan,
-            secondary: Color::Magenta,
-            background: Color::Black,
-            text: Color::White,
-            selected_bg: Color::LightCyan,
-            selected_fg: Color::Black,
-        }
-    }
-    fn get_border_colors(&self, tick: u64) -> Color {
-        match (tick / 8) % 3 {
-            0 => Color::Cyan,
-            1 => Color::Magenta,
-            _ => Color::Yellow,
-        }
-    }
-    fn get_accent_colors(&self) -> AccentColors {
-        AccentColors {
-            success: Color::Green,
-            warning: Color::Yellow,
-            error: Color::Red,
-            info: Color::Cyan,
-        }
     }
 }
 // --- Drawing helpers ---

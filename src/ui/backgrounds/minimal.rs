@@ -1,8 +1,6 @@
 use ratatui::{Frame, layout::Rect, style::{Style, Color}, widgets::Paragraph};
 use crate::app::App;
-use super::{Theme, ThemeColors, AccentColors};
-use ratatui::style::{Modifier};
-
+use crate::ui::themes::Theme;
 use crate::ui::backgrounds::Background;
 
 pub struct MinimalBackground;
@@ -44,41 +42,5 @@ impl Background for MinimalBackground {
                 );
             }
         }
-    }
-}
-
-pub struct MinimalTheme;
-impl Theme for MinimalTheme {
-    fn name(&self) -> &'static str { "Minimal" }
-    fn colors(&self) -> ThemeColors {
-        ThemeColors {
-            primary: Color::White,
-            secondary: Color::Gray,
-            background: Color::Black,
-            text: Color::White,
-            selected_bg: Color::White,
-            selected_fg: Color::Black,
-        }
-    }
-    fn accents(&self) -> AccentColors {
-        AccentColors {
-            success: Color::Green,
-            warning: Color::Yellow,
-            error: Color::Red,
-            info: Color::White,
-        }
-    }
-    fn border_color(&self, tick: u64) -> Color {
-        match (tick / 15) % 3 {
-            0 => Color::White,
-            1 => Color::Gray,
-            _ => Color::DarkGray,
-        }
-    }
-    fn selected_style(&self) -> Style {
-        Style::default().fg(Color::Black).bg(Color::White).add_modifier(Modifier::BOLD)
-    }
-    fn text_style(&self) -> Style {
-        Style::default().fg(Color::White)
     }
 }

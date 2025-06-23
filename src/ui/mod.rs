@@ -9,7 +9,8 @@ pub mod chat;
 pub mod popups;
 pub mod avatar;
 pub mod time_format;
-pub mod themes; // Add themes module declaration
+pub mod themes;
+pub mod backgrounds;
 
 use ratatui::Frame;
 use common::UserRole;
