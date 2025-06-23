@@ -7,7 +7,8 @@ use crate::state::{
 use crate::services::{ChatService, MessageService, ProfileService, ImageService};
 use crate::services::image::{ImageCache, ImageCacheStats};
 use crate::model::ChatMessageWithMeta;
-use crate::ui::themes::ThemeManager; // Add theme manager import
+use crate::ui::backgrounds::BackgroundManager;
+use crate::ui::themes::ThemeManager;
 use tokio::sync::mpsc;
 use std::sync::Arc;
 use crate::desktop_notifications::DesktopNotificationService;
@@ -31,7 +32,8 @@ pub struct App<'a> {
     pub chat_service: ChatService,
     
     // Theme system
-    pub theme_manager: ThemeManager,
+    pub background_manager: BackgroundManager, // For animated backgrounds
+    pub theme_manager: ThemeManager, // For UI color themes
     
     // Configuration
     pub config: AppConfig,
@@ -41,7 +43,6 @@ impl<'a> App<'a> {
     pub fn new(to_server: mpsc::UnboundedSender<ClientMessage>, sound_manager: &'a SoundManager) -> Self {
         let image_cache = Arc::new(ImageCache::with_default_config());
         let chat_service = ChatService::with_image_cache(image_cache.clone());
-        
         Self {
             to_server,
             auth: AuthState::default(),
@@ -53,6 +54,7 @@ impl<'a> App<'a> {
             sound_manager,
             image_cache,
             chat_service,
+            background_manager: BackgroundManager::new(),
             theme_manager: ThemeManager::new(),
             config: AppConfig::default(),
         }
@@ -151,7 +153,7 @@ impl<'a> App<'a> {
             }
             ServerMessage::ForumsLightweight(forums_lightweight) => {
                 // Convert lightweight forums to regular forums by creating User objects without profile images
-                use common::{Forum, Thread, Post, User, UserStatus};
+                use common::{Forum, Thread, Post, User};
                 let forums = forums_lightweight.into_iter().map(|forum_lite| {
                     let threads = forum_lite.threads.into_iter().map(|thread_lite| {
                         let posts = thread_lite.posts.into_iter().map(|post_lite| {

@@ -1,6 +1,6 @@
 //! Chat and user list UI screens.
 
-use ratatui::{Frame, layout::{Rect, Layout, Constraint, Direction}, style::{Style, Color, Modifier}, widgets::{Block, Paragraph, Borders, List, ListItem, Wrap}, text::{Line, Span}};
+use ratatui::{Frame, layout::{Rect, Layout, Constraint, Direction}, style::{Style, Color, Modifier}, widgets::{Block, Paragraph, Borders, List, ListItem, Wrap, Clear}, text::{Line, Span}};
 use crate::app::{App, ChatFocus};
 use crate::ui::avatar::get_avatar_protocol;
 use ratatui_image::StatefulImage;
@@ -557,13 +557,6 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
             f.set_cursor_position((inner_area.x, inner_area.y));
         }
     }
-    
-    // Draw mention suggestions popup if present
-    if focused {
-        draw_mention_suggestion_popup(f, app, chunks[1], area);
-        draw_emoji_suggestion_popup(f, app, chunks[1], area);
-    }
-    
     // Draw scrollbar if there are more messages than fit - use message area only
     let messages = app.get_current_message_list();
     let total_msgs = messages.len();
@@ -595,6 +588,11 @@ pub fn draw_chat_main(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
             };
             f.render_widget(Paragraph::new(symbol), Rect::new(bar_x, y, 1, 1));
         }
+    }
+    // Move popups to the very end so they draw on top of everything
+    if focused {
+        draw_mention_suggestion_popup(f, app, chunks[1], area);
+        draw_emoji_suggestion_popup(f, app, chunks[1], area);
     }
 }
 
@@ -734,6 +732,7 @@ pub fn draw_mention_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect,
         popup_width,
         popup_height
     );
+    f.render_widget(Clear, popup_area);
     let block = Block::default().borders(Borders::ALL).title("Mentions");
     let para = Paragraph::new(lines).block(block).wrap(Wrap { trim: true });
     f.render_widget(para, popup_area);
@@ -770,10 +769,18 @@ pub fn draw_emoji_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect, c
         popup_height
     );
     
+    // Render a Clear widget to fully erase underlying content
+    f.render_widget(Clear, popup_area);
     // Create the popup block
-    let block = Block::default().borders(Borders::ALL).title("Emojis");
+    let block = Block::default().borders(Borders::ALL).title("Emojis").style(Style::default().bg(Color::Black));
     let inner_area = block.inner(popup_area);
     f.render_widget(block, popup_area);
+
+    // Fill the popup's inner area with a solid black Paragraph
+    f.render_widget(
+        Paragraph::new("").style(Style::default().bg(Color::Black)),
+        inner_area
+    );
     
     // Draw the emoji grid
     for (i, emoji) in visible_emojis.iter().enumerate() {
@@ -791,7 +798,7 @@ pub fn draw_emoji_suggestion_popup(f: &mut Frame, app: &App, input_area: Rect, c
         let style = if is_selected {
             Style::default().fg(Color::Black).bg(Color::Yellow).add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::White).bg(Color::Black)
+            Style::default().fg(Color::White)
         };
         
         // Center the emoji in its cell

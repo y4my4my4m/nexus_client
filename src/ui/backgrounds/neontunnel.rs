@@ -1,10 +1,10 @@
 use ratatui::{Frame, layout::Rect, style::{Style, Color, Modifier}, widgets::Paragraph};
 use crate::app::App;
-use super::{Theme, ThemeColors, AccentColors};
+use crate::ui::backgrounds::Background;
 
-pub struct NeonTunnelTheme;
+pub struct NeonTunnelBackground;
 
-impl Theme for NeonTunnelTheme {
+impl Background for NeonTunnelBackground {
     fn name(&self) -> &'static str { "NeonTunnel" }
     fn draw_background(&self, f: &mut Frame, app: &App, area: Rect) {
         let tick = app.ui.tick_count;
@@ -57,31 +57,6 @@ impl Theme for NeonTunnelTheme {
             Rect::new(cx as u16, cy as u16, 1, 1),
         );
     }
-    fn get_primary_colors(&self) -> ThemeColors {
-        ThemeColors {
-            primary: Color::Cyan,
-            secondary: Color::Magenta,
-            background: Color::Black,
-            text: Color::White,
-            selected_bg: Color::LightCyan,
-            selected_fg: Color::Black,
-        }
-    }
-    fn get_border_colors(&self, tick: u64) -> Color {
-        match (tick / 8) % 3 {
-            0 => Color::Cyan,
-            1 => Color::Magenta,
-            _ => Color::Yellow,
-        }
-    }
-    fn get_accent_colors(&self) -> AccentColors {
-        AccentColors {
-            success: Color::Green,
-            warning: Color::Yellow,
-            error: Color::Red,
-            info: Color::Cyan,
-        }
-    }
 }
 // --- Drawing helpers ---
 fn draw_line(
@@ -93,7 +68,7 @@ fn draw_line(
     y1: f32,
     color: Color,
 ) {
-    let (mut x0, mut y0) = (x0.round() as i32, y0.round() as i32);
+    let (x0, y0) = (x0.round() as i32, y0.round() as i32);
     let (x1, y1) = (x1.round() as i32, y1.round() as i32);
     let dx = (x1 - x0).abs();
     let dy = -(y1 - y0).abs();

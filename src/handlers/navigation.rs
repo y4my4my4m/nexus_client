@@ -37,7 +37,15 @@ pub fn handle_global_shortcuts(key: KeyEvent, app: &mut App) -> bool {
             }
         }
         KeyCode::F(7) => {
-            // Cycle through themes
+            // Cycle through backgrounds
+            app.background_manager.cycle_background();
+            let bg_name = app.background_manager.get_background_name();
+            app.set_notification(format!("Background changed to: {}", bg_name.to_uppercase()), Some(2000), true);
+            app.sound_manager.play(SoundType::ChangeChannel);
+            return true;
+        }
+        KeyCode::F(8) => {
+            // Cycle through color themes
             app.theme_manager.cycle_theme();
             let theme_name = app.theme_manager.get_theme_name();
             app.set_notification(format!("Theme changed to: {}", theme_name.to_uppercase()), Some(2000), true);

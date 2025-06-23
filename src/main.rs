@@ -22,7 +22,7 @@ use std::{env, error::Error, io, time::Duration};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
-use tokio_rustls::rustls::{self, ClientConfig as RustlsClientConfig, RootCertStore};
+use tokio_rustls::rustls::{ClientConfig as RustlsClientConfig, RootCertStore};
 use tokio_rustls::rustls::pki_types::ServerName;
 use tokio_rustls::TlsConnector;
 use std::sync::Arc;

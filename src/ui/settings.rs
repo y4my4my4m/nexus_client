@@ -4,18 +4,15 @@ use ratatui::{Frame, layout::Rect, style::{Style, Color, Modifier}, widgets::{Bl
 use ratatui::prelude::{Alignment, Direction};
 use crate::app::{App};
 use base64::Engine;
-use crate::global_prefs;
+use crate::ui::themes::Theme;
 
 pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
-    // Draw animated background using the current theme
-    {
-        let theme = app.theme_manager.get_current_theme();
-        theme.draw_background(f, app, area);
+    // Draw animated background using selected background
+    if let Some(bg) = app.background_manager.get_current_background() {
+        bg.draw_background(f, app, area);
     }
-    
+
     let tick = app.ui.tick_count;
-    
-    // Create enhanced layout with better proportions
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -26,153 +23,17 @@ pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
         .margin(1)
         .split(area);
 
-    // Draw animated top border
-    draw_settings_border(f, app, main_layout[0], true);
-    
-    // Create side-by-side layout for settings list and info panel
-    let content_layout = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(60),  // Settings list
-            Constraint::Percentage(40),  // Info panel
-        ])
-        .split(main_layout[1]);
-
-    // Enhanced settings items without test notifications
-    let items: Vec<ListItem> = if app.auth.is_logged_in() {
-        let settings_items = [
-            ("Change Password", "  ╔═══════════════╗\n  ║ ⚡ SECURITY ⚡║\n  ╚═══════════════╝", "Update authentication key"),
-            ("Change Color", "  ╔═══════════════╗\n  ║ 🎨 IDENTITY 🎨║\n  ╚═══════════════╝", "Customize user signature"),
-            ("Edit Profile", "  ╔═══════════════╗\n  ║ 👤 PERSONA 👤 ║\n  ╚═══════════════╝", "Modify profile data"),
-            ("Preferences", "  ╔═══════════════╗\n  ║  ⚙  SYSTEM ⚙  ║\n  ╚═══════════════╝", "Configure client settings"),
-        ];
-        
-        settings_items.iter().enumerate().map(|(i, &(name, icon, desc))| {
-            let is_selected = Some(i) == app.ui.settings_list_state.selected();
-            let selection_glow = if is_selected { (tick / 5) % 8 } else { 0 };
-            
-            if is_selected {
-                // Enhanced selected item with multi-line icon
-                let icon_lines: Vec<&str> = icon.lines().collect();
-                let mut lines = vec![
-                    Line::from(vec![
-                        Span::styled(">>> ", Style::default().fg(Color::LightMagenta).add_modifier(Modifier::BOLD)),
-                        Span::styled(name, Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)),
-                        Span::styled(" <<<", Style::default().fg(Color::LightMagenta).add_modifier(Modifier::BOLD)),
-                    ]),
-                ];
-                
-                // Add icon lines with glow effect
-                for icon_line in icon_lines {
-                    let glow_color = match selection_glow {
-                        0..=1 => Color::Cyan,
-                        2..=3 => Color::LightCyan,
-                        4..=5 => Color::Blue,
-                        _ => Color::LightBlue,
-                    };
-                    lines.push(Line::from(vec![
-                        Span::styled(icon_line, Style::default().fg(glow_color).add_modifier(Modifier::BOLD))
-                    ]));
-                }
-                
-                lines.push(Line::from(vec![
-                    Span::styled("    └─ ", Style::default().fg(Color::Yellow)),
-                    Span::styled(desc, Style::default().fg(Color::LightBlue).add_modifier(Modifier::ITALIC)),
-                ]));
-                lines.push(Line::from(Span::raw(""))); // Spacing
-                
-                ListItem::new(lines)
-            } else {
-                // Minimized unselected items
-                ListItem::new(vec![
-                    Line::from(vec![
-                        Span::styled("  ▶ ", Style::default().fg(Color::DarkGray)),
-                        Span::styled(name, Style::default().fg(Color::White)),
-                        Span::styled(" - ", Style::default().fg(Color::DarkGray)),
-                        Span::styled(desc, Style::default().fg(Color::Gray)),
-                    ]),
-                    Line::from(Span::raw("")), // Spacing
-                ])
-            }
-        }).collect()
-    } else {
-        let settings_items = [
-            ("Change Password", "  ╔═══════════════╗\n  ║ ⚡ SECURITY ⚡║\n  ╚═══════════════╝", "Update authentication key"),
-            ("Change Color", "  ╔═══════════════╗\n  ║ 🎨 IDENTITY 🎨║\n  ╚═══════════════╝", "Customize user signature"),
-            ("Preferences", "  ╔═══════════════╗\n  ║  ⚙  SYSTEM ⚙   ║\n  ╚═══════════════╝", "Configure client settings"),
-        ];
-        
-        settings_items.iter().enumerate().map(|(i, &(name, icon, desc))| {
-            let is_selected = Some(i) == app.ui.settings_list_state.selected();
-            let selection_glow = if is_selected { (tick / 5) % 8 } else { 0 };
-            
-            if is_selected {
-                // Enhanced selected item with multi-line icon
-                let icon_lines: Vec<&str> = icon.lines().collect();
-                let mut lines = vec![
-                    Line::from(vec![
-                        Span::styled(">>> ", Style::default().fg(Color::LightMagenta).add_modifier(Modifier::BOLD)),
-                        Span::styled(name, Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)),
-                        Span::styled(" <<<", Style::default().fg(Color::LightMagenta).add_modifier(Modifier::BOLD)),
-                    ]),
-                ];
-                
-                // Add icon lines with glow effect
-                for icon_line in icon_lines {
-                    let glow_color = match selection_glow {
-                        0..=1 => Color::Cyan,
-                        2..=3 => Color::LightCyan,
-                        4..=5 => Color::Blue,
-                        _ => Color::LightBlue,
-                    };
-                    lines.push(Line::from(vec![
-                        Span::styled(icon_line, Style::default().fg(glow_color).add_modifier(Modifier::BOLD))
-                    ]));
-                }
-                
-                lines.push(Line::from(vec![
-                    Span::styled("    └─ ", Style::default().fg(Color::Yellow)),
-                    Span::styled(desc, Style::default().fg(Color::LightBlue).add_modifier(Modifier::ITALIC)),
-                ]));
-                lines.push(Line::from(Span::raw(""))); // Spacing
-                
-                ListItem::new(lines)
-            } else {
-                // Minimized unselected items
-                ListItem::new(vec![
-                    Line::from(vec![
-                        Span::styled("  ▶ ", Style::default().fg(Color::DarkGray)),
-                        Span::styled(name, Style::default().fg(Color::White)),
-                        Span::styled(" - ", Style::default().fg(Color::DarkGray)),
-                        Span::styled(desc, Style::default().fg(Color::Gray)),
-                    ]),
-                    Line::from(Span::raw("")), // Spacing
-                ])
-            }
-        }).collect()
-    };
-
-    // Enhanced settings list with theme-based styling
-    let list_border_color = {
-        let theme = app.theme_manager.get_current_theme();
-        theme.get_border_colors(tick)
-    };
-    
-    let list_block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Double)
-        .border_style(Style::default().fg(list_border_color))
-        .title("▼ SYSTEM CONFIGURATION ▼")
-        .title_style(Style::default().fg(Color::White).add_modifier(Modifier::BOLD));
-    
-    let list = List::new(items).block(list_block);
-    f.render_stateful_widget(list, content_layout[0], &mut app.ui.settings_list_state);
-    
-    // Draw info panel with theme info
-    draw_settings_info_panel(f, app, content_layout[1]);
-    
-    // Draw animated bottom border
-    draw_settings_border(f, app, main_layout[2], false);
+    // Draw top banner via theme
+    if main_layout[0].height > 0 {
+        app.theme_manager.get_current_theme().draw_top_banner(f, app, main_layout[0]);
+    }
+    app.theme_manager.get_current_theme().draw_settings_menu(
+        f,
+        &mut app.ui.settings_list_state,
+        app.ui.tick_count,
+        main_layout[1],
+    );
+    app.theme_manager.get_current_theme().draw_bottom_banner(f, app, main_layout[2]);
 }
 
 fn draw_settings_background(f: &mut Frame, app: &mut App, area: Rect) {
@@ -269,7 +130,7 @@ fn draw_settings_info_panel(f: &mut Frame, app: &mut App, area: Rect) {
                 Line::from(Span::raw("")),
                 Line::from(vec![Span::styled("Current Theme: ", Style::default().fg(Color::Gray)),
                              Span::styled(current_theme_name.to_uppercase(), Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))]),
-                Line::from(vec![Span::styled("Press F7: ", Style::default().fg(Color::Gray)),
+                Line::from(vec![Span::styled("Press F8: ", Style::default().fg(Color::Gray)),
                              Span::styled("Cycle Theme", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
             ],
             2 => vec![
@@ -293,7 +154,7 @@ fn draw_settings_info_panel(f: &mut Frame, app: &mut App, area: Rect) {
                 Line::from(Span::raw("")),
                 Line::from(vec![Span::styled("Active Theme: ", Style::default().fg(Color::Gray)),
                              Span::styled(current_theme_name.to_uppercase(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
-                Line::from(vec![Span::styled("Press F7: ", Style::default().fg(Color::Gray)),
+                Line::from(vec![Span::styled("Press F8: ", Style::default().fg(Color::Gray)),
                              Span::styled("Cycle Theme", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
             ],
         }
@@ -318,7 +179,7 @@ fn draw_settings_info_panel(f: &mut Frame, app: &mut App, area: Rect) {
                 Line::from(Span::raw("")),
                 Line::from(vec![Span::styled("Current Theme: ", Style::default().fg(Color::Gray)),
                              Span::styled(current_theme_name.to_uppercase(), Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))]),
-                Line::from(vec![Span::styled("Press F7: ", Style::default().fg(Color::Gray)),
+                Line::from(vec![Span::styled("Press F8: ", Style::default().fg(Color::Gray)),
                              Span::styled("Cycle Theme", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
             ],
             _ => vec![
@@ -330,7 +191,7 @@ fn draw_settings_info_panel(f: &mut Frame, app: &mut App, area: Rect) {
                 Line::from(Span::raw("")),
                 Line::from(vec![Span::styled("Active Theme: ", Style::default().fg(Color::Gray)),
                              Span::styled(current_theme_name.to_uppercase(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
-                Line::from(vec![Span::styled("Press F7: ", Style::default().fg(Color::Gray)),
+                Line::from(vec![Span::styled("Press F8: ", Style::default().fg(Color::Gray)),
                              Span::styled("Cycle Theme", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
             ],
         }

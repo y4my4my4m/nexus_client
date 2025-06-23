@@ -1,10 +1,10 @@
 use ratatui::{Frame, layout::Rect, style::{Style, Color, Modifier}, widgets::Paragraph};
 use crate::app::App;
-use super::{Theme, ThemeColors, AccentColors};
+use crate::ui::backgrounds::Background;
 
-pub struct FractalGridTheme;
+pub struct FractalGridBackground;
 
-impl Theme for FractalGridTheme {
+impl Background for FractalGridBackground {
     fn name(&self) -> &'static str { "FractalGrid" }
     fn draw_background(&self, f: &mut Frame, app: &App, area: Rect) {
         // Deep animated fractal tunnel with recursive geometry and color cycling
@@ -14,31 +14,6 @@ impl Theme for FractalGridTheme {
         let t = tick as f32 * 0.045;
         let depth = 7; // much deeper recursion
         draw_fractal_tunnel(f, area, w, h, depth, t);
-    }
-    fn get_primary_colors(&self) -> ThemeColors {
-        ThemeColors {
-            primary: Color::Cyan,
-            secondary: Color::Magenta,
-            background: Color::Black,
-            text: Color::White,
-            selected_bg: Color::LightCyan,
-            selected_fg: Color::Black,
-        }
-    }
-    fn get_border_colors(&self, tick: u64) -> Color {
-        match (tick / 8) % 3 {
-            0 => Color::Cyan,
-            1 => Color::Magenta,
-            _ => Color::Yellow,
-        }
-    }
-    fn get_accent_colors(&self) -> AccentColors {
-        AccentColors {
-            success: Color::Green,
-            warning: Color::Yellow,
-            error: Color::Red,
-            info: Color::Cyan,
-        }
     }
 }
 
