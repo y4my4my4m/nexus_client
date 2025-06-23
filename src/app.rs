@@ -202,12 +202,25 @@ impl<'a> App<'a> {
                     (user_id == &dm.from || user_id == &dm.to) && self.chat.sidebar_tab == crate::state::SidebarTab::DMs
                 } else { false };
                 
+                // Look up author info by DM sender ID instead of using embedded fields
+                let (dm_author_username, sender_profile_pic) = if let Some(dm_user) = self.chat.dm_user_list.iter().find(|u| u.id == dm.from) {
+                    (dm_user.username.clone(), dm_user.profile_pic.clone())
+                } else if let Some(current_user) = &self.auth.current_user {
+                    if current_user.id == dm.from {
+                        (current_user.username.clone(), current_user.profile_pic.clone())
+                    } else {
+                        // Fallback for unknown users
+                        (format!("User#{}", dm.from.to_string()[..8].to_uppercase()), None)
+                    }
+                } else {
+                    // Fallback when no current user
+                    (format!("User#{}", dm.from.to_string()[..8].to_uppercase()), None)
+                };
+                
                 // Extract needed data before any potential moves
                 let dm_from = dm.from;
                 let dm_to = dm.to;
-                let dm_author_username = dm.author_username.clone();
                 let dm_content = dm.content.clone();
-                let sender_profile_pic = dm.author_profile_pic.clone();
                 
                 if is_current {
                     self.chat.dm_messages.push(dm);

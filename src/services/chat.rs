@@ -255,11 +255,19 @@ impl ChatService {
         match &chat_state.current_chat_target {
             Some(ChatTarget::Channel { .. }) => {
                 chat_state.chat_messages.iter().map(|msg| {
+                    // Look up user info by sent_by ID
+                    let (author, color, profile_pic) = if let Some(user) = chat_state.channel_userlist.iter().find(|u| u.id == msg.sent_by) {
+                        (user.username.clone(), user.color.clone().into(), user.profile_pic.clone())
+                    } else {
+                        // Fallback for unknown users
+                        (format!("User#{}", msg.sent_by.to_string()[..8].to_uppercase()), ratatui::style::Color::Gray, None)
+                    };
+                    
                     ChatMessageWithMeta {
-                        author: msg.author_username.clone(),
+                        author,
                         content: msg.content.clone(),
-                        color: msg.author_color.clone().into(),
-                        profile_pic: msg.author_profile_pic.clone(),
+                        color,
+                        profile_pic,
                         timestamp: Some(msg.timestamp),
                     }
                 }).collect()
@@ -268,18 +276,20 @@ impl ChatService {
                 chat_state.dm_messages.iter().map(|msg| {
                     let (author, color, profile_pic) = if let Some(user) = current_user {
                         if msg.from != user.id {
-                            // Find user in dm_user_list
+                            // Find user in dm_user_list by from ID
                             if let Some(dm_user) = chat_state.dm_user_list.iter().find(|u| u.id == msg.from) {
                                 (dm_user.username.clone(), dm_user.color.clone().into(), dm_user.profile_pic.clone())
                             } else {
-                                ("?".to_string(), ratatui::style::Color::Gray, None)
+                                // Fallback for unknown users
+                                (format!("User#{}", msg.from.to_string()[..8].to_uppercase()), ratatui::style::Color::Gray, None)
                             }
                         } else {
                             // Current user
                             (user.username.clone(), user.color.clone().into(), user.profile_pic.clone())
                         }
                     } else {
-                        ("?".to_string(), ratatui::style::Color::Gray, None)
+                        // Fallback when no current user
+                        (format!("User#{}", msg.from.to_string()[..8].to_uppercase()), ratatui::style::Color::Gray, None)
                     };
                     
                     ChatMessageWithMeta {
