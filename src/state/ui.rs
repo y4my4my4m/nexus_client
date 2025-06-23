@@ -46,6 +46,10 @@ pub struct UiState {
     pub show_quit_confirm: bool,
     pub quit_confirm_selected: usize,
     
+    // Server error popup
+    pub show_server_error: bool,
+    pub server_error_message: String,
+    
     // Connected users (for legacy compatibility)
     pub connected_users: Vec<common::User>,
 }
@@ -67,6 +71,8 @@ impl Default for UiState {
             server_invite_target_user: None,
             show_quit_confirm: false,
             quit_confirm_selected: 0,
+            show_server_error: false,
+            server_error_message: String::new(),
             connected_users: Vec::new(),
         }
     }
@@ -88,5 +94,15 @@ impl UiState {
     pub fn reset_selections(&mut self) {
         self.main_menu_state.select(Some(0));
         self.settings_list_state.select(Some(0));
+    }
+    
+    pub fn show_server_error(&mut self, message: String) {
+        self.show_server_error = true;
+        self.server_error_message = message;
+    }
+    
+    pub fn hide_server_error(&mut self) {
+        self.show_server_error = false;
+        self.server_error_message.clear();
     }
 }

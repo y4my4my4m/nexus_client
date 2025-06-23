@@ -55,8 +55,35 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Get server address from command line or use default
     let server_addr = env::args().nth(1).unwrap_or_else(|| "127.0.0.1:8080".to_string());
     
-    // Connect to server
-    let stream = TcpStream::connect(&server_addr).await?;
+    // Try to connect to server with error handling
+    let stream = match TcpStream::connect(&server_addr).await {
+        Ok(stream) => stream,
+        Err(e) => {
+            // Show cyberpunk error popup instead of crashing
+            let error_msg = match e.kind() {
+                std::io::ErrorKind::ConnectionRefused => {
+                    format!("Connection refused to {}", server_addr)
+                }
+                std::io::ErrorKind::TimedOut => {
+                    format!("Connection timeout to {}", server_addr)
+                }
+                std::io::ErrorKind::NotFound => {
+                    format!("Host not found: {}", server_addr)
+                }
+                _ => {
+                    format!("Network error: {}", e)
+                }
+            };
+            
+            app.ui.show_server_error(error_msg);
+            app.sound_manager.play(sound::SoundType::Error);
+            
+            // Run the UI loop without server connection
+            run_app_without_server(app, terminal).await?;
+            return Ok(());
+        }
+    };
+    
     let mut framed = Framed::new(stream, LengthDelimitedCodec::new());
 
     // Create event loop channels
@@ -145,6 +172,68 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
                 AppEvent::Server(server_msg) => {
                     app.handle_server_message(server_msg);
+                }
+                AppEvent::Tick => {
+                    app.on_tick();
+                }
+            }
+        }
+    }
+
+    // Cleanup
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
+
+    Ok(())
+}
+
+/// Run the application without server connection (offline mode with error popup)
+async fn run_app_without_server(
+    mut app: App<'_>,
+    mut terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
+) -> Result<(), Box<dyn Error>> {
+    // Create event loop channels for offline mode
+    let (event_tx, mut event_rx) = mpsc::unbounded_channel::<AppEvent>();
+
+    // Spawn terminal event handler
+    let event_tx_clone = event_tx.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_millis(50));
+        loop {
+            interval.tick().await;
+            
+            // Check for terminal events (non-blocking)
+            if event::poll(Duration::from_millis(0)).unwrap_or(false) {
+                if let Ok(event) = event::read() {
+                    if event_tx_clone.send(AppEvent::Terminal(event)).is_err() {
+                        break;
+                    }
+                }
+            }
+            
+            // Send tick event for animation
+            if event_tx_clone.send(AppEvent::Tick).is_err() {
+                break;
+            }
+        }
+    });
+
+    // Offline mode main loop - no server communication
+    while !app.ui.should_quit {
+        // Render UI with error popup
+        terminal.draw(|f| ui::ui(f, &mut app))?;
+
+        // Handle events
+        if let Some(event) = event_rx.recv().await {
+            match event {
+                AppEvent::Terminal(terminal_event) => {
+                    if let CEvent::Key(key) = terminal_event {
+                        handlers::handle_key_event(key, &mut app);
+                    }
+                }
+                AppEvent::Server(_) => {
+                    // No server messages in offline mode
                 }
                 AppEvent::Tick => {
                     app.on_tick();

@@ -19,7 +19,7 @@ use crate::ui::main_menu::draw_main_menu;
 use crate::ui::forums::{draw_forum_list, draw_thread_list, draw_post_view};
 use crate::ui::settings::{draw_settings, draw_profile_edit_page, draw_color_picker};
 use crate::ui::chat::draw_chat;
-use crate::ui::popups::{draw_input_popup, draw_notification_popup, draw_minimal_notification_popup, draw_profile_view_popup, draw_user_actions_popup, draw_server_actions_popup, draw_server_invite_selection_popup};
+use crate::ui::popups::{draw_input_popup, draw_notification_popup, draw_minimal_notification_popup, draw_profile_view_popup, draw_user_actions_popup, draw_server_actions_popup, draw_server_invite_selection_popup, draw_cyberpunk_server_error_popup};
 
 
 pub fn ui(f: &mut Frame, app: &mut App) {
@@ -138,6 +138,10 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     }
     if app.ui.show_quit_confirm {
         crate::ui::popups::draw_quit_confirm_popup(f, app);
+        return;
+    }
+    if app.ui.show_server_error {
+        draw_cyberpunk_server_error_popup(f, app);
         return;
     }
 }

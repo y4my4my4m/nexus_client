@@ -439,3 +439,142 @@ pub fn draw_server_invite_selection_popup(f: &mut Frame, app: &App) {
     let para = Paragraph::new(lines).block(block).alignment(Alignment::Left);
     f.render_widget(para, area);
 }
+
+/// Draw a cyberpunk-themed server error popup with glitch effects
+pub fn draw_cyberpunk_server_error_popup(f: &mut Frame, app: &App) {
+    let area = draw_centered_rect(f.area(), 70, 40);
+    f.render_widget(Clear, area);
+    
+    // Create glitch effect by using tick count for animation
+    let glitch_chars = ["█", "▓", "▒", "░", "▀", "▄", "▌", "▐", "■", "□"];
+    let tick = app.ui.tick_count;
+    let glitch_char = glitch_chars[((tick / 5) as usize) % glitch_chars.len()];
+    
+    // Create the main error message with cyberpunk styling
+    let mut lines = vec![];
+    
+    // Add some padding at the top
+    lines.push(Line::from(""));
+    
+    // Big cyberpunk title with glitch effects
+    lines.push(Line::from(vec![
+        Span::styled("╔═══════════════════════════════════════════════════════════╗", 
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+        Span::styled("    ███████ ██████  ██████   ██████  ██████      ", 
+            Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD)),
+        Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+        Span::styled("    ██      ██   ██ ██   ██ ██    ██ ██   ██     ", 
+            Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD)),
+        Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+        Span::styled("    █████   ██████  ██████  ██    ██ ██████      ", 
+            Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD)),
+        Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+        Span::styled("    ██      ██   ██ ██   ██ ██    ██ ██   ██     ", 
+            Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD)),
+        Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+        Span::styled("    ███████ ██   ██ ██   ██  ██████  ██   ██     ", 
+            Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD)),
+        Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("╚═══════════════════════════════════════════════════════════╝", 
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+    ]));
+    
+    lines.push(Line::from(""));
+    
+    // SERVER UNAVAILABLE message with glitch effects
+    lines.push(Line::from(vec![
+        Span::styled(">>> ", Style::default().fg(Color::Cyan)),
+        Span::styled("SERVER UNAVAILABLE", 
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD | Modifier::SLOW_BLINK)),
+        Span::styled(" <<<", Style::default().fg(Color::Cyan)),
+    ]));
+    
+    lines.push(Line::from(""));
+    
+    // Glitch effect line
+    let glitch_line = format!("{} CONNECTION LOST {} SIGNAL CORRUPTED {}", 
+        glitch_char, glitch_char, glitch_char);
+    lines.push(Line::from(vec![
+        Span::styled(glitch_line, 
+            Style::default().fg(Color::DarkGray).add_modifier(Modifier::RAPID_BLINK)),
+    ]));
+    
+    lines.push(Line::from(""));
+    
+    // Error details
+    lines.push(Line::from(vec![
+        Span::styled("SYSTEM ERROR: ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled(&app.ui.server_error_message, Style::default().fg(Color::White)),
+    ]));
+    
+    lines.push(Line::from(""));
+    
+    // Hollywood-style diagnostic messages
+    lines.push(Line::from(vec![
+        Span::styled("[ ", Style::default().fg(Color::DarkGray)),
+        Span::styled("DIAGNOSTIC", Style::default().fg(Color::Cyan)),
+        Span::styled(" ] ", Style::default().fg(Color::DarkGray)),
+        Span::styled("Network interface down", Style::default().fg(Color::Red)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("[ ", Style::default().fg(Color::DarkGray)),
+        Span::styled("RETRYING", Style::default().fg(Color::Yellow)),
+        Span::styled("   ] ", Style::default().fg(Color::DarkGray)),
+        Span::styled("Connection timeout", Style::default().fg(Color::Red)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("[ ", Style::default().fg(Color::DarkGray)),
+        Span::styled("STATUS", Style::default().fg(Color::Magenta)),
+        Span::styled("     ] ", Style::default().fg(Color::DarkGray)),
+        Span::styled("OFFLINE", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+    ]));
+    
+    lines.push(Line::from(""));
+    lines.push(Line::from(""));
+    
+    // Instructions with cyberpunk styling
+    lines.push(Line::from(vec![
+        Span::styled("└─> ", Style::default().fg(Color::Green)),
+        Span::styled("Press [ESC] to return to login", 
+            Style::default().fg(Color::LightGreen).add_modifier(Modifier::BOLD)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("└─> ", Style::default().fg(Color::Green)),
+        Span::styled("Check server status and try again", 
+            Style::default().fg(Color::LightGreen)),
+    ]));
+    
+    let block = Block::default()
+        .title(vec![
+            Span::styled("◢", Style::default().fg(Color::Red)),
+            Span::styled(" SYSTEM ALERT ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::styled("◤", Style::default().fg(Color::Red)),
+        ])
+        .borders(Borders::ALL)
+        .border_type(BorderType::Double)
+        .border_style(Style::default().fg(Color::Red));
+    
+    let para = Paragraph::new(lines)
+        .block(block)
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
+    
+    f.render_widget(para, area);
+}

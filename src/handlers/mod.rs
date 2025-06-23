@@ -9,7 +9,13 @@ use crossterm::event::KeyEvent;
 
 /// Main input handler dispatcher
 pub fn handle_key_event(key: KeyEvent, app: &mut App) {
-    // Handle quit confirmation dialog first
+    // Handle server error popup first (highest priority)
+    if app.ui.show_server_error {
+        handle_server_error_input(key, app);
+        return;
+    }
+
+    // Handle quit confirmation dialog
     if app.ui.show_quit_confirm {
         handle_quit_confirm_input(key, app);
         return;
@@ -76,6 +82,30 @@ fn handle_quit_confirm_input(key: KeyEvent, app: &mut App) {
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             app.sound_manager.play(crate::sound::SoundType::PopupClose);
             app.ui.show_quit_confirm = false;
+        }
+        _ => {}
+    }
+}
+
+/// Handle server error popup input
+fn handle_server_error_input(key: KeyEvent, app: &mut App) {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    match key.code {
+        KeyCode::Enter => {
+            // Acknowledge the error
+            app.sound_manager.play(crate::sound::SoundType::PopupClose);
+            app.ui.show_server_error = false;
+        }
+        KeyCode::Esc => {
+            // Cancel and close the error popup
+            app.sound_manager.play(crate::sound::SoundType::PopupClose);
+            app.ui.show_server_error = false;
+        }
+        // Handle Ctrl+C to close the dialog
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.sound_manager.play(crate::sound::SoundType::PopupClose);
+            app.ui.show_server_error = false;
         }
         _ => {}
     }
