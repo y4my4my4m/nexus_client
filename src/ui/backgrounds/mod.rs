@@ -12,6 +12,7 @@ use crate::ui::backgrounds::neontunnel::NeonTunnelBackground;
 use crate::ui::backgrounds::plasmawave::PlasmaWaveBackground;
 use crate::ui::backgrounds::pulsecircuit::PulseCircuitBackground;
 use crate::ui::backgrounds::wireframeearth::WireframeEarthBackground;
+use crate::ui::backgrounds::none::NoneBackground;
 
 pub mod cyberpunk;
 pub mod minimal;
@@ -25,6 +26,7 @@ pub mod neontunnel;
 pub mod plasmawave;
 pub mod pulsecircuit;
 pub mod wireframeearth;
+pub mod none;
 
 pub trait Background {
     fn name(&self) -> &'static str;
@@ -51,6 +53,7 @@ impl BackgroundManager {
             Box::new(PlasmaWaveBackground),
             Box::new(PulseCircuitBackground),
             Box::new(WireframeEarthBackground),
+            Box::new(NoneBackground),
         ];
         Self {
             backgrounds,

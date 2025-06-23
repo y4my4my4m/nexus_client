@@ -48,11 +48,11 @@ impl Theme for MinimalTheme {
     fn name(&self) -> &'static str { "Minimal" }
     fn colors(&self) -> ThemeColors {
         ThemeColors {
-            primary: Color::White,
+            primary: Color::Yellow,
             secondary: Color::Gray,
             background: Color::Black,
             text: Color::White,
-            selected_bg: Color::White,
+            selected_bg: Color::Cyan,
             selected_fg: Color::Black,
         }
     }
@@ -66,16 +66,16 @@ impl Theme for MinimalTheme {
     }
     fn border_color(&self, tick: u64) -> Color {
         match (tick / 15) % 3 {
-            0 => Color::White,
+            0 => Color::Red,
             1 => Color::Gray,
             _ => Color::DarkGray,
         }
     }
     fn selected_style(&self) -> Style {
-        Style::default().fg(Color::Black).bg(Color::White).add_modifier(Modifier::BOLD)
+        Style::default().fg(Color::Black).bg(Color::Yellow).add_modifier(Modifier::BOLD)
     }
     fn text_style(&self) -> Style {
-        Style::default().fg(Color::White)
+        Style::default().fg(Color::Red)
     }
     fn draw_top_banner(&self, _f: &mut ratatui::Frame, _app: &crate::app::App, _area: ratatui::layout::Rect) {
         // Minimal: no top banner
@@ -89,16 +89,16 @@ impl Theme for MinimalTheme {
         let items: Vec<ListItem> = menu_items.iter().enumerate().map(|(i, &name)| {
             let is_selected = Some(i) == main_menu_state.selected();
             let style = if is_selected {
-                Style::default().fg(Color::Black).bg(Color::White).add_modifier(ratatui::style::Modifier::BOLD)
+                Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(ratatui::style::Modifier::BOLD)
             } else {
-                Style::default().fg(Color::White)
+                Style::default().fg(Color::Red)
             };
             ListItem::new(Line::from(Span::styled(name, style)))
         }).collect();
         let list_block = Block::default()
             .borders(Borders::ALL)
             .title("Menu")
-            .border_style(Style::default().fg(Color::White));
+            .border_style(Style::default().fg(Color::Red));
         let list = List::new(items).block(list_block);
         f.render_stateful_widget(list, area, main_menu_state);
     }
