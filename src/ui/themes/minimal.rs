@@ -75,7 +75,7 @@ impl Theme for MinimalTheme {
         Style::default().fg(Color::Black).bg(Color::Yellow).add_modifier(Modifier::BOLD)
     }
     fn text_style(&self) -> Style {
-        Style::default().fg(Color::Red)
+        Style::default()
     }
     fn draw_top_banner(&self, _f: &mut ratatui::Frame, _app: &crate::app::App, _area: ratatui::layout::Rect) {
         // Minimal: no top banner
@@ -91,14 +91,14 @@ impl Theme for MinimalTheme {
             let style = if is_selected {
                 Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(ratatui::style::Modifier::BOLD)
             } else {
-                Style::default().fg(Color::Red)
+                Style::default()
             };
             ListItem::new(Line::from(Span::styled(name, style)))
         }).collect();
         let list_block = Block::default()
             .borders(Borders::ALL)
             .title("Menu")
-            .border_style(Style::default().fg(Color::Red));
+            .border_style(Style::default());
         let list = List::new(items).block(list_block);
         f.render_stateful_widget(list, area, main_menu_state);
     }
