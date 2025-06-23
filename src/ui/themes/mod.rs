@@ -38,6 +38,14 @@ pub trait Theme {
     fn selected_style(&self) -> Style;
     /// Style for normal text
     fn text_style(&self) -> Style;
+    /// Draw the top banner (or nothing for minimal themes)
+    fn draw_top_banner(&self, f: &mut ratatui::Frame, app: &crate::app::App, area: ratatui::layout::Rect);
+    /// Draw the bottom banner (or nothing for minimal themes)
+    fn draw_bottom_banner(&self, f: &mut ratatui::Frame, app: &crate::app::App, area: ratatui::layout::Rect);
+    /// Draw the main menu (fancy or minimal)
+    fn draw_main_menu(&self, f: &mut ratatui::Frame, main_menu_state: &mut ratatui::widgets::ListState, tick: u64, area: ratatui::layout::Rect);
+    /// Draw the settings menu (fancy or minimal)
+    fn draw_settings_menu(&self, f: &mut ratatui::Frame, settings_list_state: &mut ratatui::widgets::ListState, tick: u64, area: ratatui::layout::Rect);
 }
 
 /// Theme manager for cycling through available UI color themes
