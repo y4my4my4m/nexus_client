@@ -153,7 +153,7 @@ impl<'a> App<'a> {
             }
             ServerMessage::ForumsLightweight(forums_lightweight) => {
                 // Convert lightweight forums to regular forums by creating User objects without profile images
-                use common::{Forum, Thread, Post, User, UserStatus};
+                use common::{Forum, Thread, Post, User};
                 let forums = forums_lightweight.into_iter().map(|forum_lite| {
                     let threads = forum_lite.threads.into_iter().map(|thread_lite| {
                         let posts = thread_lite.posts.into_iter().map(|post_lite| {

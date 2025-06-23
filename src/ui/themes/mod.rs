@@ -1,6 +1,4 @@
-use ratatui::{Frame, layout::Rect, style::{Style, Color}, widgets::Paragraph, text::Span};
-use ratatui::style::Modifier;
-use crate::app::App;
+use ratatui::style::{Style, Color};
 
 mod cyberpunk;
 mod minimal;

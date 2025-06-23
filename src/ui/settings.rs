@@ -4,7 +4,6 @@ use ratatui::{Frame, layout::Rect, style::{Style, Color, Modifier}, widgets::{Bl
 use ratatui::prelude::{Alignment, Direction};
 use crate::app::{App};
 use base64::Engine;
-use crate::global_prefs;
 use crate::ui::themes::Theme;
 
 pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {

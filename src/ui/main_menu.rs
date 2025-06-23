@@ -2,7 +2,6 @@
 
 use ratatui::{Frame, layout::{Rect, Layout, Constraint, Direction, Alignment}, style::{Style, Color, Modifier}, widgets::{Block, List, ListItem, Borders, Paragraph, BorderType}, text::{Line, Span}};
 use crate::app::App;
-use crate::ui::themes::Theme;
 
 pub fn draw_main_menu(f: &mut Frame, app: &mut App, area: Rect) {
     // Draw animated background using selected background

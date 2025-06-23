@@ -1,7 +1,6 @@
 use crate::ui::backgrounds::Background;
 use ratatui::{Frame, layout::Rect, style::{Style, Color, Modifier}, widgets::Paragraph};
 use crate::app::App;
-use crate::ui::themes::{Theme, ThemeColors, AccentColors};
 
 pub struct CyberGridBackground;
 

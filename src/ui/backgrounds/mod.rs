@@ -39,8 +39,8 @@ pub struct BackgroundManager {
 impl BackgroundManager {
     pub fn new() -> Self {
         let backgrounds: Vec<Box<dyn Background>> = vec![
-            Box::new(CyberpunkBackground),
             Box::new(MinimalBackground),
+            Box::new(CyberpunkBackground),
             Box::new(CyberGridBackground),
             Box::new(FractalGridBackground),
             Box::new(GeometryBackground),

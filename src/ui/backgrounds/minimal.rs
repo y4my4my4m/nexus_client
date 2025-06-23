@@ -1,6 +1,5 @@
 use ratatui::{Frame, layout::Rect, style::{Style, Color}, widgets::Paragraph};
 use crate::app::App;
-use crate::ui::themes::Theme;
 use crate::ui::backgrounds::Background;
 
 pub struct MinimalBackground;

@@ -6,7 +6,6 @@ use ratatui::{
 };
 use crate::app::App;
 use crate::ui::backgrounds::Background;
-use crate::ui::themes::{Theme, ThemeColors, AccentColors};
 
 pub struct GeometryBackground;
 
