@@ -49,10 +49,12 @@ fn draw_fractal_tunnel(f: &mut Frame, area: Rect, w: f32, h: f32, depth: usize, 
     }
     let cx = area.x as f32 + w / 2.0;
     let cy = area.y as f32 + h / 2.0;
+    let tunnel_speed = 0.18;
+    let cam_z = (t * tunnel_speed) % 1.0;
     let num_rings = 18 + depth * 2;
     for i in 0..num_rings {
-        let z = (i as f32 * 0.22 + t) % 5.0;
-        let scale = 1.0 / (z + 0.7);
+        let z = i as f32 * 1.2 - cam_z * 18.0;
+        let scale = 1.0 / (z + 4.0);
         let radius = w.min(h) * 0.48 * scale * (1.0 + (t * 0.13 + i as f32 * 0.2).sin() * 0.08);
         let color = match (i + depth + (t as usize) % 6) % 6 {
             0 => Color::Cyan,
@@ -96,6 +98,11 @@ fn draw_fractal_tunnel(f: &mut Frame, area: Rect, w: f32, h: f32, depth: usize, 
             draw_fractal_tunnel(f, sub_area, sub_area.width as f32, sub_area.height as f32, depth - 1, t + 1.7);
         }
     }
+    // Draw vanishing point
+    f.render_widget(
+        Paragraph::new("✦").style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Rect::new(cx as u16, cy as u16, 1, 1),
+    );
 }
 
 fn draw_line(f: &mut Frame, area: Rect, x0: f32, y0: f32, x1: f32, y1: f32, color: Color) {

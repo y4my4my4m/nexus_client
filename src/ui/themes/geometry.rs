@@ -45,33 +45,60 @@ impl Theme for GeometryTheme {
             }
         }
 
-        // Rotating wireframe pyramid (triangle base)
-        let pyramid_height = h.min(w) * 0.35;
-        let base_radius = pyramid_height * 0.7;
-        let angle = (tick as f32 / 16.0) % (std::f32::consts::PI * 2.0);
-
-        // 3D pyramid points (projected to 2D)
-        let base_points = (0..3).map(|i| {
-            let theta = angle + i as f32 * (2.0 * std::f32::consts::PI / 3.0);
-            let x = cx + base_radius * theta.cos();
-            let y = cy + base_radius * theta.sin() * 0.5;
-            (x, y)
-        }).collect::<Vec<_>>();
-        let apex = (cx, cy - pyramid_height);
-
+        // --- 3D Rotating, Zoomed-In Wireframe Pyramid ---
+        let t = tick as f32 * 0.045;
+        let zoom = 1.25; // much bigger
+        let base_radius = w.min(h) * 0.38 * zoom;
+        let pyramid_height = w.min(h) * 0.7 * zoom;
+        // 3D rotation angles
+        let yaw = t * 0.7;
+        let pitch = (t * 0.5).sin() * 0.7 + 0.7;
+        // 3D points: base (triangle) and apex
+        let mut pts3d = vec![];
+        for i in 0..3 {
+            let theta = i as f32 * std::f32::consts::TAU / 3.0;
+            let x = base_radius * theta.cos();
+            let y = base_radius * theta.sin();
+            let z = 0.0;
+            pts3d.push([x, y, z]);
+        }
+        let apex3d = [0.0, 0.0, -pyramid_height];
+        // 3D rotation (yaw, then pitch)
+        let rot_yaw = |p: [f32;3]| {
+            let (sy, cy) = yaw.sin_cos();
+            [
+                p[0]*cy - p[2]*sy,
+                p[1],
+                p[0]*sy + p[2]*cy,
+            ]
+        };
+        let rot_pitch = |p: [f32;3]| {
+            let (sp, cp) = pitch.sin_cos();
+            [
+                p[0],
+                p[1]*cp - p[2]*sp,
+                p[1]*sp + p[2]*cp,
+            ]
+        };
+        let project = |p: [f32;3]| {
+            // Perspective projection
+            let persp = 1.2 / (p[2] * 0.018 + 2.8);
+            [cx + p[0] * persp, cy + p[1] * persp]
+        };
+        let pts2d: Vec<_> = pts3d.iter().map(|&p| project(rot_pitch(rot_yaw(p)))).collect();
+        let apex2d = project(rot_pitch(rot_yaw(apex3d)));
         // Draw base edges
         for i in 0..3 {
-            let (x0, y0) = base_points[i];
-            let (x1, y1) = base_points[(i + 1) % 3];
+            let [x0, y0] = pts2d[i];
+            let [x1, y1] = pts2d[(i + 1) % 3];
             draw_line(f, area, x0, y0, x1, y1, Color::Cyan);
         }
         // Draw sides
-        for &(bx, by) in &base_points {
-            draw_line(f, area, bx, by, apex.0, apex.1, Color::Magenta);
+        for &[x, y] in &pts2d {
+            draw_line(f, area, x, y, apex2d[0], apex2d[1], Color::Magenta);
         }
         // Draw apex
-        let apex_cell = to_cell(area, apex.0, apex.1);
-        if let Some((ax, ay)) = apex_cell {
+        if let Some((ax, ay)) = to_cell(area, apex2d[0], apex2d[1]) {
             f.render_widget(
                 Paragraph::new("▲").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
                 Rect::new(ax, ay, 1, 1),

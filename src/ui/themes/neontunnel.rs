@@ -12,13 +12,19 @@ impl Theme for NeonTunnelTheme {
         let h = area.height as f32;
         let cx = area.x as f32 + w / 2.0;
         let cy = area.y as f32 + h / 2.0;
-        let t = tick as f32 * 0.07;
-        let num_rings = 18;
+        let t = tick as f32 * 0.022; // slower movement
+        let tunnel_speed = 0.045; // much slower
+        let cam_z = (t * tunnel_speed) % 1.0;
+        let num_rings = 32;
+        let segs = 48;
+        let cam_wobble = ((t * 0.7).sin() * 0.12, (t * 0.5).cos() * 0.09);
         for i in 0..num_rings {
-            let z = (i as f32 * 0.25 + t) % 5.0;
-            let scale = 1.0 / (z + 0.7);
-            let radius = w.min(h) * 0.38 * scale;
-            let color = match i % 6 {
+            let z = i as f32 * 0.7 - cam_z * 22.0;
+            let scale = 1.0 / (z + 1.7);
+            // Perspective: make rings elliptical for 3D effect
+            let ellipse = 0.82 + (z * 0.04).sin() * 0.18;
+            let radius = w.min(h) * 0.44 * scale;
+            let color = match (i + (tick / 3) as usize) % 6 {
                 0 => Color::Cyan,
                 1 => Color::Magenta,
                 2 => Color::Yellow,
@@ -26,15 +32,25 @@ impl Theme for NeonTunnelTheme {
                 4 => Color::LightBlue,
                 _ => Color::LightMagenta,
             };
-            let segs = 24;
             for j in 0..segs {
                 let theta0 = j as f32 * std::f32::consts::TAU / segs as f32;
                 let theta1 = (j + 1) as f32 * std::f32::consts::TAU / segs as f32;
-                let x0 = cx + radius * theta0.cos();
-                let y0 = cy + radius * theta0.sin();
-                let x1 = cx + radius * theta1.cos();
-                let y1 = cy + radius * theta1.sin();
+                let x0 = cx + (radius * theta0.cos() * ellipse) + cam_wobble.0 * w;
+                let y0 = cy + (radius * theta0.sin()) + cam_wobble.1 * h;
+                let x1 = cx + (radius * theta1.cos() * ellipse) + cam_wobble.0 * w;
+                let y1 = cy + (radius * theta1.sin()) + cam_wobble.1 * h;
                 draw_line(f, area, x0, y0, x1, y1, color);
+            }
+            // Optionally, draw animated spokes for extra 3D effect
+            if i % 6 == 0 {
+                for s in 0..8 {
+                    let spoke_theta = (s as f32 / 8.0) * std::f32::consts::TAU + t * 0.2;
+                    let x0 = cx + cam_wobble.0 * w;
+                    let y0 = cy + cam_wobble.1 * h;
+                    let x1 = x0 + (radius * 1.1 * spoke_theta.cos() * ellipse);
+                    let y1 = y0 + (radius * 1.1 * spoke_theta.sin());
+                    draw_line(f, area, x0, y0, x1, y1, color);
+                }
             }
         }
         // Center vanishing point
