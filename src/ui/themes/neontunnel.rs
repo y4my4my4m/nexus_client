@@ -26,10 +26,8 @@ impl Theme for NeonTunnelTheme {
             let radius = w.min(h) * 0.44 * scale;
             let color = match (i + (tick / 3) as usize) % 6 {
                 0 => Color::Cyan,
-                1 => Color::Magenta,
-                2 => Color::Yellow,
-                3 => Color::Green,
-                4 => Color::LightBlue,
+                1 => Color::Green,
+                2 => Color::LightBlue,
                 _ => Color::LightMagenta,
             };
             for j in 0..segs {

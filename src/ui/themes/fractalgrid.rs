@@ -43,59 +43,35 @@ impl Theme for FractalGridTheme {
 }
 
 // Replace draw_fractal_grid with a fractal tunnel effect
-fn draw_fractal_tunnel(f: &mut Frame, area: Rect, w: f32, h: f32, depth: usize, t: f32) {
-    if depth == 0 || w < 4.0 || h < 2.0 {
-        return;
-    }
+fn draw_fractal_tunnel(f: &mut Frame, area: Rect, w: f32, h: f32, _depth: usize, t: f32) {
     let cx = area.x as f32 + w / 2.0;
     let cy = area.y as f32 + h / 2.0;
-    let tunnel_speed = 0.18;
+    // Slower, more 3D tunnel effect
+    let tunnel_speed = 0.025; // much slower
     let cam_z = (t * tunnel_speed) % 1.0;
-    let num_rings = 18 + depth * 2;
+    let num_rings = 36;
+    let segs = 64;
+    let colors = [Color::Cyan, Color::Magenta, Color::Yellow, Color::White];
+    let wobble = ((t * 0.18).sin() * 0.18, (t * 0.13).cos() * 0.12);
     for i in 0..num_rings {
-        let z = i as f32 * 1.2 - cam_z * 18.0;
-        let scale = 1.0 / (z + 4.0);
-        let radius = w.min(h) * 0.48 * scale * (1.0 + (t * 0.13 + i as f32 * 0.2).sin() * 0.08);
-        let color = match (i + depth + (t as usize) % 6) % 6 {
-            0 => Color::Cyan,
-            1 => Color::Magenta,
-            2 => Color::Yellow,
-            3 => Color::Green,
-            4 => Color::LightBlue,
-            _ => Color::LightMagenta,
+        let z = i as f32 * 1.1 - cam_z * 24.0;
+        let scale = 1.0 / (z + 2.2);
+        // Perspective: elliptical rings for 3D feel
+        let ellipse = 0.85 + (z * 0.04).sin() * 0.13;
+        let radius = w.min(h) * 0.48 * scale;
+        let color = if i == num_rings - 1 {
+            Color::White
+        } else {
+            colors[i % colors.len()]
         };
-        let segs = 36 + depth * 2;
         for j in 0..segs {
             let theta0 = j as f32 * std::f32::consts::TAU / segs as f32;
             let theta1 = (j + 1) as f32 * std::f32::consts::TAU / segs as f32;
-            let x0 = cx + radius * theta0.cos();
-            let y0 = cy + radius * theta0.sin();
-            let x1 = cx + radius * theta1.cos();
-            let y1 = cy + radius * theta1.sin();
+            let x0 = cx + (radius * theta0.cos() * ellipse) + wobble.0 * w;
+            let y0 = cy + (radius * theta0.sin()) + wobble.1 * h;
+            let x1 = cx + (radius * theta1.cos() * ellipse) + wobble.0 * w;
+            let y1 = cy + (radius * theta1.sin()) + wobble.1 * h;
             draw_line(f, area, x0, y0, x1, y1, color);
-        }
-    }
-    // Recursive tunnel branches
-    if depth > 1 {
-        let branch_angle = t * 0.7 + depth as f32 * 0.5;
-        let branch_radius = w.min(h) * 0.18 * (1.0 + (t * 0.23).sin() * 0.2);
-        let bx = cx + branch_radius * branch_angle.cos();
-        let by = cy + branch_radius * branch_angle.sin();
-        let sub_w = w * 0.55;
-        let sub_h = h * 0.55;
-        // Clamp sub-area to not exceed parent area bounds
-        let sub_x = bx.max(area.x as f32).min((area.x + area.width - 1) as f32);
-        let sub_y = by.max(area.y as f32).min((area.y + area.height - 1) as f32);
-        let max_w = (area.x + area.width) as f32 - sub_x;
-        let max_h = (area.y + area.height) as f32 - sub_y;
-        let sub_area = Rect {
-            x: sub_x as u16,
-            y: sub_y as u16,
-            width: sub_w.max(4.0).min(max_w).floor() as u16,
-            height: sub_h.max(2.0).min(max_h).floor() as u16,
-        };
-        if sub_area.width > 0 && sub_area.height > 0 {
-            draw_fractal_tunnel(f, sub_area, sub_area.width as f32, sub_area.height as f32, depth - 1, t + 1.7);
         }
     }
     // Draw vanishing point
