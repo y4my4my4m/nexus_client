@@ -28,6 +28,8 @@ enum AppEvent {
     Terminal(CEvent),
     Server(ServerMessage),
     Tick,
+    RetryConnection, // New event for connection retry
+    ConnectionLost, // New event for when connection is lost
 }
 
 #[tokio::main]
@@ -56,35 +58,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let server_addr = env::args().nth(1).unwrap_or_else(|| "127.0.0.1:8080".to_string());
     
     // Try to connect to server with error handling
-    let stream = match TcpStream::connect(&server_addr).await {
-        Ok(stream) => stream,
-        Err(e) => {
-            // Show cyberpunk error popup instead of crashing
-            let error_msg = match e.kind() {
-                std::io::ErrorKind::ConnectionRefused => {
-                    format!("Connection refused to {}", server_addr)
-                }
-                std::io::ErrorKind::TimedOut => {
-                    format!("Connection timeout to {}", server_addr)
-                }
-                std::io::ErrorKind::NotFound => {
-                    format!("Host not found: {}", server_addr)
-                }
-                _ => {
-                    format!("Network error: {}", e)
-                }
-            };
-            
-            app.ui.show_server_error(error_msg);
-            app.sound_manager.play(sound::SoundType::Error);
-            
-            // Run the UI loop without server connection
-            run_app_without_server(app, terminal).await?;
-            return Ok(());
-        }
-    };
+    let mut connection_result = TcpStream::connect(&server_addr).await;
     
-    let mut framed = Framed::new(stream, LengthDelimitedCodec::new());
+    // Show error popup if initial connection fails
+    if let Err(e) = &connection_result {
+        let error_msg = match e.kind() {
+            std::io::ErrorKind::ConnectionRefused => {
+                format!("Connection refused to {}", server_addr)
+            }
+            std::io::ErrorKind::TimedOut => {
+                format!("Connection timeout to {}", server_addr)
+            }
+            std::io::ErrorKind::NotFound => {
+                format!("Host not found: {}", server_addr)
+            }
+            _ => {
+                format!("Network error: {}", e)
+            }
+        };
+        
+        app.ui.show_server_error(error_msg);
+        app.sound_manager.play(sound::SoundType::Error);
+    }
 
     // Create event loop channels
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<AppEvent>();
@@ -112,53 +107,160 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     });
 
-    // Spawn server message handler
-    let event_tx_clone = event_tx.clone();
-    tokio::spawn(async move {
-        while let Some(msg) = rx_from_server.recv().await {
-            if event_tx_clone.send(AppEvent::Server(msg)).is_err() {
-                break;
+    // Server communication handler (only if initially connected)
+    let mut server_comm_handle = None;
+    if connection_result.is_ok() {
+        let stream = connection_result.unwrap();
+        let mut framed = Framed::new(stream, LengthDelimitedCodec::new());
+        
+        // Spawn server message handler
+        let event_tx_clone = event_tx.clone();
+        tokio::spawn(async move {
+            while let Some(msg) = rx_from_server.recv().await {
+                if event_tx_clone.send(AppEvent::Server(msg)).is_err() {
+                    break;
+                }
             }
-        }
-    });
+        });
 
-    // Spawn server communication handler
-    tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                // Handle outgoing messages to server
-                msg = rx_from_ui.recv() => {
-                    if let Some(msg) = msg {
-                        let serialized = bincode::serialize(&msg).unwrap();
-                        if framed.send(serialized.into()).await.is_err() {
+        // Spawn server communication handler
+        let event_tx_clone = event_tx.clone();
+        server_comm_handle = Some(tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    // Handle outgoing messages to server
+                    msg = rx_from_ui.recv() => {
+                        if let Some(msg) = msg {
+                            let serialized = bincode::serialize(&msg).unwrap();
+                            if framed.send(serialized.into()).await.is_err() {
+                                // Connection lost while sending
+                                let _ = event_tx_clone.send(AppEvent::ConnectionLost);
+                                break;
+                            }
+                        } else {
                             break;
                         }
-                    } else {
-                        break;
                     }
-                }
-                
-                // Handle incoming messages from server
-                result = framed.next() => {
-                    match result {
-                        Some(Ok(bytes)) => {
-                            if let Ok(msg) = bincode::deserialize::<ServerMessage>(&bytes) {
-                                if tx_to_ui.send(msg).is_err() {
-                                    break;
+                    
+                    // Handle incoming messages from server
+                    result = framed.next() => {
+                        match result {
+                            Some(Ok(bytes)) => {
+                                if let Ok(msg) = bincode::deserialize::<ServerMessage>(&bytes) {
+                                    if tx_to_ui.send(msg).is_err() {
+                                        break;
+                                    }
                                 }
                             }
-                        }
-                        Some(Err(_)) | None => {
-                            break;
+                            Some(Err(_)) | None => {
+                                // Connection lost while receiving
+                                let _ = event_tx_clone.send(AppEvent::ConnectionLost);
+                                break;
+                            }
                         }
                     }
                 }
             }
-        }
-    });
+        }));
+    }
 
     // Main application loop
     while !app.ui.should_quit {
+        // Check for retry connection request
+        if app.ui.should_retry_connection {
+            app.ui.should_retry_connection = false;
+            
+            // Attempt to reconnect
+            match TcpStream::connect(&server_addr).await {
+                Ok(stream) => {
+                    // Successfully connected!
+                    app.sound_manager.play(sound::SoundType::LoginSuccess);
+                    
+                    // Cancel any existing server communication task
+                    if let Some(handle) = server_comm_handle.take() {
+                        handle.abort();
+                    }
+                    
+                    // Create new channels for the new connection
+                    let (new_tx_to_server, mut new_rx_from_ui) = mpsc::unbounded_channel::<ClientMessage>();
+                    let (new_tx_to_ui, mut new_rx_from_server) = mpsc::unbounded_channel::<ServerMessage>();
+                    
+                    // Update app with new sender
+                    app.to_server = new_tx_to_server;
+                    
+                    let mut framed = Framed::new(stream, LengthDelimitedCodec::new());
+                    
+                    // Spawn new server message handler
+                    let event_tx_clone = event_tx.clone();
+                    tokio::spawn(async move {
+                        while let Some(msg) = new_rx_from_server.recv().await {
+                            if event_tx_clone.send(AppEvent::Server(msg)).is_err() {
+                                break;
+                            }
+                        }
+                    });
+
+                    // Spawn new server communication handler
+                    let event_tx_clone = event_tx.clone();
+                    server_comm_handle = Some(tokio::spawn(async move {
+                        loop {
+                            tokio::select! {
+                                msg = new_rx_from_ui.recv() => {
+                                    if let Some(msg) = msg {
+                                        let serialized = bincode::serialize(&msg).unwrap();
+                                        if framed.send(serialized.into()).await.is_err() {
+                                            // Connection lost while sending
+                                            let _ = event_tx_clone.send(AppEvent::ConnectionLost);
+                                            break;
+                                        }
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                
+                                result = framed.next() => {
+                                    match result {
+                                        Some(Ok(bytes)) => {
+                                            if let Ok(msg) = bincode::deserialize::<ServerMessage>(&bytes) {
+                                                if new_tx_to_ui.send(msg).is_err() {
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        Some(Err(_)) | None => {
+                                            // Connection lost while receiving
+                                            let _ = event_tx_clone.send(AppEvent::ConnectionLost);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }));
+                }
+                Err(e) => {
+                    // Connection failed, show error and continue
+                    let error_msg = match e.kind() {
+                        std::io::ErrorKind::ConnectionRefused => {
+                            format!("Connection refused to {}", server_addr)
+                        }
+                        std::io::ErrorKind::TimedOut => {
+                            format!("Connection timeout to {}", server_addr)
+                        }
+                        std::io::ErrorKind::NotFound => {
+                            format!("Host not found: {}", server_addr)
+                        }
+                        _ => {
+                            format!("Network error: {}", e)
+                        }
+                    };
+                    
+                    app.ui.show_server_error(error_msg);
+                    app.sound_manager.play(sound::SoundType::Error);
+                }
+            }
+        }
+
         // Render UI
         terminal.draw(|f| ui::ui(f, &mut app))?;
 
@@ -176,73 +278,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 AppEvent::Tick => {
                     app.on_tick();
                 }
-            }
-        }
-    }
-
-    // Cleanup
-    disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
-
-    Ok(())
-}
-
-/// Run the application without server connection (offline mode with error popup)
-async fn run_app_without_server(
-    mut app: App<'_>,
-    mut terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
-) -> Result<(), Box<dyn Error>> {
-    // Create event loop channels for offline mode
-    let (event_tx, mut event_rx) = mpsc::unbounded_channel::<AppEvent>();
-
-    // Spawn terminal event handler
-    let event_tx_clone = event_tx.clone();
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_millis(50));
-        loop {
-            interval.tick().await;
-            
-            // Check for terminal events (non-blocking)
-            if event::poll(Duration::from_millis(0)).unwrap_or(false) {
-                if let Ok(event) = event::read() {
-                    if event_tx_clone.send(AppEvent::Terminal(event)).is_err() {
-                        break;
-                    }
+                AppEvent::RetryConnection => {
+                    app.ui.should_retry_connection = true;
                 }
-            }
-            
-            // Send tick event for animation
-            if event_tx_clone.send(AppEvent::Tick).is_err() {
-                break;
-            }
-        }
-    });
-
-    // Offline mode main loop - no server communication
-    while !app.ui.should_quit {
-        // Render UI with error popup
-        terminal.draw(|f| ui::ui(f, &mut app))?;
-
-        // Handle events
-        if let Some(event) = event_rx.recv().await {
-            match event {
-                AppEvent::Terminal(terminal_event) => {
-                    if let CEvent::Key(key) = terminal_event {
-                        handlers::handle_key_event(key, &mut app);
-                    }
-                }
-                AppEvent::Server(_) => {
-                    // No server messages in offline mode
-                }
-                AppEvent::Tick => {
-                    app.on_tick();
+                AppEvent::ConnectionLost => {
+                    // Handle connection lost event (e.g., show a message, play a sound, etc.)
+                    app.ui.show_server_error("Connection to server was lost.".to_string());
+                    app.sound_manager.play(sound::SoundType::Error);
                 }
             }
         }
     }
 
     // Cleanup
+    if let Some(handle) = server_comm_handle {
+        handle.abort();
+    }
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;

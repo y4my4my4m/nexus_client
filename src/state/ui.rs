@@ -49,6 +49,7 @@ pub struct UiState {
     // Server error popup
     pub show_server_error: bool,
     pub server_error_message: String,
+    pub should_retry_connection: bool,
     
     // Connected users (for legacy compatibility)
     pub connected_users: Vec<common::User>,
@@ -73,6 +74,7 @@ impl Default for UiState {
             quit_confirm_selected: 0,
             show_server_error: false,
             server_error_message: String::new(),
+            should_retry_connection: false,
             connected_users: Vec::new(),
         }
     }

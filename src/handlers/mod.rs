@@ -93,20 +93,16 @@ fn handle_server_error_input(key: KeyEvent, app: &mut App) {
 
     match key.code {
         KeyCode::Enter => {
-            // Acknowledge the error
+            // Request connection retry
             app.sound_manager.play(crate::sound::SoundType::PopupClose);
-            app.ui.show_server_error = false;
+            app.ui.should_retry_connection = true;
+            app.ui.hide_server_error();
         }
-        KeyCode::Esc => {
-            // Cancel and close the error popup
-            app.sound_manager.play(crate::sound::SoundType::PopupClose);
-            app.ui.show_server_error = false;
-        }
-        // Handle Ctrl+C to close the dialog
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            app.sound_manager.play(crate::sound::SoundType::PopupClose);
-            app.ui.show_server_error = false;
+            // Allow Ctrl+C to quit the application
+            app.ui.quit();
         }
+        // Remove ESC handler - don't allow closing the popup with ESC
         _ => {}
     }
 }
