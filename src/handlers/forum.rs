@@ -205,13 +205,19 @@ fn handle_post_view_input(key: KeyEvent, app: &mut App) {
             }
         }
         KeyCode::Char('r') | KeyCode::Char('R') => {
-            // Reply to the currently selected post
-            if let Some(post) = app.forum.get_selected_post() {
-                app.forum.set_reply_target(Some(post.id));
-            } else {
+            if key.modifiers.contains(KeyModifiers::ALT) {
+                // Alt+R: General post (not replying to anyone)
                 app.forum.set_reply_target(None);
+                app.enter_input_mode(crate::state::InputMode::NewPostContent);
+            } else {
+                // R: Reply to the currently selected post
+                if let Some(post) = app.forum.get_selected_post() {
+                    app.forum.set_reply_target(Some(post.id));
+                } else {
+                    app.forum.set_reply_target(None);
+                }
+                app.enter_input_mode(crate::state::InputMode::NewPostContent);
             }
-            app.enter_input_mode(crate::state::InputMode::NewPostContent);
         }
         KeyCode::Char('d') | KeyCode::Char('D') if key.modifiers.contains(KeyModifiers::ALT) => {
             // Admin-only: Delete selected post

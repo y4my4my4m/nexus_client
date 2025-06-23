@@ -162,7 +162,7 @@ pub fn draw_post_view(f: &mut Frame, app: &mut App, area: Rect) {
         let navigation_help = if app.forum.selected_reply_index.is_some() {
             " | ←→ Navigate Replies | Enter: Jump to Reply | Esc: Clear"
         } else {
-            " | ↑↓ Select Posts | →: View Replies | R: Reply"
+            " | ↑↓ Select Posts | →: View Replies | R: Reply To | Alt+R: Reply"
         };
         
         let title = format!("Reading: {}{}{}", 
@@ -216,6 +216,15 @@ pub fn draw_post_view(f: &mut Frame, app: &mut App, area: Rect) {
                 )
             ];
             
+            // Add OP indicator for the first post (original poster)
+            if post_idx == start_post_idx && start_post_idx == 0 {
+                header_spans.push(Span::raw(" "));
+                header_spans.push(Span::styled(
+                    "(OP)",
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+                ));
+            }
+            
             // Add reply indicators
             if !replies.is_empty() {
                 header_spans.push(Span::raw(" "));
@@ -231,11 +240,33 @@ pub fn draw_post_view(f: &mut Frame, app: &mut App, area: Rect) {
             // Show if this post is a reply to another
             if let Some(reply_to_id) = post.reply_to {
                 let reply_to_short = &reply_to_id.to_string()[..8];
+                
+                // Check if the reply is to the current user's post
+                let is_reply_to_current_user = if let Some(current_user) = &app.auth.current_user {
+                    if let Some(thread) = app.forum.get_current_thread() {
+                        thread.posts.iter()
+                            .find(|p| p.id == reply_to_id)
+                            .map(|p| p.author.id == current_user.id)
+                            .unwrap_or(false)
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+                
                 header_spans.insert(1, Span::raw(" "));
-                header_spans.insert(2, Span::styled(
-                    format!(">>{}", reply_to_short),
-                    Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)
-                ));
+                if is_reply_to_current_user {
+                    header_spans.insert(2, Span::styled(
+                        format!(">>{} (you)", reply_to_short),
+                        Style::default().fg(Color::LightYellow).add_modifier(Modifier::BOLD)
+                    ));
+                } else {
+                    header_spans.insert(2, Span::styled(
+                        format!(">>{}", reply_to_short),
+                        Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)
+                    ));
+                }
             }
             
             text_lines.push(Line::from(header_spans));

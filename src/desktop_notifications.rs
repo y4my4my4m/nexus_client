@@ -22,13 +22,27 @@ impl DesktopNotificationService {
             return;
         }
 
+        // Log the notification attempt
+        debug!("Attempting to show desktop notification: '{}' - '{}'", title, message);
+
         // Show notification in a separate task to avoid blocking
         let title = title.to_string();
         let message = message.to_string();
         
         tokio::spawn(async move {
-            if let Err(e) = Self::send_notification(&title, &message, urgency, icon_path).await {
-                error!("Failed to send desktop notification: {}", e);
+            match Self::send_notification(&title, &message, urgency, icon_path).await {
+                Ok(()) => {
+                    debug!("Desktop notification sent successfully: '{}'", title);
+                }
+                Err(e) => {
+                    error!("Failed to send desktop notification '{}': {}", title, e);
+                    // Also try a basic notification without icon as fallback
+                    if let Err(fallback_error) = Self::send_basic_notification(&title, &message).await {
+                        error!("Fallback notification also failed: {}", fallback_error);
+                    } else {
+                        debug!("Fallback notification sent successfully");
+                    }
+                }
             }
         });
     }
@@ -265,6 +279,22 @@ impl DesktopNotificationService {
                 }
             });
         }
+        
+        Ok(())
+    }
+
+    async fn send_basic_notification(title: &str, message: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut notification = Notification::new();
+        
+        notification
+            .summary(title)
+            .body(message)
+            .appname("Nexus")
+            .timeout(Timeout::Milliseconds(5000))
+            .icon("dialog-information"); // Use a standard icon for fallback
+
+        // Show the notification
+        let _handle = notification.show()?;
         
         Ok(())
     }

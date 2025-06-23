@@ -117,6 +117,7 @@ impl<'a> App<'a> {
     // --- Server Message Handling ---
     
     pub fn handle_server_message(&mut self, msg: ServerMessage) {
+        use chrono::prelude::*;
         match msg {
             ServerMessage::AuthSuccess(user) => {
                 self.auth.login(user);
@@ -261,6 +262,31 @@ impl<'a> App<'a> {
                 DesktopNotificationService::show_mention_notification(&from.username, &content, from.profile_pic.as_deref());
                 self.sound_manager.play(SoundType::Mention);
             }
+            ServerMessage::ForumReplyNotification { thread_id, from_username, message, from_user_profile_pic } => {
+                // Check if user is currently viewing this thread - if so, don't show notification
+                let is_viewing_thread = if let Some(current_thread_id) = self.forum.current_thread_id {
+                    current_thread_id == thread_id && self.ui.mode == crate::state::AppMode::PostView
+                } else {
+                    false
+                };
+                
+                if !is_viewing_thread {
+                    // Show in-app notification
+                    self.set_notification(
+                        format!("{} replied to your forum post", from_username),
+                        Some(4000),
+                        true,
+                    );
+                    
+                    // Show desktop notification for forum replies with profile picture (like DMs)
+                    DesktopNotificationService::show_dm_notification(
+                        &from_username,
+                        &message,
+                        from_user_profile_pic.as_ref(),
+                    );
+                    self.sound_manager.play(SoundType::Mention);
+                }
+            }
             ServerMessage::Notification(text, is_error) => {
                 let prefix = if is_error { "Error: " } else { "Info: " };
                 self.set_notification(format!("{}{}", prefix, text), Some(2000), false);
@@ -274,7 +300,7 @@ impl<'a> App<'a> {
                          text.contains("disconnected") {
                     DesktopNotificationService::show_info_notification(&text);
                 }
-                
+
                 // If this is a profile update success notification, play save sound and return to settings
                 if !is_error && text.contains("Profile updated successfully") {
                     self.sound_manager.play(SoundType::Save);
@@ -284,8 +310,12 @@ impl<'a> App<'a> {
                 }
             }
             ServerMessage::Notifications { notifications, history_complete } => {
-                self.notifications.notifications = notifications;
+                self.notifications.notifications = notifications.clone();
                 self.notifications.notification_history_complete = history_complete;
+                
+                // Only show desktop notifications for truly new notifications
+                // (not when loading notification history)
+                // We'll rely on the real-time ForumReplyNotification message instead
             }
             ServerMessage::ServerInviteReceived(invite) => {
                 let message = format!("Server invite from {} to join '{}'", invite.from_user.username, invite.server.name);

@@ -7,14 +7,21 @@ use base64::Engine;
 use crate::global_prefs;
 
 pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
-    let items: Vec<ListItem> = ["Change Password", "Change Color", "Edit Profile", "Preferences"].iter().enumerate().map(|(i, &item)| {
-        let style = if Some(i) == app.ui.settings_list_state.selected() {
-            Style::default().bg(Color::LightCyan).fg(Color::Black)
-        } else {
-            Style::default()
-        };
-        ListItem::new(Span::styled(item, style))
-    }).collect();
+    let items: Vec<ListItem> = if app.auth.is_logged_in() {
+        vec![
+            ListItem::new("Change Password"),
+            ListItem::new("Change Color"),
+            ListItem::new("Edit Profile"),
+            ListItem::new("Preferences"),
+            ListItem::new("Test Notifications"), // New test option
+        ]
+    } else {
+        vec![
+            ListItem::new("Change Password"),
+            ListItem::new("Change Color"), 
+            ListItem::new("Preferences"),
+        ]
+    };
 
     let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Settings"));
     f.render_stateful_widget(list, area, &mut app.ui.settings_list_state);

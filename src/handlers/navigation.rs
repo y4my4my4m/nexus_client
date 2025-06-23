@@ -227,13 +227,13 @@ fn handle_settings_input(key: KeyEvent, app: &mut App) {
     match key.code {
         KeyCode::Down => {
             app.sound_manager.play(SoundType::Scroll);
-            let max = if app.auth.is_logged_in() { 4 } else { 3 };
+            let max = if app.auth.is_logged_in() { 5 } else { 3 }; // Now 5 items when logged in
             let current = app.ui.settings_list_state.selected().unwrap_or(0);
             app.ui.settings_list_state.select(Some((current + 1) % max));
         }
         KeyCode::Up => {
             app.sound_manager.play(SoundType::Scroll);
-            let max = if app.auth.is_logged_in() { 4 } else { 3 };
+            let max = if app.auth.is_logged_in() { 5 } else { 3 }; // Now 5 items when logged in
             let current = app.ui.settings_list_state.selected().unwrap_or(0);
             app.ui.settings_list_state.select(Some((current + max - 1) % max));
         }
@@ -269,6 +269,11 @@ fn handle_settings_input(key: KeyEvent, app: &mut App) {
                     }
                     3 => {
                         app.ui.set_mode(crate::state::AppMode::Preferences);
+                    }
+                    4 => {
+                        // Test notification
+                        app.set_notification("Testing in-app notifications...", Some(3000), false);
+                        DesktopNotificationService::show_info_notification("Testing desktop notifications!");
                     }
                     _ => {}
                 }
