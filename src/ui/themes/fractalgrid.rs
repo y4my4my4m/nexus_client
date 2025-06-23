@@ -7,12 +7,13 @@ pub struct FractalGridTheme;
 impl Theme for FractalGridTheme {
     fn name(&self) -> &'static str { "FractalGrid" }
     fn draw_background(&self, f: &mut Frame, app: &App, area: Rect) {
+        // Deep animated fractal tunnel with recursive geometry and color cycling
         let tick = app.ui.tick_count;
         let w = area.width as f32;
         let h = area.height as f32;
-        let t = tick as f32 * 0.04;
-        let depth = 3;
-        draw_fractal_grid(f, area, 0.0, 0.0, w, h, depth, t);
+        let t = tick as f32 * 0.045;
+        let depth = 7; // much deeper recursion
+        draw_fractal_tunnel(f, area, w, h, depth, t);
     }
     fn get_primary_colors(&self) -> ThemeColors {
         ThemeColors {
@@ -40,52 +41,82 @@ impl Theme for FractalGridTheme {
         }
     }
 }
-fn draw_fractal_grid(f: &mut Frame, area: Rect, x: f32, y: f32, w: f32, h: f32, depth: usize, t: f32) {
+
+// Replace draw_fractal_grid with a fractal tunnel effect
+fn draw_fractal_tunnel(f: &mut Frame, area: Rect, w: f32, h: f32, depth: usize, t: f32) {
     if depth == 0 || w < 4.0 || h < 2.0 {
         return;
     }
-    let color = match (depth + (t as usize) % 6) % 6 {
-        0 => Color::Cyan,
-        1 => Color::Magenta,
-        2 => Color::Yellow,
-        3 => Color::Green,
-        4 => Color::LightBlue,
-        _ => Color::LightMagenta,
-    };
-    // Draw border
-    for i in 0..w as u16 {
-        let fx = x + i as f32;
-        let fy1 = y;
-        let fy2 = y + h - 1.0;
-        if let Some((tx, ty)) = to_cell(area, fx, fy1) {
-            f.render_widget(Paragraph::new("─").style(Style::default().fg(color)), Rect::new(tx, ty, 1, 1));
-        }
-        if let Some((tx, ty)) = to_cell(area, fx, fy2) {
-            f.render_widget(Paragraph::new("─").style(Style::default().fg(color)), Rect::new(tx, ty, 1, 1));
-        }
-    }
-    for j in 0..h as u16 {
-        let fy = y + j as f32;
-        let fx1 = x;
-        let fx2 = x + w - 1.0;
-        if let Some((tx, ty)) = to_cell(area, fx1, fy) {
-            f.render_widget(Paragraph::new("│").style(Style::default().fg(color)), Rect::new(tx, ty, 1, 1));
-        }
-        if let Some((tx, ty)) = to_cell(area, fx2, fy) {
-            f.render_widget(Paragraph::new("│").style(Style::default().fg(color)), Rect::new(tx, ty, 1, 1));
+    let cx = area.x as f32 + w / 2.0;
+    let cy = area.y as f32 + h / 2.0;
+    let num_rings = 18 + depth * 2;
+    for i in 0..num_rings {
+        let z = (i as f32 * 0.22 + t) % 5.0;
+        let scale = 1.0 / (z + 0.7);
+        let radius = w.min(h) * 0.48 * scale * (1.0 + (t * 0.13 + i as f32 * 0.2).sin() * 0.08);
+        let color = match (i + depth + (t as usize) % 6) % 6 {
+            0 => Color::Cyan,
+            1 => Color::Magenta,
+            2 => Color::Yellow,
+            3 => Color::Green,
+            4 => Color::LightBlue,
+            _ => Color::LightMagenta,
+        };
+        let segs = 36 + depth * 2;
+        for j in 0..segs {
+            let theta0 = j as f32 * std::f32::consts::TAU / segs as f32;
+            let theta1 = (j + 1) as f32 * std::f32::consts::TAU / segs as f32;
+            let x0 = cx + radius * theta0.cos();
+            let y0 = cy + radius * theta0.sin();
+            let x1 = cx + radius * theta1.cos();
+            let y1 = cy + radius * theta1.sin();
+            draw_line(f, area, x0, y0, x1, y1, color);
         }
     }
-    // Glitch
-    if (t * 7.0).sin() > 0.8 && w > 8.0 && h > 4.0 {
-        let gx = x + w * 0.5 + (t * 3.0).sin() * (w * 0.2);
-        let gy = y + h * 0.5 + (t * 2.0).cos() * (h * 0.2);
-        if let Some((tx, ty)) = to_cell(area, gx, gy) {
-            f.render_widget(Paragraph::new("▒").style(Style::default().fg(Color::Yellow)), Rect::new(tx, ty, 1, 1));
+    // Recursive tunnel branches
+    if depth > 1 {
+        let branch_angle = t * 0.7 + depth as f32 * 0.5;
+        let branch_radius = w.min(h) * 0.18 * (1.0 + (t * 0.23).sin() * 0.2);
+        let bx = cx + branch_radius * branch_angle.cos();
+        let by = cy + branch_radius * branch_angle.sin();
+        let sub_w = w * 0.55;
+        let sub_h = h * 0.55;
+        // Clamp sub-area to not exceed parent area bounds
+        let sub_x = bx.max(area.x as f32).min((area.x + area.width - 1) as f32);
+        let sub_y = by.max(area.y as f32).min((area.y + area.height - 1) as f32);
+        let max_w = (area.x + area.width) as f32 - sub_x;
+        let max_h = (area.y + area.height) as f32 - sub_y;
+        let sub_area = Rect {
+            x: sub_x as u16,
+            y: sub_y as u16,
+            width: sub_w.max(4.0).min(max_w).floor() as u16,
+            height: sub_h.max(2.0).min(max_h).floor() as u16,
+        };
+        if sub_area.width > 0 && sub_area.height > 0 {
+            draw_fractal_tunnel(f, sub_area, sub_area.width as f32, sub_area.height as f32, depth - 1, t + 1.7);
         }
     }
-    // Recurse
-    draw_fractal_grid(f, area, x + w * 0.25, y + h * 0.25, w * 0.5, h * 0.5, depth - 1, t + 1.7);
 }
+
+fn draw_line(f: &mut Frame, area: Rect, x0: f32, y0: f32, x1: f32, y1: f32, color: Color) {
+    if let (Some((tx0, ty0)), Some((tx1, ty1))) = (to_cell(area, x0, y0), to_cell(area, x1, y1)) {
+        let dx = (tx1 as i32 - tx0 as i32).abs();
+        let dy = (ty1 as i32 - ty0 as i32).abs();
+        let sx = if tx0 < tx1 { 1 } else { -1 };
+        let sy = if ty0 < ty1 { 1 } else { -1 };
+        let mut err = dx - dy;
+        let mut x = tx0;
+        let mut y = ty0;
+        loop {
+            f.render_widget(Paragraph::new("█").style(Style::default().fg(color)), Rect::new(x, y, 1, 1));
+            if x == tx1 && y == ty1 { break; }
+            let e2 = err * 2;
+            if e2 > -dy { err -= dy; x = (x as i32 + sx) as u16; }
+            if e2 < dx { err += dx; y = (y as i32 + sy) as u16; }
+        }
+    }
+}
+
 fn to_cell(area: Rect, x: f32, y: f32) -> Option<(u16, u16)> {
     let tx = x.round() as i32;
     let ty = y.round() as i32;
