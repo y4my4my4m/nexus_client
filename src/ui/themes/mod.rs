@@ -46,6 +46,8 @@ pub trait Theme {
     fn draw_main_menu(&self, f: &mut ratatui::Frame, main_menu_state: &mut ratatui::widgets::ListState, tick: u64, area: ratatui::layout::Rect);
     /// Draw the settings menu (fancy or minimal)
     fn draw_settings_menu(&self, f: &mut ratatui::Frame, settings_list_state: &mut ratatui::widgets::ListState, tick: u64, area: ratatui::layout::Rect);
+    /// Draw floating UI elements (corners, tick counter, etc)
+    fn draw_floating_elements(&self, f: &mut ratatui::Frame, app: &crate::app::App, area: ratatui::layout::Rect);
 }
 
 /// Theme manager for cycling through available UI color themes

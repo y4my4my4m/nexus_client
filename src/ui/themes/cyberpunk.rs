@@ -413,4 +413,35 @@ impl Theme for CyberpunkTheme {
         info_content.push(Line::from("[↑↓] Select  [Enter] Edit  [Esc] Back"));
         f.render_widget(Paragraph::new(info_content).block(info_block).alignment(Alignment::Left), layout[1]);
     }
+    fn draw_floating_elements(&self, f: &mut Frame, app: &App, area: Rect) {
+        let tick = app.ui.tick_count;
+        // Floating corner indicators
+        let corners = [
+            (area.x, area.y, "◢"),
+            (area.x + area.width - 1, area.y, "◣"),
+            (area.x, area.y + area.height - 1, "◥"),
+            (area.x + area.width - 1, area.y + area.height - 1, "◤"),
+        ];
+        for (x, y, corner_char) in corners {
+            let corner_color = match (tick / 10 + (x as u64 + y as u64)) % 4 {
+                0 => Color::Cyan,
+                1 => Color::Magenta,
+                2 => Color::Yellow,
+                _ => Color::Green,
+            };
+            let corner_area = Rect::new(x, y, 1, 1);
+            f.render_widget(
+                Paragraph::new(corner_char).style(Style::default().fg(corner_color).add_modifier(Modifier::BOLD)),
+                corner_area
+            );
+        }
+        // Floating time/tick counter
+        let time_area = Rect::new(area.x + area.width - 20, area.y + 1, 18, 1);
+        f.render_widget(
+            Paragraph::new(format!("◈ TICK: {:06} ◈", tick))
+                .style(Style::default().fg(Color::DarkGray))
+                .alignment(Alignment::Right),
+            time_area
+        );
+    }
 }

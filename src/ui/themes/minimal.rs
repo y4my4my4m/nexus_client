@@ -162,4 +162,7 @@ impl Theme for MinimalTheme {
         info_content.push(Line::from("[↑↓] Select  [Enter] Edit  [Esc] Back"));
         f.render_widget(Paragraph::new(info_content).block(info_block).alignment(ratatui::layout::Alignment::Left), layout[1]);
     }
+    fn draw_floating_elements(&self, _f: &mut Frame, _app: &App, _area: Rect) {
+        // Minimal: no floating elements
+    }
 }
