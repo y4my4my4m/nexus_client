@@ -19,8 +19,8 @@ pub fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Length(sidebar_width),
-                Constraint::Percentage(55),
-                Constraint::Percentage(25),
+                Constraint::Min(0),
+                Constraint::Length(sidebar_width),
             ])
             .split(area)
     } else {
