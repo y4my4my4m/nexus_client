@@ -7,40 +7,83 @@ pub struct CyberGridTheme;
 impl Theme for CyberGridTheme {
     fn name(&self) -> &'static str { "CyberGrid" }
     fn draw_background(&self, f: &mut Frame, app: &App, area: Rect) {
+        // Massive animated 3D wireframe grid with perspective and color cycling
         let tick = app.ui.tick_count;
         let w = area.width as f32;
         let h = area.height as f32;
         let cx = area.x as f32 + w / 2.0;
         let cy = area.y as f32 + h / 2.0;
-        let grid_size = 12;
-        let t = tick as f32 * 0.04;
-        for i in 0..=grid_size {
-            let frac = i as f32 / grid_size as f32;
-            let x = cx + (frac - 0.5) * w * 0.9;
-            let y = cy + (frac - 0.5) * h * 0.9;
-            // Vertical lines
-            draw_line(f, area, x, cy - h * 0.45, x, cy + h * 0.45, Color::Cyan);
-            // Horizontal lines
-            draw_line(f, area, cx - w * 0.45, y, cx + w * 0.45, y, Color::Magenta);
+        let t = tick as f32 * 0.035;
+        let grid_w = 32;
+        let grid_h = 18;
+        let cam_z = 18.0 + (t * 0.7).sin() * 7.0 + (t * 0.13).cos() * 3.0;
+        let cam_x = (t * 0.23).sin() * 7.0;
+        let cam_y = (t * 0.19).cos() * 5.0;
+        let fov = 1.2 + (t * 0.09).sin() * 0.4;
+        // Project 3D grid points to 2D
+        let mut points = vec![];
+        for i in 0..=grid_w {
+            for j in 0..=grid_h {
+                let x = (i as f32 - grid_w as f32 / 2.0) * 1.2;
+                let y = (j as f32 - grid_h as f32 / 2.0) * 0.9;
+                let z = ((i as f32 * 0.3 + j as f32 * 0.2 + t * 1.2).sin() * 2.0) + (t * 0.5).cos() * 1.2;
+                // Camera transform
+                let px = x - cam_x;
+                let py = y - cam_y;
+                let pz = z - cam_z;
+                // Perspective projection
+                let scale = fov / (pz + 20.0);
+                let sx = cx + px * scale * w * 0.18;
+                let sy = cy + py * scale * h * 0.28;
+                points.push(((i, j), (sx, sy), scale));
+            }
         }
-        // Flickering nodes
-        for i in 0..=grid_size {
-            for j in 0..=grid_size {
-                let fx = cx + (i as f32 / grid_size as f32 - 0.5) * w * 0.9;
-                let fy = cy + (j as f32 / grid_size as f32 - 0.5) * h * 0.9;
-                let flicker = ((tick + (i * 13 + j * 7) as u64) % 7) < 2;
-                if flicker {
-                    let color = match (i + j) % 3 {
-                        0 => Color::Yellow,
-                        1 => Color::Cyan,
-                        _ => Color::Magenta,
+        // Draw grid lines
+        for i in 0..=grid_w {
+            for j in 0..=grid_h {
+                let idx = i * (grid_h + 1) + j;
+                if i < grid_w {
+                    let idx2 = (i + 1) * (grid_h + 1) + j;
+                    let (p1, p2) = (points[idx].1, points[idx2].1);
+                    let color = match (i + j + (tick / 3) as usize) % 6 {
+                        0 => Color::Cyan,
+                        1 => Color::Magenta,
+                        2 => Color::Yellow,
+                        3 => Color::Green,
+                        4 => Color::LightBlue,
+                        _ => Color::LightMagenta,
                     };
-                    if let Some((tx, ty)) = to_cell(area, fx, fy) {
-                        f.render_widget(
-                            Paragraph::new("●").style(Style::default().fg(color).add_modifier(Modifier::BOLD)),
-                            Rect::new(tx, ty, 1, 1),
-                        );
-                    }
+                    draw_line(f, area, p1.0, p1.1, p2.0, p2.1, color);
+                }
+                if j < grid_h {
+                    let idx2 = i * (grid_h + 1) + (j + 1);
+                    let (p1, p2) = (points[idx].1, points[idx2].1);
+                    let color = match (i * 2 + j + (tick / 2) as usize) % 6 {
+                        0 => Color::Cyan,
+                        1 => Color::Magenta,
+                        2 => Color::Yellow,
+                        3 => Color::Green,
+                        4 => Color::LightBlue,
+                        _ => Color::LightMagenta,
+                    };
+                    draw_line(f, area, p1.0, p1.1, p2.0, p2.1, color);
+                }
+            }
+        }
+        // Draw animated nodes
+        for &((_i, _j), (sx, sy), scale) in &points {
+            if scale > 0.01 && scale < 0.25 {
+                let flicker = ((tick as f32 * 0.7 + sx + sy) as i32 % 9) < 2;
+                let color = if flicker {
+                    Color::White
+                } else {
+                    Color::Cyan
+                };
+                if let Some((tx, ty)) = to_cell(area, sx, sy) {
+                    f.render_widget(
+                        Paragraph::new("•").style(Style::default().fg(color).add_modifier(Modifier::BOLD)),
+                        Rect::new(tx, ty, 1, 1),
+                    );
                 }
             }
         }

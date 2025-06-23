@@ -27,7 +27,7 @@ impl Theme for GeometryTheme {
                 for y in 0..area.height {
                     let cell = Rect::new(area.x + i, area.y + y, 1, 1);
                     f.render_widget(
-                        Paragraph::new("│").style(Style::default().fg(Color::DarkGray)),
+                        Paragraph::new("│").style(Style::default().fg(Color::Black)),
                         cell,
                     );
                 }
@@ -38,7 +38,7 @@ impl Theme for GeometryTheme {
                 for x in 0..area.width {
                     let cell = Rect::new(area.x + x, area.y + j, 1, 1);
                     f.render_widget(
-                        Paragraph::new("─").style(Style::default().fg(Color::DarkGray)),
+                        Paragraph::new("─").style(Style::default().fg(Color::Black)),
                         cell,
                     );
                 }
