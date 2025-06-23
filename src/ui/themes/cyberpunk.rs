@@ -2,6 +2,8 @@ use ratatui::{Frame, layout::Rect, style::{Style, Color, Modifier}, widgets::Par
 use crate::app::App;
 use super::{Theme, ThemeColors, AccentColors};
 use ratatui::prelude::Alignment;
+use crate::ui::themes::ThemeMainMenuLayout;
+use ratatui::layout::Constraint;
 
 pub struct CyberpunkTheme;
 impl Theme for CyberpunkTheme {
@@ -381,5 +383,19 @@ impl Theme for CyberpunkTheme {
                 .alignment(Alignment::Right),
             time_area
         );
+    }
+    fn main_menu_layout(&self, area: Rect) -> ThemeMainMenuLayout {
+        let available_height = area.height;
+        let title_height = if available_height < 15 { 0 } else { 2 };
+        let status_height = if available_height < 20 { 0 } else { 6 };
+        ThemeMainMenuLayout {
+            constraints: vec![
+                Constraint::Length(title_height),
+                Constraint::Min(12),
+                Constraint::Length(status_height),
+            ],
+            show_top_banner: title_height > 0,
+            show_status: status_height > 0,
+        }
     }
 }

@@ -9,34 +9,30 @@ pub fn draw_main_menu(f: &mut Frame, app: &mut App, area: Rect) {
         bg.draw_background(f, app, area);
     }
 
-    // Calculate responsive layout based on available height
-    let available_height = area.height;
-    let title_height = if available_height < 15 { 0 } else { 2 };
-    let status_height = if available_height < 20 { 0 } else { 6 };
+    // Use theme-driven layout for main menu
+    let layout = app.theme_manager.get_current_theme().main_menu_layout(area);
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(title_height),
-            Constraint::Min(12),
-            Constraint::Length(status_height),
-        ])
+        .constraints(layout.constraints)
         .margin(1)
         .split(area);
 
-    // Draw top banner via theme
-    if title_height > 0 {
-        app.theme_manager.get_current_theme().draw_top_banner(f, app, main_layout[0]);
+    let mut idx = 0;
+    if layout.show_top_banner {
+        app.theme_manager.get_current_theme().draw_top_banner(f, app, main_layout[idx]);
+        idx += 1;
     }
     // Draw main menu via theme (pass UI state, tick, area)
     app.theme_manager.get_current_theme().draw_main_menu(
         f,
         &mut app.ui.main_menu_state,
         app.ui.tick_count,
-        main_layout[1],
+        main_layout[idx],
     );
+    idx += 1;
     // Draw status section (mutably borrows app, so do not use theme after this)
-    if status_height > 0 {
-        draw_enhanced_status(f, app, main_layout[2]);
+    if layout.show_status {
+        draw_enhanced_status(f, app, main_layout[idx]);
     }
     // Draw bottom banner via theme (do NOT use theme variable)
     app.theme_manager.get_current_theme().draw_bottom_banner(f, app, area);

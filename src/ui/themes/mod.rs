@@ -1,4 +1,5 @@
 use ratatui::style::{Style, Color};
+use ratatui::layout::{Constraint, Rect};
 
 mod cyberpunk;
 mod minimal;
@@ -22,6 +23,12 @@ pub struct AccentColors {
     pub warning: Color,
     pub error: Color,
     pub info: Color,
+}
+
+pub struct ThemeMainMenuLayout {
+    pub constraints: Vec<Constraint>,
+    pub show_top_banner: bool,
+    pub show_status: bool,
 }
 
 /// Trait for defining UI color themes (palette, widget styles, etc.)
@@ -48,6 +55,8 @@ pub trait Theme {
     fn draw_settings_menu(&self, f: &mut ratatui::Frame, settings_list_state: &mut ratatui::widgets::ListState, tick: u64, area: ratatui::layout::Rect);
     /// Draw floating UI elements (corners, tick counter, etc)
     fn draw_floating_elements(&self, f: &mut ratatui::Frame, app: &crate::app::App, area: ratatui::layout::Rect);
+    /// Get the layout for the main menu
+    fn main_menu_layout(&self, area: Rect) -> ThemeMainMenuLayout;
 }
 
 /// Theme manager for cycling through available UI color themes

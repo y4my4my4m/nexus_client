@@ -2,6 +2,8 @@ use ratatui::{Frame, layout::Rect, style::{Style, Color}, widgets::Paragraph};
 use crate::app::App;
 use super::{Theme, ThemeColors, AccentColors};
 use ratatui::style::{Modifier};
+use crate::ui::themes::ThemeMainMenuLayout;
+use ratatui::layout::Constraint;
 
 pub struct MinimalTheme;
 impl Theme for MinimalTheme {
@@ -68,9 +70,9 @@ impl Theme for MinimalTheme {
         let items: Vec<ListItem> = settings_items.iter().enumerate().map(|(i, &name)| {
             let is_selected = Some(i) == settings_list_state.selected();
             let style = if is_selected {
-                Style::default().fg(Color::Black).bg(Color::White).add_modifier(ratatui::style::Modifier::BOLD)
+                Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(ratatui::style::Modifier::BOLD)
             } else {
-                Style::default().fg(Color::White)
+                Style::default()
             };
             ListItem::new(Line::from(Span::styled(name, style)))
         }).collect();
@@ -89,7 +91,7 @@ impl Theme for MinimalTheme {
         let list_block = Block::default()
             .borders(Borders::ALL)
             .title("Settings")
-            .border_style(Style::default().fg(Color::White));
+            .border_style(Style::default());
         let list = List::new(items).block(list_block);
         f.render_stateful_widget(list, layout[0], settings_list_state);
         // Info panel
@@ -124,5 +126,15 @@ impl Theme for MinimalTheme {
     }
     fn draw_floating_elements(&self, _f: &mut Frame, _app: &App, _area: Rect) {
         // Minimal: no floating elements
+    }
+    fn main_menu_layout(&self, area: Rect) -> ThemeMainMenuLayout {
+        ThemeMainMenuLayout {
+            constraints: vec![
+                Constraint::Min(12),
+                Constraint::Length(3),
+            ],
+            show_top_banner: false,
+            show_status: true,
+        }
     }
 }
