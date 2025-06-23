@@ -12,6 +12,7 @@ pub mod neontunnel;
 pub mod fractalgrid;
 pub mod pulsecircuit;
 pub mod hackerglyphs;
+pub mod wireframeearth;
 
 pub use cyberpunk::CyberpunkTheme;
 pub use minimal::MinimalTheme;
@@ -24,6 +25,7 @@ pub use neontunnel::NeonTunnelTheme;
 pub use fractalgrid::FractalGridTheme;
 pub use pulsecircuit::PulseCircuitTheme;
 pub use hackerglyphs::HackerGlyphsTheme;
+pub use wireframeearth::WireframeEarthTheme;
 
 /// Trait for defining UI themes
 pub trait Theme {
@@ -81,6 +83,7 @@ impl ThemeManager {
             Box::new(FractalGridTheme),
             Box::new(PulseCircuitTheme),
             Box::new(HackerGlyphsTheme),
+            Box::new(WireframeEarthTheme),
         ];
         
         Self {
