@@ -137,10 +137,10 @@ fn draw_enhanced_menu(f: &mut Frame, app: &mut App, area: Rect) {
     
     // Enhanced menu items with ASCII art icons
     let menu_items = [
-        ("Forums", "  ╔══════════════╗\n  ║ ░▒▓█ DATA █▓▒░ ║\n  ╚══════════════╝", "Neural archive matrices"),
-        ("Chat", "  ╔══════════════╗\n  ║ ◄► COMM ◄► ║\n  ╚══════════════╝", "Real-time neural link"),
-        ("Settings", "  ╔══════════════╗\n  ║ ⚙ CONFIG ⚙ ║\n  ╚══════════════╝", "System parameters"),
-        ("Logout", "  ╔══════════════╗\n  ║ ◄◄ DISCONNECT ║\n  ╚══════════════╝", "Terminate session"),
+        ("Forums", "  ╔════════════════╗\n  ║ ░▒▓█ DATA █▓▒░ ║\n  ╚════════════════╝", "Neural archive matrices"),
+        ("Chat", "  ╔══════════════╗\n  ║  ◄► COMM ◄►  ║\n  ╚══════════════╝", "Real-time neural link"),
+        ("Settings", "  ╔══════════════╗\n  ║ ⚙  CONFIG ⚙  ║\n  ╚══════════════╝", "System parameters"),
+        ("Logout", "  ╔═══════════════╗\n  ║ ◄◄ DISCONNECT ║\n  ╚═══════════════╝", "Terminate session"),
     ];
     
     let items: Vec<ListItem> = menu_items.iter().enumerate().map(|(i, &(name, icon, desc))| {
