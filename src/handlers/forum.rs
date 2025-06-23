@@ -130,24 +130,108 @@ fn handle_post_view_input(key: KeyEvent, app: &mut App) {
     use crossterm::event::KeyModifiers;
     
     match key.code {
+        // Post navigation
+        KeyCode::Up => {
+            app.forum.move_post_selection(-1);
+            app.sound_manager.play(SoundType::ChangeChannel);
+        }
+        KeyCode::Down => {
+            app.forum.move_post_selection(1);
+            app.sound_manager.play(SoundType::ChangeChannel);
+        }
+        // Manual scrolling
+        KeyCode::PageUp => {
+            app.forum.scroll_posts(-1, 3); // Scroll up by 3 posts
+            app.sound_manager.play(SoundType::Scroll);
+        }
+        KeyCode::PageDown => {
+            app.forum.scroll_posts(1, 3); // Scroll down by 3 posts
+            app.sound_manager.play(SoundType::Scroll);
+        }
+        // Home/End for quick navigation
+        KeyCode::Home => {
+            if let Some(thread) = app.forum.get_current_thread() {
+                if !thread.posts.is_empty() {
+                    app.forum.selected_post_index = Some(0);
+                    app.forum.scroll_offset = 0;
+                    app.forum.selected_reply_index = None;
+                    app.sound_manager.play(SoundType::ChangeChannel);
+                }
+            }
+        }
+        KeyCode::End => {
+            if let Some(thread) = app.forum.get_current_thread() {
+                if !thread.posts.is_empty() {
+                    let last_idx = thread.posts.len() - 1;
+                    app.forum.selected_post_index = Some(last_idx);
+                    app.forum.auto_scroll_to_selected_post();
+                    app.forum.selected_reply_index = None;
+                    app.sound_manager.play(SoundType::ChangeChannel);
+                }
+            }
+        }
+        // Reply navigation (left/right when replies exist)
+        KeyCode::Left => {
+            if app.forum.selected_reply_index.is_some() {
+                app.forum.move_reply_selection(-1);
+                app.sound_manager.play(SoundType::ChangeChannel);
+            }
+        }
+        KeyCode::Right => {
+            if let Some(post) = app.forum.get_selected_post() {
+                let replies = app.forum.get_replies_to_post(post.id);
+                if !replies.is_empty() {
+                    if app.forum.selected_reply_index.is_none() {
+                        app.forum.selected_reply_index = Some(0);
+                    } else {
+                        app.forum.move_reply_selection(1);
+                    }
+                    app.sound_manager.play(SoundType::ChangeChannel);
+                }
+            }
+        }
+        // Enter: Navigate to selected reply or general reply
+        KeyCode::Enter => {
+            if let Some(reply_post) = app.forum.get_selected_reply_post() {
+                // Find the index of the reply post and scroll to it
+                if let Some(thread) = app.forum.get_current_thread() {
+                    if let Some((idx, _)) = thread.posts.iter().enumerate().find(|(_, p)| p.id == reply_post.id) {
+                        app.forum.selected_post_index = Some(idx);
+                        app.forum.selected_reply_index = None;
+                        app.forum.scroll_to_post(idx);
+                        app.sound_manager.play(SoundType::PopupOpen);
+                    }
+                }
+            }
+        }
         KeyCode::Char('r') | KeyCode::Char('R') => {
+            // Reply to the currently selected post
+            if let Some(post) = app.forum.get_selected_post() {
+                app.forum.set_reply_target(Some(post.id));
+            } else {
+                app.forum.set_reply_target(None);
+            }
             app.enter_input_mode(crate::state::InputMode::NewPostContent);
         }
         KeyCode::Char('d') | KeyCode::Char('D') if key.modifiers.contains(KeyModifiers::ALT) => {
-            // Admin-only: Delete first post in thread (for now, we'll need to add post selection later)
+            // Admin-only: Delete selected post
             if let Some(user) = &app.auth.current_user {
                 if user.role == common::UserRole::Admin {
-                    if let Some(thread) = app.forum.get_current_thread() {
-                        if let Some(post) = thread.posts.first() {
-                            app.send_to_server(ClientMessage::DeletePost(post.id));
-                            app.set_notification("Post deletion requested", Some(2000), false);
-                        }
+                    if let Some(post) = app.forum.get_selected_post() {
+                        app.send_to_server(ClientMessage::DeletePost(post.id));
+                        app.set_notification("Post deletion requested", Some(2000), false);
                     }
                 }
             }
         }
         KeyCode::Esc => {
-            app.ui.set_mode(crate::state::AppMode::ThreadList);
+            // Clear reply selection if active, otherwise go back to thread list
+            if app.forum.selected_reply_index.is_some() {
+                app.forum.selected_reply_index = None;
+                app.sound_manager.play(SoundType::PopupClose);
+            } else {
+                app.ui.set_mode(crate::state::AppMode::ThreadList);
+            }
         }
         _ => {}
     }

@@ -135,11 +135,22 @@ pub fn handle_input_mode(key: KeyEvent, app: &mut App) {
                         }
                         
                         if let Some(thread_id) = app.forum.current_thread_id {
-                            app.send_to_server(ClientMessage::CreatePost {
-                                thread_id,
-                                content: input.clone(),
-                            });
-                            app.set_notification("Reply submitted!", Some(1500), false);
+                            // Check if this is a reply to a specific post
+                            if let Some(reply_to_id) = app.forum.reply_to_post_id {
+                                app.send_to_server(ClientMessage::CreatePostReply {
+                                    thread_id,
+                                    content: input.clone(),
+                                    reply_to: reply_to_id,
+                                });
+                                app.set_notification("Reply submitted!", Some(1500), false);
+                                app.forum.set_reply_target(None); // Clear reply target
+                            } else {
+                                app.send_to_server(ClientMessage::CreatePost {
+                                    thread_id,
+                                    content: input.clone(),
+                                });
+                                app.set_notification("Post submitted!", Some(1500), false);
+                            }
                         }
                         app.ui.set_mode(crate::state::AppMode::PostView);
                     }
