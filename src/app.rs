@@ -7,6 +7,7 @@ use crate::state::{
 use crate::services::{ChatService, MessageService, ProfileService, ImageService};
 use crate::services::image::{ImageCache, ImageCacheStats};
 use crate::model::ChatMessageWithMeta;
+use crate::ui::themes::ThemeManager; // Add theme manager import
 use tokio::sync::mpsc;
 use std::sync::Arc;
 use crate::desktop_notifications::DesktopNotificationService;
@@ -29,6 +30,9 @@ pub struct App<'a> {
     pub image_cache: Arc<ImageCache>,
     pub chat_service: ChatService,
     
+    // Theme system
+    pub theme_manager: ThemeManager,
+    
     // Configuration
     pub config: AppConfig,
 }
@@ -49,6 +53,7 @@ impl<'a> App<'a> {
             sound_manager,
             image_cache,
             chat_service,
+            theme_manager: ThemeManager::new(),
             config: AppConfig::default(),
         }
     }

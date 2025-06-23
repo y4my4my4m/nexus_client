@@ -7,8 +7,11 @@ use base64::Engine;
 use crate::global_prefs;
 
 pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
-    // Draw animated cyberpunk background similar to main menu
-    draw_settings_background(f, app, area);
+    // Draw animated background using the current theme
+    {
+        let theme = app.theme_manager.get_current_theme();
+        theme.draw_background(f, app, area);
+    }
     
     let tick = app.ui.tick_count;
     
@@ -149,12 +152,10 @@ pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
         }).collect()
     };
 
-    // Enhanced settings list with cyberpunk styling
-    let list_border_color = match (tick / 10) % 4 {
-        0 => Color::Cyan,
-        1 => Color::Blue,
-        2 => Color::LightBlue,
-        _ => Color::DarkGray,
+    // Enhanced settings list with theme-based styling
+    let list_border_color = {
+        let theme = app.theme_manager.get_current_theme();
+        theme.get_border_colors(tick)
     };
     
     let list_block = Block::default()
@@ -162,12 +163,12 @@ pub fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
         .border_type(BorderType::Double)
         .border_style(Style::default().fg(list_border_color))
         .title("▼ SYSTEM CONFIGURATION ▼")
-        .title_style(Style::default().fg(Color::LightMagenta).add_modifier(Modifier::BOLD));
+        .title_style(Style::default().fg(Color::White).add_modifier(Modifier::BOLD));
     
     let list = List::new(items).block(list_block);
     f.render_stateful_widget(list, content_layout[0], &mut app.ui.settings_list_state);
     
-    // Draw info panel
+    // Draw info panel with theme info
     draw_settings_info_panel(f, app, content_layout[1]);
     
     // Draw animated bottom border
@@ -243,6 +244,7 @@ fn draw_settings_border(f: &mut Frame, app: &mut App, area: Rect, is_top: bool) 
 fn draw_settings_info_panel(f: &mut Frame, app: &mut App, area: Rect) {
     let tick = app.ui.tick_count;
     let selected = app.ui.settings_list_state.selected().unwrap_or(0);
+    let current_theme_name = app.theme_manager.get_theme_name();
     
     let info_content = if app.auth.is_logged_in() {
         match selected {
@@ -266,7 +268,9 @@ fn draw_settings_info_panel(f: &mut Frame, app: &mut App, area: Rect) {
                 Line::from(vec![Span::styled("▶ Display Preferences", Style::default().fg(Color::White))]),
                 Line::from(Span::raw("")),
                 Line::from(vec![Span::styled("Current Theme: ", Style::default().fg(Color::Gray)),
-                             Span::styled("CYBERPUNK", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))]),
+                             Span::styled(current_theme_name.to_uppercase(), Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))]),
+                Line::from(vec![Span::styled("Press F7: ", Style::default().fg(Color::Gray)),
+                             Span::styled("Cycle Theme", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
             ],
             2 => vec![
                 Line::from(vec![Span::styled("USER PROFILE", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))]),
@@ -287,8 +291,10 @@ fn draw_settings_info_panel(f: &mut Frame, app: &mut App, area: Rect) {
                 Line::from(vec![Span::styled("▶ Notifications", Style::default().fg(Color::White))]),
                 Line::from(vec![Span::styled("▶ Performance Tuning", Style::default().fg(Color::White))]),
                 Line::from(Span::raw("")),
-                Line::from(vec![Span::styled("System State: ", Style::default().fg(Color::Gray)),
-                             Span::styled("OPTIMIZED", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))]),
+                Line::from(vec![Span::styled("Active Theme: ", Style::default().fg(Color::Gray)),
+                             Span::styled(current_theme_name.to_uppercase(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
+                Line::from(vec![Span::styled("Press F7: ", Style::default().fg(Color::Gray)),
+                             Span::styled("Cycle Theme", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
             ],
         }
     } else {
@@ -310,8 +316,10 @@ fn draw_settings_info_panel(f: &mut Frame, app: &mut App, area: Rect) {
                 Line::from(vec![Span::styled("▶ Theme Configuration", Style::default().fg(Color::White))]),
                 Line::from(vec![Span::styled("▶ Local Preferences", Style::default().fg(Color::White))]),
                 Line::from(Span::raw("")),
-                Line::from(vec![Span::styled("Mode: ", Style::default().fg(Color::Gray)),
-                             Span::styled("TEMPORARY", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
+                Line::from(vec![Span::styled("Current Theme: ", Style::default().fg(Color::Gray)),
+                             Span::styled(current_theme_name.to_uppercase(), Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))]),
+                Line::from(vec![Span::styled("Press F7: ", Style::default().fg(Color::Gray)),
+                             Span::styled("Cycle Theme", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
             ],
             _ => vec![
                 Line::from(vec![Span::styled("CLIENT CONFIG", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
@@ -320,8 +328,10 @@ fn draw_settings_info_panel(f: &mut Frame, app: &mut App, area: Rect) {
                 Line::from(vec![Span::styled("▶ Visual Effects", Style::default().fg(Color::White))]),
                 Line::from(vec![Span::styled("▶ Local Configuration", Style::default().fg(Color::White))]),
                 Line::from(Span::raw("")),
-                Line::from(vec![Span::styled("Access: ", Style::default().fg(Color::Gray)),
-                             Span::styled("LIMITED", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
+                Line::from(vec![Span::styled("Active Theme: ", Style::default().fg(Color::Gray)),
+                             Span::styled(current_theme_name.to_uppercase(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
+                Line::from(vec![Span::styled("Press F7: ", Style::default().fg(Color::Gray)),
+                             Span::styled("Cycle Theme", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
             ],
         }
     };

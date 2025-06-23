@@ -4,8 +4,9 @@ use ratatui::{Frame, layout::{Rect, Layout, Constraint, Direction, Alignment}, s
 use crate::app::App;
 
 pub fn draw_main_menu(f: &mut Frame, app: &mut App, area: Rect) {
-    // Draw animated cyberpunk background first
-    draw_animated_background(f, app, area);
+    // Draw animated background using the current theme
+    let theme = app.theme_manager.get_current_theme();
+    theme.draw_background(f, app, area);
     
     // Calculate responsive layout based on available height
     let available_height = area.height;
