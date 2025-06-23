@@ -12,7 +12,7 @@ impl Theme for WireframeEarthTheme {
         let h = area.height as f32;
         // Ensure the globe stays centered in the background
         // Adjust the center coordinates to ensure the camera targets the Earth's center
-        let radius = (w.min(h) * 0.4).max(20.0); // Ensure a minimum radius
+        let radius = (w.min(h) * 0.7).max(36.0); // Ensure a minimum radius
         let cx = area.x as f32 + area.width as f32 / 2.0;
         let cy = area.y as f32 + area.height as f32 / 2.0;
         // Remove the 90-degree tilt and align the camera with the equatorial plane
@@ -22,10 +22,10 @@ impl Theme for WireframeEarthTheme {
         let earth_tilt_y = 15.0_f32.to_radians(); // Additional tilt around Y axis
         let t = tick as f32 * 0.006;
         let yaw = t * 0.35 + 0.7;
-        let lat_lines = 12;
-        let lon_lines = 12;
-        let points_per_line = 64;
-        let front_color = Color::Gray;
+        let lat_lines = 16;
+        let lon_lines = 16;
+        let points_per_line = 1024;
+        let front_color = Color::White;
         let back_color = Color::DarkGray;
         // Latitude lines (horizontal circles)
         for i in 1..lat_lines {
@@ -41,7 +41,7 @@ impl Theme for WireframeEarthTheme {
                 let sx = cx + x;
                 let sy = cy - z; // Adjust for camera tilt
                 if let Some((px, py, pz)) = prev {
-                    let color = if z > 0.0 && pz > 0.0 { front_color } else { back_color };
+                    let color = if y > 0.0 && py > 0.0 { front_color } else { back_color };
                     draw_line(f, area, px, py, sx, sy, color);
                 }
                 prev = Some((sx, sy, z));
@@ -61,7 +61,7 @@ impl Theme for WireframeEarthTheme {
                 let sx = cx + x;
                 let sy = cy - z; // Adjust for camera tilt
                 if let Some((px, py, pz)) = prev {
-                    let color = if z > 0.0 && pz > 0.0 { front_color } else { back_color };
+                    let color = if y > 0.0 && py > 0.0 { front_color } else { back_color };
                     draw_line(f, area, px, py, sx, sy, color);
                 }
                 prev = Some((sx, sy, z));
