@@ -100,26 +100,32 @@ impl Theme for CyberpunkTheme {
             let selection_glow = if is_selected { (tick / 5) % 8 } else { 0 };
             if is_selected {
                 let icon_lines: Vec<&str> = icon.lines().collect();
-                let mut lines = vec![
-                    Line::from(vec![
-                        Span::styled(">>> ", Style::default().fg(Color::LightMagenta).add_modifier(Modifier::BOLD)),
-                        Span::styled(name, Style::default().fg(Color::Black).bg(Color::LightCyan).add_modifier(Modifier::BOLD)),
-                        Span::styled(" <<<", Style::default().fg(Color::LightMagenta).add_modifier(Modifier::BOLD)),
-                    ]),
-                ];
-                for icon_line in icon_lines {
+                let icon_height = icon_lines.len();
+                let mut lines = vec![];
+                for (j, icon_line) in icon_lines.iter().enumerate() {
                     let glow_color = match selection_glow {
                         0..=1 => Color::Cyan,
                         2..=3 => Color::LightCyan,
                         4..=5 => Color::Blue,
                         _ => Color::LightBlue,
                     };
-                    lines.push(Line::from(vec![
-                        Span::styled(icon_line, Style::default().fg(glow_color).add_modifier(Modifier::BOLD))
-                    ]));
+                    if j == icon_height / 2 {
+                        // Keep ▶ in the same horizontal position as unselected
+                        lines.push(Line::from(vec![
+                            Span::styled("  ▶ ", Style::default().fg(Color::LightMagenta).add_modifier(Modifier::BOLD)),
+                            Span::styled(icon_line.trim_start(), Style::default().fg(glow_color).add_modifier(Modifier::BOLD)),
+                        ]));
+                    } else {
+                        lines.push(Line::from(vec![
+                            Span::styled("    ", Style::default()),
+                            Span::styled(icon_line.trim_start(), Style::default().fg(glow_color).add_modifier(Modifier::BOLD)),
+                        ]));
+                    }
                 }
+                // └─ and desc, aligned with icon
                 lines.push(Line::from(vec![
-                    Span::styled("    └─ ", Style::default().fg(Color::Yellow)),
+                    Span::styled("    ", Style::default()),
+                    Span::styled("└─ ", Style::default().fg(Color::Yellow)),
                     Span::styled(desc, Style::default().fg(Color::LightBlue).add_modifier(Modifier::ITALIC)),
                 ]));
                 lines.push(Line::from(Span::raw("")));
