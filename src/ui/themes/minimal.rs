@@ -46,7 +46,7 @@ impl Theme for MinimalTheme {
         // Minimal: no bottom banner
     }
     fn draw_main_menu(&self, f: &mut ratatui::Frame, main_menu_state: &mut ratatui::widgets::ListState, tick: u64, area: ratatui::layout::Rect) {
-        use ratatui::{widgets::{Block, List, ListItem, Borders}, style::{Style, Color}, text::{Line, Span}};
+        use ratatui::{widgets::{Block, List, ListItem, Borders}, style::{Style, Color}, text::{Line, Span}, layout::{Layout, Constraint, Direction}};
         let menu_items = ["Forums", "Chat", "Settings", "Logout"];
         let items: Vec<ListItem> = menu_items.iter().enumerate().map(|(i, &name)| {
             let is_selected = Some(i) == main_menu_state.selected();
@@ -57,12 +57,18 @@ impl Theme for MinimalTheme {
             };
             ListItem::new(Line::from(Span::styled(name, style)))
         }).collect();
+        // Add horizontal margin using a layout
+        let layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(0)])
+            .margin(2)
+            .split(area);
         let list_block = Block::default()
             .borders(Borders::ALL)
             .title("Menu")
             .border_style(Style::default());
         let list = List::new(items).block(list_block);
-        f.render_stateful_widget(list, area, main_menu_state);
+        f.render_stateful_widget(list, layout[0], main_menu_state);
     }
     fn draw_settings_menu(&self, f: &mut ratatui::Frame, settings_list_state: &mut ratatui::widgets::ListState, tick: u64, area: ratatui::layout::Rect) {
         use ratatui::{widgets::{Block, List, ListItem, Borders, Paragraph}, style::{Style, Color}, text::{Line, Span}, layout::{Layout, Constraint, Direction}};
@@ -81,6 +87,7 @@ impl Theme for MinimalTheme {
             Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .horizontal_margin(2)
                 .split(area)
         } else {
             Layout::default()

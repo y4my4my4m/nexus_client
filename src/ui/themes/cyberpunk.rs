@@ -339,6 +339,7 @@ impl Theme for CyberpunkTheme {
                 Line::from(vec![Span::styled("▶ Performance Tuning", Style::default().fg(Color::White))]),
                 Line::from(Span::raw("")),
                 Line::from(vec![Span::styled("Active Theme: ", Style::default().fg(Color::Gray)), Span::styled("CYBERPUNK", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
+                Line::from(vec![Span::styled("Press F7: ", Style::default().fg(Color::Gray)), Span::styled("Cycle Background", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
                 Line::from(vec![Span::styled("Press F8: ", Style::default().fg(Color::Gray)), Span::styled("Cycle Theme", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))]),
             ],
             _ => vec![Line::from("")],
