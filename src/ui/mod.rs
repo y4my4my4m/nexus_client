@@ -27,7 +27,7 @@ use crate::ui::popups::{draw_input_popup, draw_notification_popup, draw_minimal_
 pub fn ui(f: &mut Frame, app: &mut App) {
     let size = f.area();
     let (banner_height, use_full_banner) = match app.ui.mode {
-        AppMode::Login | AppMode::Register | AppMode::MainMenu => (9, true),
+        AppMode::Login | AppMode::Register => (9, true),
         _ => (3, false),
     };
     
