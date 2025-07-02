@@ -1,4 +1,4 @@
-use common::Notification;
+use nexus_tui_common::Notification;
 
 /// State management for notifications
 pub struct NotificationState {

@@ -1,6 +1,6 @@
 use crate::app::App;
 use crate::sound::SoundType;
-use common::ClientMessage;
+use nexus_tui_common::ClientMessage;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 /// Handle chat-related input
@@ -564,7 +564,7 @@ fn move_dm_selection(app: &mut App, direction: i32) {
     }
 
     // Create the same sorted list as the UI to get the display order
-    let mut indexed_users: Vec<(usize, &common::User)> = app.chat.dm_user_list.iter().enumerate().collect();
+    let mut indexed_users: Vec<(usize, &nexus_tui_common::User)> = app.chat.dm_user_list.iter().enumerate().collect();
     indexed_users.sort_by_key(|(_, u)| (!app.chat.unread_dm_conversations.contains(&u.id), u.username.clone()));
     
     // Find current display index

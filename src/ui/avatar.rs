@@ -5,7 +5,7 @@ use image::{DynamicImage, RgbaImage, GenericImageView};
 use crate::app::App;
 
 // Returns a mutable reference to a cached StatefulProtocol for the user's avatar, creating it if needed.
-pub fn get_avatar_protocol<'a>(app: &'a mut App, user: &common::User, size: u32) -> Option<&'a mut ratatui_image::protocol::StatefulProtocol> {
+pub fn get_avatar_protocol<'a>(app: &'a mut App, user: &nexus_tui_common::User, size: u32) -> Option<&'a mut ratatui_image::protocol::StatefulProtocol> {
     let key = (user.id, size);
     if !app.profile.avatar_protocol_cache.contains_key(&key) {
         let pic = user.profile_pic.as_ref()?;

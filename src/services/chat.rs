@@ -1,7 +1,7 @@
 use crate::state::{ChatState, ChatTarget};
 use crate::model::ChatMessageWithMeta;
 use crate::services::image::{ImageCache, ImageCacheKey, CachedImage, ImageCacheStats};
-use common::{User, ClientMessage};
+use nexus_tui_common::{User, ClientMessage};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 

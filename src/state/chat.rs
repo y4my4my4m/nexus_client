@@ -1,4 +1,4 @@
-use common::{User, DirectMessage, Server, ChannelMessage};
+use nexus_tui_common::{User, DirectMessage, Server, ChannelMessage};
 use uuid::Uuid;
 use std::collections::{HashMap, HashSet};
 use ratatui::widgets::ListState;

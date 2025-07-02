@@ -15,7 +15,7 @@ pub fn draw_forum_list(f: &mut Frame, app: &mut App, area: Rect) {
     }).collect();
 
     let title = if let Some(user) = &app.auth.current_user {
-        if user.role == common::UserRole::Admin {
+        if user.role == nexus_tui_common::UserRole::Admin {
             "Forums | [N]ew Forum | [D]elete Forum"
         } else {
             "Forums"
@@ -44,7 +44,7 @@ pub fn draw_thread_list(f: &mut Frame, app: &mut App, area: Rect) {
         .title(format!("Threads in '{}' | [N]ew Thread{}", 
             forum.name,
             if let Some(user) = &app.auth.current_user {
-                if user.role == common::UserRole::Admin {
+                if user.role == nexus_tui_common::UserRole::Admin {
                     " | [Alt+D]elete Thread"
                 } else {
                     ""

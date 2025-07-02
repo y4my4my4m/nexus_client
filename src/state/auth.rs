@@ -1,4 +1,4 @@
-use common::User;
+use nexus_tui_common::User;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum InputMode {

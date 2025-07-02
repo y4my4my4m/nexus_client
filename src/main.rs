@@ -10,7 +10,7 @@ mod desktop_notifications;
 
 use app::App;
 use sound::SoundManager;
-use common::{ClientMessage, ServerMessage};
+use nexus_tui_common::{ClientMessage, ServerMessage};
 use crossterm::{
     event::{self, Event as CEvent},
     execute,

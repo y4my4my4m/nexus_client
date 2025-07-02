@@ -1,6 +1,6 @@
 use crate::app::App;
 use crate::sound::SoundType;
-use common::ClientMessage;
+use nexus_tui_common::ClientMessage;
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// Handle authentication input (login/register)

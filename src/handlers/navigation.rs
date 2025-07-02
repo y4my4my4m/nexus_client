@@ -1,7 +1,7 @@
 use crate::app::App;
 use crate::sound::SoundType;
 use crate::desktop_notifications::DesktopNotificationService;
-use common::{ClientMessage, UserColor};
+use nexus_tui_common::{ClientMessage, UserColor};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::Color;
 

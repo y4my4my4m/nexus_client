@@ -1,4 +1,4 @@
-use common::{Forum, Thread};
+use nexus_tui_common::{Forum, Thread};
 use uuid::Uuid;
 use ratatui::widgets::ListState;
 
@@ -130,7 +130,7 @@ impl ForumState {
         }
     }
     
-    pub fn get_replies_to_post(&self, post_id: Uuid) -> Vec<(usize, &common::Post)> {
+    pub fn get_replies_to_post(&self, post_id: Uuid) -> Vec<(usize, &nexus_tui_common::Post)> {
         if let Some(thread) = self.get_current_thread() {
             thread.posts.iter().enumerate()
                 .filter(|(_, post)| post.reply_to == Some(post_id))
@@ -167,7 +167,7 @@ impl ForumState {
         self.scroll_offset = post_index;
     }
     
-    pub fn get_selected_post(&self) -> Option<&common::Post> {
+    pub fn get_selected_post(&self) -> Option<&nexus_tui_common::Post> {
         if let (Some(thread), Some(idx)) = (self.get_current_thread(), self.selected_post_index) {
             thread.posts.get(idx)
         } else {
@@ -175,7 +175,7 @@ impl ForumState {
         }
     }
     
-    pub fn get_selected_reply_post(&self) -> Option<&common::Post> {
+    pub fn get_selected_reply_post(&self) -> Option<&nexus_tui_common::Post> {
         if let (Some(post_idx), Some(reply_idx)) = (self.selected_post_index, self.selected_reply_index) {
             if let Some(thread) = self.get_current_thread() {
                 if let Some(post) = thread.posts.get(post_idx) {
@@ -193,7 +193,7 @@ impl ForumState {
     }
     
     /// Find the post that the currently selected post replied to
-    pub fn get_replied_to_post(&self) -> Option<(&common::Post, usize)> {
+    pub fn get_replied_to_post(&self) -> Option<(&nexus_tui_common::Post, usize)> {
         if let Some(selected_post) = self.get_selected_post() {
             if let Some(reply_to_id) = selected_post.reply_to {
                 if let Some(thread) = self.get_current_thread() {
@@ -313,11 +313,11 @@ impl ForumState {
 #[derive(Debug)]
 pub enum ThreadNavItem<'a> {
     Context {
-        post: &'a common::Post,
+        post: &'a nexus_tui_common::Post,
         post_index: usize,
     },
     Reply {
-        post: &'a common::Post,
+        post: &'a nexus_tui_common::Post,
         post_index: usize,
         reply_index: usize,
     },

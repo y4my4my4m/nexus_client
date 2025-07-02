@@ -1,4 +1,4 @@
-use common::{ClientMessage, ServerMessage};
+use nexus_tui_common::{ClientMessage, ServerMessage};
 use crate::sound::{SoundManager, SoundType};
 use crate::state::{
     ChatState, ForumState, ProfileState, AuthState, NotificationState, UiState,
@@ -172,7 +172,7 @@ impl<'a> App<'a> {
             }
             ServerMessage::ForumsLightweight(forums_lightweight) => {
                 // Convert lightweight forums to regular forums by creating User objects without profile images
-                use common::{Forum, Thread, Post, User};
+                use nexus_tui_common::{Forum, Thread, Post, User};
                 let forums = forums_lightweight.into_iter().map(|forum_lite| {
                     let threads = forum_lite.threads.into_iter().map(|thread_lite| {
                         let posts = thread_lite.posts.into_iter().map(|post_lite| {
@@ -434,12 +434,12 @@ impl<'a> App<'a> {
             ServerMessage::UserLeft(user_id) => {
                 // Update status to offline instead of removing from list
                 if let Some(existing) = self.chat.channel_userlist.iter_mut().find(|u| u.id == user_id) {
-                    existing.status = common::UserStatus::Offline;
+                    existing.status = nexus_tui_common::UserStatus::Offline;
                 }
                 
                 // Also update in DM user list if present
                 if let Some(existing_dm) = self.chat.dm_user_list.iter_mut().find(|u| u.id == user_id) {
-                    existing_dm.status = common::UserStatus::Offline;
+                    existing_dm.status = nexus_tui_common::UserStatus::Offline;
                 }
             }
             ServerMessage::NewChannelMessage(msg) => {

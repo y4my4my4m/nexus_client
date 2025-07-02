@@ -162,17 +162,17 @@ pub fn draw_sidebar_dms(f: &mut Frame, app: &mut App, area: Rect, focused: bool)
     if inner.width == 0 || inner.height == 0 { return; }
     
     // Create a list of (original_index, user) pairs to track original indices
-    let mut indexed_users: Vec<(usize, &common::User)> = app.chat.dm_user_list.iter().enumerate().collect();
+    let mut indexed_users: Vec<(usize, &nexus_tui_common::User)> = app.chat.dm_user_list.iter().enumerate().collect();
     // Sort by unread first, then by username
     indexed_users.sort_by_key(|(_, u)| (!app.chat.unread_dm_conversations.contains(&u.id), u.username.clone()));
     
     let items: Vec<ListItem> = indexed_users.iter().map(|(_original_idx, u)| {
-            let status_symbol = if u.status == common::UserStatus::Connected { "●" } else { "○" };
+            let status_symbol = if u.status == nexus_tui_common::UserStatus::Connected { "●" } else { "○" };
             let status_color = match u.status {
-                common::UserStatus::Connected => Color::Green,
-                common::UserStatus::Away => Color::Yellow,
-                common::UserStatus::Busy => Color::Red,
-                common::UserStatus::Offline => Color::DarkGray,
+                nexus_tui_common::UserStatus::Connected => Color::Green,
+                nexus_tui_common::UserStatus::Away => Color::Yellow,
+                nexus_tui_common::UserStatus::Busy => Color::Red,
+                nexus_tui_common::UserStatus::Offline => Color::DarkGray,
             };
             
             let mut spans = vec![
@@ -375,14 +375,14 @@ fn draw_message_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool, ti
             }
         } else if let Some(ref pic) = msg.profile_pic {
             // fallback: build a User with just the info from the message
-            let fallback_user = common::User {
+            let fallback_user = nexus_tui_common::User {
                 id: uuid::Uuid::nil(),
                 username: msg.author.clone(),
                 color: msg.color.clone().into(),
-                role: common::UserRole::User,
+                role: nexus_tui_common::UserRole::User,
                 profile_pic: Some(pic.clone()),
                 cover_banner: None,
-                status: common::UserStatus::Offline,
+                status: nexus_tui_common::UserStatus::Offline,
             };
             if let Some(state) = get_avatar_protocol(app, &fallback_user, AVATAR_PIXEL_SIZE) {
                 let image_widget = StatefulImage::default();
@@ -617,7 +617,7 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
 
     let mut current_y = inner_area.y;
     use std::collections::BTreeMap;
-    use common::UserRole;
+    use nexus_tui_common::UserRole;
     // Group users by role
     let mut role_map: BTreeMap<UserRole, Vec<_>> = BTreeMap::new();
     for user in app.chat.channel_userlist.iter() {
@@ -656,16 +656,16 @@ pub fn draw_user_list(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
                 f.render_widget(Block::default().style(Style::default().bg(Color::Cyan)), row_area);
             }
             let status_symbol = match user.status {
-                common::UserStatus::Connected => "●",
-                common::UserStatus::Away => "◐",
-                common::UserStatus::Busy => "■",
-                common::UserStatus::Offline => "○",
+                nexus_tui_common::UserStatus::Connected => "●",
+                nexus_tui_common::UserStatus::Away => "◐",
+                nexus_tui_common::UserStatus::Busy => "■",
+                nexus_tui_common::UserStatus::Offline => "○",
             };
             let status_color = match user.status {
-                common::UserStatus::Connected => Color::Green,
-                common::UserStatus::Away => Color::Yellow,
-                common::UserStatus::Busy => Color::Red,
-                common::UserStatus::Offline => Color::DarkGray,
+                nexus_tui_common::UserStatus::Connected => Color::Green,
+                nexus_tui_common::UserStatus::Away => Color::Yellow,
+                nexus_tui_common::UserStatus::Busy => Color::Red,
+                nexus_tui_common::UserStatus::Offline => Color::DarkGray,
             };
             if let Some(state) = get_avatar_protocol(app, &user, AVATAR_PIXEL_SIZE) {
                 let row_chunks = Layout::default()

@@ -1,6 +1,6 @@
 use crate::app::App;
 use crate::sound::SoundType;
-use common::ClientMessage;
+use nexus_tui_common::ClientMessage;
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// Handle forum-related input (forum list, thread list, post view)
@@ -42,7 +42,7 @@ fn handle_forum_list_input(key: KeyEvent, app: &mut App) {
         KeyCode::Char('n') | KeyCode::Char('N') => {
             // Admin-only: Create new forum
             if let Some(user) = &app.auth.current_user {
-                if user.role == common::UserRole::Admin {
+                if user.role == nexus_tui_common::UserRole::Admin {
                     app.enter_input_mode(crate::state::InputMode::NewForumName);
                 }
             }
@@ -50,7 +50,7 @@ fn handle_forum_list_input(key: KeyEvent, app: &mut App) {
         KeyCode::Char('d') | KeyCode::Char('D') => {
             // Admin-only: Delete selected forum
             if let Some(user) = &app.auth.current_user {
-                if user.role == common::UserRole::Admin {
+                if user.role == nexus_tui_common::UserRole::Admin {
                     if let Some(idx) = app.forum.forum_list_state.selected() {
                         if let Some(forum) = app.forum.forums.get(idx) {
                             app.send_to_server(ClientMessage::DeleteForum { forum_id: forum.id });
@@ -107,7 +107,7 @@ fn handle_thread_list_input(key: KeyEvent, app: &mut App) {
         KeyCode::Char('d') | KeyCode::Char('D') if key.modifiers.contains(KeyModifiers::ALT) => {
             // Admin-only: Delete selected thread
             if let Some(user) = &app.auth.current_user {
-                if user.role == common::UserRole::Admin {
+                if user.role == nexus_tui_common::UserRole::Admin {
                     if let Some(idx) = app.forum.thread_list_state.selected() {
                         if let Some(forum) = app.forum.get_current_forum() {
                             if let Some(thread) = forum.threads.get(idx) {
@@ -238,7 +238,7 @@ fn handle_post_view_input(key: KeyEvent, app: &mut App) {
         KeyCode::Char('d') | KeyCode::Char('D') if key.modifiers.contains(KeyModifiers::ALT) => {
             // Admin-only: Delete selected post
             if let Some(user) = &app.auth.current_user {
-                if user.role == common::UserRole::Admin {
+                if user.role == nexus_tui_common::UserRole::Admin {
                     if let Some(post) = app.forum.get_selected_post() {
                         app.send_to_server(ClientMessage::DeletePost(post.id));
                         app.set_notification("Post deletion requested", Some(2000), false);

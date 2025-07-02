@@ -187,7 +187,7 @@ pub fn draw_minimal_notification_popup(f: &mut Frame, text: String) {
     f.render_widget(p, area);
 }
 
-pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &common::UserProfile) {
+pub fn draw_profile_view_popup(f: &mut Frame, app: &mut App, profile: &nexus_tui_common::UserProfile) {
     let area = draw_centered_rect(f.area(), 70, 60);
     f.render_widget(Clear, area);
     
